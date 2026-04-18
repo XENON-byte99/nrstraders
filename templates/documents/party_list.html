@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex flex-wrap justify-between items-center mb-5 gap-3">
+    <div>
+        <h2 class="text-xl md:text-2xl font-black text-gray-800">
+            <i class="fas fa-address-book text-blue-500 mr-2"></i>Saved Contacts
+        </h2>
+        <p class="text-sm text-gray-500 mt-0.5">Manage suppliers and buyers in your directory.</p>
+    </div>
+    <a href="{% url 'party_create' %}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition-all hover:shadow-md">
+        <i class="fas fa-plus text-xs"></i> Add Contact
+    </a>
+</div>
+
+<!-- Desktop Table (md and above) -->
+<div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-100">
+                <tr>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Company / Name</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">BIN Number</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">WhatsApp</th>
+                    {% if user.role == 'OWNER' or user.role == 'ACCOUNTANT' or user.is_superuser %}
+                    <th class="px-5 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for party in parties %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full
+                            {% if party.party_type == 'SUPPLIER' %}bg-orange-100 text-orange-700
+                            {% else %}bg-teal-100 text-teal-700{% endif %}">
+                            <i class="fas {% if party.party_type == 'SUPPLIER' %}fa-truck{% else %}fa-user-tie{% endif %} text-[10px]"></i>
+                            {{ party.party_type }}
+                        </span>
+                    </td>
+                    <td class="px-5 py-4 font-semibold text-gray-800">{{ party.name }}</td>
+                    <td class="px-5 py-4 font-mono text-xs text-gray-500">{{ party.bin_number|default:"—" }}</td>
+                    <td class="px-5 py-4 text-gray-600">{{ party.contact|default:"—" }}</td>
+                    <td class="px-5 py-4">
+                        {% if party.whatsapp_number %}
+                        <a href="https://wa.me/{{ party.whatsapp_number }}" target="_blank" class="text-green-600 font-mono text-xs font-bold hover:underline">
+                            <i class="fab fa-whatsapp mr-1"></i>{{ party.whatsapp_number }}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-300 text-xs italic">Not set</span>
+                        {% endif %}
+                    </td>
+                    {% if user.role == 'OWNER' or user.role == 'ACCOUNTANT' or user.is_superuser %}
+                    <td class="px-5 py-4 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'party_update' party.id %}" class="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition text-xs font-bold">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </a>
+                            <a href="{% url 'party_delete' party.id %}" class="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg transition text-xs font-bold">
+                                <i class="fas fa-trash mr-1"></i>Del
+                            </a>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% if not parties %}
+                <tr>
+                    <td colspan="5" class="px-5 py-16 text-center">
+                        <div class="flex flex-col items-center gap-3">
+                            <i class="fas fa-address-book text-4xl text-gray-200"></i>
+                            <p class="text-gray-400 font-medium">No contacts saved yet.</p>
+                            <a href="{% url 'party_create' %}" class="text-indigo-600 hover:text-indigo-700 text-sm font-bold">
+                                <i class="fas fa-plus mr-1"></i>Add your first contact
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Mobile Cards (below md) -->
+<div class="md:hidden space-y-3">
+    {% for party in parties %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+        <div class="p-4">
+            <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="min-w-0">
+                    <p class="font-bold text-gray-800 truncate">{{ party.name }}</p>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">{{ party.bin_number|default:"No BIN" }}</p>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-full flex-shrink-0
+                    {% if party.party_type == 'SUPPLIER' %}bg-orange-100 text-orange-700
+                    {% else %}bg-teal-100 text-teal-700{% endif %}">
+                    <i class="fas {% if party.party_type == 'SUPPLIER' %}fa-truck{% else %}fa-user-tie{% endif %} text-[9px]"></i>
+                    {{ party.party_type }}
+                </span>
+            </div>
+            {% if party.contact %}
+            <p class="text-sm text-gray-500 flex items-center gap-1.5">
+                <i class="fas fa-at text-gray-300 text-xs"></i>{{ party.contact }}
+            </p>
+            {% endif %}
+            {% if party.whatsapp_number %}
+            <p class="text-sm text-green-600 font-bold flex items-center gap-1.5 mt-1">
+                <i class="fab fa-whatsapp text-xs"></i>{{ party.whatsapp_number }}
+            </p>
+            {% endif %}
+        </div>
+                    {% if user.p_manage_contacts or user.is_superuser %}
+        <div class="border-t border-gray-50 px-4 py-2.5 flex gap-3 bg-gray-50/50">
+            <a href="{% url 'party_update' party.id %}" class="flex-1 text-center text-blue-600 font-semibold text-sm py-1">
+                <i class="fas fa-edit mr-1"></i> Edit
+            </a>
+            <div class="w-px bg-gray-200"></div>
+            <a href="{% url 'party_delete' party.id %}" class="flex-1 text-center text-red-500 font-semibold text-sm py-1">
+                <i class="fas fa-trash mr-1"></i> Delete
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
+        <i class="fas fa-address-book text-4xl text-gray-200 mb-3"></i>
+        <p class="text-gray-400 font-medium">No contacts saved yet.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

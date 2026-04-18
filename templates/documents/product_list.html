@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-content">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tight">Products Inventory</h1>
+            <p class="text-sm text-gray-500 font-medium">Manage all items and their base prices by category.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'product_create' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all font-bold text-sm">
+                <i class="fas fa-plus text-xs"></i> Add New Product
+            </a>
+        </div>
+    </div>
+
+    <!-- Products Table -->
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="resp-table">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 border-b border-gray-100">
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider">
+                            <a href="?sort={% if current_sort == 'name' %}-name{% else %}name{% endif %}" class="hover:text-indigo-600 transition-colors flex items-center gap-1">
+                                Product Name
+                                {% if current_sort == 'name' %}<i class="fas fa-sort-alpha-down text-indigo-500"></i>{% elif current_sort == '-name' %}<i class="fas fa-sort-alpha-up text-indigo-500"></i>{% else %}<i class="fas fa-sort text-gray-300"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider">
+                            <a href="?sort={% if current_sort == 'category' %}-category{% else %}category{% endif %}" class="hover:text-indigo-600 transition-colors flex items-center gap-1">
+                                Category
+                                {% if current_sort == 'category' %}<i class="fas fa-sort-amount-down text-indigo-500"></i>{% elif current_sort == '-category' %}<i class="fas fa-sort-amount-up text-indigo-500"></i>{% else %}<i class="fas fa-sort text-gray-300"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Base Price</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Upscale Price</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center">
+                            <a href="?sort={% if current_sort == 'status' %}-status{% else %}status{% endif %}" class="hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
+                                Status
+                                {% if current_sort == 'status' %}<i class="fas fa-sort-numeric-down text-indigo-500"></i>{% elif current_sort == '-status' %}<i class="fas fa-sort-numeric-up text-indigo-500"></i>{% else %}<i class="fas fa-sort text-gray-300"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50" id="product-table-body">
+                    {% for product in products %}
+                    <tr class="hover:bg-indigo-50/30 transition-colors group" data-product-id="{{ product.id }}">
+                        <td class="px-6 py-4">
+                            <span class="font-bold text-gray-800 text-sm block">{{ product.name }}</span>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[10px] text-gray-400 font-mono">ID: #{{ product.id }}</span>
+                                {% if product.added_by %}
+                                <span class="text-[10px] text-indigo-400 font-bold bg-indigo-50 px-1 rounded">By: {{ product.added_by.username }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-{% if product.category.color_theme %}{{ product.category.color_theme }}{% else %}indigo{% endif %}-50 text-{% if product.category.color_theme %}{{ product.category.color_theme }}{% else %}indigo{% endif %}-600">
+                                {{ product.category.name }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right font-black text-gray-700 text-sm">
+                            ৳{{ product.base_price }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex flex-col items-end">
+                                <span class="upscale-price-val font-bold text-gray-600 text-sm">
+                                    ৳{{ product.upscale_value }}
+                                </span>
+                                <div class="price-diff-badge inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black {% if product.price_diff >= 0 %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %} mt-1">
+                                    {% if product.price_diff >= 0 %}+{% endif %}৳{{ product.price_diff }}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if product.is_approved %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase tracking-tighter">
+                                <i class="fas fa-check-circle text-[8px]"></i> Approved
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 uppercase tracking-tighter animate-pulse">
+                                <i class="fas fa-clock text-[8px]"></i> Pending
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                {% if not product.is_approved and is_owner %}
+                                <a href="{% url 'product_approve' product.pk %}" class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Approve">
+                                    <i class="fas fa-check text-xs"></i>
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'product_update' product.pk %}" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Edit">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </a>
+                                <a href="{% url 'product_delete' product.pk %}" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Delete">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 mb-2">
+                                    <i class="fas fa-box-open text-xl"></i>
+                                </div>
+                                <p class="text-gray-500 font-bold">No products found</p>
+                                <p class="text-xs text-gray-400">Products will be automatically saved when you create bills.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</script>
+{% endblock %}

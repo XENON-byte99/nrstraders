@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .form-field input, .form-field select, .form-field textarea {
+        width: 100%;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 14px;
+        background: #fff;
+        box-sizing: border-box;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        -webkit-appearance: none;
+    }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .form-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 6px;
+    }
+</style>
+
+<div class="max-w-xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-5">
+        <div>
+            <h2 class="text-xl md:text-2xl font-black text-gray-800">
+                <i class="fas fa-user-plus text-indigo-500 mr-2"></i>
+                {% if form.instance.pk %}Edit Contact{% else %}Add New Contact{% endif %}
+            </h2>
+            <p class="text-sm text-gray-400 mt-0.5">Fill in the contact details below.</p>
+        </div>
+        <a href="{% url 'party_list' %}" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition">
+            <i class="fas fa-arrow-left text-xs"></i> Back
+        </a>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-7">
+        <form method="post" class="space-y-5">
+            {% csrf_token %}
+
+            <div class="form-field">
+                <label class="form-label">Party Type</label>
+                {{ form.party_type }}
+            </div>
+            <div class="form-field">
+                <label class="form-label">Company / Individual Name <span class="text-red-400">*</span></label>
+                {{ form.name }}
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-field">
+                    <label class="form-label">BIN Number</label>
+                    {{ form.bin_number }}
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Email / General Contact</label>
+                    {{ form.contact }}
+                </div>
+                <div class="form-field">
+                    <label class="form-label text-green-600"><i class="fab fa-whatsapp mr-1"></i>WhatsApp Number</label>
+                    {{ form.whatsapp_number }}
+                    <p class="text-[10px] text-gray-400 mt-1">Format: 88017... or 017...</p>
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">Address</label>
+                {{ form.address }}
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-3 border-t border-gray-100">
+                <a href="{% url 'party_list' %}" class="flex-1 sm:flex-none text-center bg-gray-100 text-gray-700 px-5 py-3 rounded-xl hover:bg-gray-200 transition font-semibold text-sm">
+                    Cancel
+                </a>
+                <button type="submit" class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700 transition font-bold text-sm hover:shadow-md">
+                    <i class="fas fa-save mr-2"></i>
+                    {% if form.instance.pk %}Update Contact{% else %}Save Contact{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

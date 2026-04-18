@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4">
+    <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <div class="bg-gradient-to-r from-indigo-600 to-indigo-800 p-8">
+            <h2 class="text-2xl font-black text-white tracking-tight">{{ title }}</h2>
+            <p class="text-indigo-100 text-sm mt-1 opacity-90">Enter check collection details for the nominee.</p>
+        </div>
+
+        <form method="post" class="p-8 space-y-8">
+            {% csrf_token %}
+            
+            <!-- Reference & Company -->
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="space-y-2 text-sm font-semibold text-gray-700">
+                    <label>Reference Number</label>
+                    {{ form.reference_number }}
+                    <p class="text-[10px] text-gray-400 font-normal mt-1">Automatically generated for consistency.</p>
+                </div>
+                <div class="space-y-2 text-sm font-semibold text-gray-700">
+                    <label>Trading Company Name</label>
+                    {{ form.trading_name }}
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-8">
+                <h3 class="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <i class="fas fa-building text-xs"></i> Issuing Party Details
+                </h3>
+                
+                <div class="mb-6 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                    <div class="space-y-2 text-sm font-semibold text-indigo-700">
+                        <label>Quick Select from Business Contacts (Buyers)</label>
+                        {{ form.issuer_select }}
+                        <p class="text-[10px] text-indigo-400 font-normal mt-1 italic italic">Selecting a company will auto-fill the name and address below.</p>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Issuing Company (Payer)</label>
+                        {{ form.issuer_name }}
+                    </div>
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Issuer Address</label>
+                        {{ form.issuer_address }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-8">
+                <h3 class="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <i class="fas fa-user-shield text-xs"></i> Nominee Details
+                </h3>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Select Nominee (Staff/Partner)</label>
+                        {{ form.nominee }}
+                    </div>
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Nominee NID (Automatically Fetched)</label>
+                        {{ form.nominee_nid }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-8">
+                <h3 class="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <i class="fas fa-money-check-alt text-xs"></i> Check Information
+                </h3>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Check Number</label>
+                        {{ form.check_number }}
+                    </div>
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Check Amount (BDT)</label>
+                        {{ form.check_amount }}
+                    </div>
+                    <div class="md:col-span-2 space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Purpose / Description</label>
+                        {{ form.purpose }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-8">
+                <h3 class="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <i class="fas fa-calendar-alt text-xs"></i> Validity & Reason
+                </h3>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Valid From</label>
+                        {{ form.valid_from }}
+                    </div>
+                    <div class="space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Valid Until</label>
+                        {{ form.valid_to }}
+                    </div>
+                    <div class="md:col-span-2 space-y-2 text-sm font-semibold text-gray-700">
+                        <label>Reason for Authorization</label>
+                        {{ form.reason }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-10 flex gap-4">
+                <button type="submit" class="flex-1 bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all uppercase tracking-widest text-xs">
+                    Generate Authorization
+                </button>
+                <a href="{% url 'authorization_list' %}" class="px-8 bg-gray-100 text-gray-500 font-black py-4 rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest text-[10px] flex items-center">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function updateIssuer(selectElement) {
+    const partyId = selectElement.value;
+    const nameField = document.getElementById('id_issuer_name');
+    const addressField = document.getElementById('id_issuer_address');
+    
+    if (!partyId) return;
+    
+    fetch(`/api/parties/${partyId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.name) nameField.value = data.name;
+            if (data.address) addressField.value = data.address;
+        })
+        .catch(err => console.error('Error fetching party details:', err));
+}
+
+function updateNID(selectElement) {
+    const userId = selectElement.value;
+    const nidField = document.getElementById('id_nominee_nid');
+    
+    if (!userId) {
+        nidField.value = "";
+        return;
+    }
+    
+    fetch(`/api/users/${userId}/nid/`)
+        .then(response => response.json())
+        .then(data => {
+            nidField.value = data.nid_number || "NO NID ON FILE";
+            if (!data.nid_number) {
+                nidField.classList.add('text-red-500');
+            } else {
+                nidField.classList.remove('text-red-500');
+            }
+        })
+        .catch(err => console.error('Error fetching NID:', err));
+}
+
+// Initial fetch if nominee is pre-selected
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('id_nominee');
+    if (select && select.value) {
+        updateNID(select);
+    }
+});
+</script>
+
+<style>
+.form-control {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #f3f4f6;
+    border-radius: 1rem;
+    background-color: #f9fafb;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+}
+.form-control:focus {
+    outline: none;
+    border-color: #4f46e5;
+    background-color: white;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+</style>
+{% endblock %}

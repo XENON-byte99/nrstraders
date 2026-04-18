@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .form-field input[type="text"], .form-field input[type="number"], .form-field select, .form-field textarea {
+        width: 100%;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 14px;
+        background: #f9fafb;
+        box-sizing: border-box;
+        transition: all 0.2s;
+        -webkit-appearance: none;
+    }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+        outline: none;
+        border-color: #6366f1;
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
+    }
+    .form-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 6px;
+        margin-left: 2px;
+    }
+</style>
+
+<div class="max-w-xl mx-auto py-4">
+    <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
+            <div class="flex items-center gap-4">
+                <div class="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <i class="fas fa-hand-holding-dollar text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-black text-gray-800">Initiate Transfer</h2>
+                    <p class="text-xs text-gray-400 font-medium">Create a new record in the money tracker.</p>
+                </div>
+            </div>
+            <a href="{% url 'peer_transaction_list' %}" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition">
+                <i class="fas fa-times text-xs"></i>
+            </a>
+        </div>
+
+        <form method="post" class="space-y-5">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 text-sm flex items-center gap-3">
+                <i class="fas fa-exclamation-triangle text-red-400"></i>
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="form-field col-span-1">
+                    <label class="form-label">{{ form.sender.label }}</label>
+                    {{ form.sender }}
+                    {% if form.sender.errors %}
+                        {% for error in form.sender.errors %}<p class="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{{ error }}</p>{% endfor %}
+                    {% endif %}
+                </div>
+                <div class="form-field col-span-1">
+                    <label class="form-label">{{ form.receiver.label }}</label>
+                    {{ form.receiver }}
+                    {% if form.receiver.errors %}
+                        {% for error in form.receiver.errors %}<p class="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{{ error }}</p>{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">Amount (BDT)</label>
+                {{ form.amount }}
+                {% if form.amount.errors %}
+                    {% for error in form.amount.errors %}<p class="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{{ error }}</p>{% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="form-field">
+                <label class="form-label">{{ form.description.label }}</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                    {% for error in form.description.errors %}<p class="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{{ error }}</p>{% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="pt-4">
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 px-6 rounded-2xl shadow-indigo-200 shadow-lg transition hover:shadow-xl active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fas fa-paper-plane text-xs"></i> Send Money Record
+                </button>
+                <div class="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
+                    <i class="fas fa-info-circle text-amber-500 text-sm mt-0.5"></i>
+                    <p class="text-[10px] text-amber-700 font-bold leading-relaxed uppercase tracking-wide">
+                        The record will stay <span class="text-amber-900">PENDING</span> until the counterpart logs in and confirms that they have received the money in real life.
+                    </p>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

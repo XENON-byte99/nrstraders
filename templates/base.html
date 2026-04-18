@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>NRS Supply Management System</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+
+        /* ── Sidebar ── */
+        #sidebar-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55); z-index: 40;
+            backdrop-filter: blur(2px);
+        }
+        #sidebar-overlay.open { display: block; }
+        #sidebar { transition: transform 0.28s cubic-bezier(.4,0,.2,1); z-index: 50; }
+        @media (max-width: 768px) {
+            #sidebar { position: fixed; top: 0; left: 0; height: 100%; transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 3px; }
+
+        /* ── Responsive tables ── */
+        .resp-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .resp-table table { min-width: 580px; }
+
+        /* ── Nav active state ── */
+        .nav-link { position: relative; }
+        .nav-link.active { background: rgba(255,255,255,0.12) !important; }
+        .nav-link.active::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+            width: 3px; background: #a5b4fc; border-radius: 0 2px 2px 0;
+        }
+
+        /* ── Form inputs global ── */
+        input[type="text"], input[type="email"], input[type="password"],
+        input[type="number"], input[type="date"], textarea, select {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        /* ── Toast messages ── */
+        .toast-enter { animation: slideDown 0.35s ease; }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Page fade in ── */
+        .page-content { animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Status Badge Colors ── */
+        .status-badge {
+            display: inline-flex; align-items: center; padding: 2px 8px;
+            border-radius: 9999px; font-size: 10px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .status-DRAFT { background: #f3f4f6 !important; color: #4b5563 !important; }
+        .status-SUBMITTED { background: #e0e7ff !important; color: #4338ca !important; }
+        .status-PRICED { background: #fef3c7 !important; color: #92400e !important; }
+        .status-RELEASED { background: #dbeafe !important; color: #1e40af !important; }
+        .status-APPROVED { background: #d1fae5 !important; color: #065f46 !important; }
+    </style>
+</head>
+<body class="bg-gray-50 flex h-screen overflow-hidden text-gray-800">
+
+    {% if user.is_authenticated %}
+    <!-- Mobile Overlay -->
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <!-- ═══ SIDEBAR ═══ -->
+    <aside id="sidebar" class="w-64 bg-gradient-to-b from-indigo-950 to-indigo-900 text-white flex flex-col h-screen shrink-0 shadow-2xl">
+        <!-- Logo -->
+        <div class="p-5 flex items-center justify-between border-b border-indigo-800/60">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center">
+                    <i class="fas fa-boxes-stacked text-indigo-200 text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-black tracking-wide text-white">NRS DATA</h1>
+                    <p class="text-[10px] text-indigo-400 uppercase font-semibold tracking-widest -mt-0.5">Supply Portal</p>
+                </div>
+            </div>
+            <!-- Close button on mobile -->
+            <button onclick="closeSidebar()" class="md:hidden text-indigo-400 hover:text-white p-1.5 rounded-lg hover:bg-indigo-800 transition" aria-label="Close menu">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Nav Links -->
+        <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+
+            {% if user.role == 'BUYER' %}
+            <a href="{% url 'requisition_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-file-signature text-pink-300 text-xs"></i>
+                </span>
+                My Requisitions
+            </a>
+            {% endif %}
+
+            {% if user.p_view_bills or user.is_superuser %}
+            <a href="{% url 'transaction_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-file-invoice text-indigo-300 text-xs"></i>
+                </span>
+                Bills &amp; Documents
+            </a>
+            {% endif %}
+
+            {% if user.p_view_bill_summary or user.is_superuser %}
+            <a href="{% url 'bill_summary' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-chart-pie text-green-300 text-xs"></i>
+                </span>
+                Bill Summary
+            </a>
+            {% endif %}
+
+            {% if user.role == 'SUPPLIER' or user.p_view_bills or user.p_manage_inventory or user.is_superuser %}
+            <a href="{% url 'product_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-box text-cyan-300 text-xs"></i>
+                </span>
+                Products &amp; Inventory
+                {% if user.role == 'SUPPLIER' %}
+                <span class="ml-auto bg-indigo-500/30 text-indigo-200 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">Upload</span>
+                {% else %}
+                <span class="ml-auto bg-cyan-500/20 text-cyan-300 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">Stock</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
+            {% if user.p_manage_contacts or user.is_superuser %}
+            <a href="{% url 'party_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-address-book text-blue-300 text-xs"></i>
+                </span>
+                Saved Contacts
+            </a>
+            {% endif %}
+
+            {% if user.p_manage_categories or user.is_superuser %}
+            <a href="{% url 'category_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-tags text-purple-300 text-xs"></i>
+                </span>
+                Categories
+            </a>
+            {% endif %}
+
+            {% if user.p_approve_bill or user.is_superuser %}
+            <a href="{% url 'audit_logs' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-history text-orange-300 text-xs"></i>
+                </span>
+                Audit Logs
+            </a>
+            {% endif %}
+
+            {% if user.p_manage_authorizations or user.is_superuser %}
+            <a href="{% url 'authorization_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-file-contract text-emerald-300 text-xs"></i>
+                </span>
+                Check Authorizations
+            </a>
+            {% endif %}
+
+            <a href="{% url 'peer_transaction_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-hand-holding-dollar text-yellow-300 text-xs"></i>
+                </span>
+                Money Tracker
+            </a>
+
+            {% if user.p_view_gate_entry or user.is_superuser %}
+            <a href="{% url 'gate_entry' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-door-open text-emerald-300 text-xs"></i>
+                </span>
+                Gate Entry
+            </a>
+            {% endif %}
+
+            {% if user.p_manage_visual_requisitions or user.authorized_requisitions.exists or user.is_superuser %}
+            <a href="{% url 'visual_requisition_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-images text-rose-300 text-xs"></i>
+                </span>
+                Requisitions
+            </a>
+            {% endif %}
+
+            {% if user.p_manage_users or user.is_superuser %}
+            <div class="pt-4 pb-1 px-2">
+                <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Admin</span>
+            </div>
+            
+            <a href="{% url 'user_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-orange-200" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-users-cog text-orange-300 text-xs"></i>
+                </span>
+                Manage Users
+            </a>
+            {% endif %}
+
+            {% if user.p_approve_bill or user.is_superuser %}
+            <a href="{% url 'permission_dashboard' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-emerald-200" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-shield-alt text-emerald-300 text-xs"></i>
+                </span>
+                Permission Panel
+            </a>
+            {% endif %}
+
+            <div class="pt-4 pb-1 px-2">
+                <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Account</span>
+            </div>
+
+            <a href="{% url 'password_change' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-all text-sm font-medium text-indigo-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-gray-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-key text-gray-400 text-xs"></i>
+                </span>
+                Change Password
+            </a>
+
+            {% if user.is_superuser %}
+            <a href="/admin/" target="_blank" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-yellow-500/10 border border-yellow-500/20 transition-all text-sm font-medium text-yellow-300 mt-2" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center shrink-0">
+                    <i class="fas fa-shield-alt text-yellow-300 text-xs"></i>
+                </span>
+                Admin Database
+            </a>
+            {% endif %}
+        </nav>
+
+        <!-- User Panel -->
+        <div class="p-4 border-t border-indigo-800/60">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center font-bold text-sm shadow-inner flex-shrink-0">
+                    {{ user.username|make_list|first|upper }}
+                </div>
+                <div class="min-w-0">
+                    <p class="font-bold text-sm text-white truncate">{{ user.username|title }}</p>
+                    <p class="text-xs text-indigo-400 font-mono truncate">{{ user.role }}</p>
+                </div>
+            </div>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="w-full bg-indigo-800/60 hover:bg-red-600/80 text-white py-2 rounded-xl transition-all flex items-center justify-center gap-2 text-sm font-semibold border border-indigo-700/50 hover:border-red-500/50">
+                    <i class="fas fa-sign-out-alt text-xs"></i> Logout
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 min-w-0">
+
+        <!-- Top Header -->
+        <header class="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex justify-between items-center z-10 gap-3 shrink-0">
+            <!-- Hamburger (mobile only) -->
+            <button onclick="openSidebar()" class="md:hidden text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition flex-shrink-0" aria-label="Open menu">
+                <i class="fas fa-bars text-lg"></i>
+            </button>
+
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="hidden md:flex w-7 h-7 items-center justify-center rounded-lg bg-indigo-100">
+                    <i class="fas fa-boxes-stacked text-indigo-600 text-xs"></i>
+                </div>
+                <h2 class="text-sm md:text-base font-bold text-gray-700 truncate">NRS Management Portal</h2>
+            </div>
+
+            <!-- Clock (hidden on very small screens) -->
+            <div class="hidden sm:flex items-center gap-2 text-xs font-medium bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full flex-shrink-0">
+                <i class="far fa-clock text-indigo-400 text-xs"></i>
+                <span id="live-clock" class="font-mono text-indigo-700 font-semibold"></span>
+                <span class="text-gray-300">|</span>
+                <span id="live-date" class="text-gray-500 hidden md:inline"></span>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 relative mobile-pb page-content">
+            {% if messages %}
+                <div class="mb-5 space-y-2">
+                {% for message in messages %}
+                    <div class="toast-enter p-3.5 text-sm rounded-xl border-l-4 shadow-sm flex items-center gap-3
+                        {% if message.tags == 'success' %}bg-green-50 border-green-500 text-green-800
+                        {% elif message.tags == 'error' %}bg-red-50 border-red-500 text-red-800
+                        {% else %}bg-blue-50 border-blue-500 text-blue-800{% endif %}">
+                        {% if message.tags == 'success' %}
+                            <i class="fas fa-check-circle text-green-500"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="fas fa-times-circle text-red-500"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle text-blue-500"></i>
+                        {% endif %}
+                        <span class="font-medium">{{ message }}</span>
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    {% else %}
+    <!-- ═══ LOGIN LAYOUT ═══ -->
+    <div class="w-full flex items-center justify-center h-screen bg-gradient-to-br from-indigo-950 via-indigo-900 to-indigo-800">
+        <div class="w-full">
+            {% block content_noauth %}{% endblock %}
+        </div>
+    </div>
+    {% endif %}
+
+</body>
+<script>
+    // ── Live Clock ──
+    const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function updateClock() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2,'0');
+        const m = String(now.getMinutes()).padStart(2,'0');
+        const s = String(now.getSeconds()).padStart(2,'0');
+        const clockEl = document.getElementById('live-clock');
+        const dateEl  = document.getElementById('live-date');
+        if (clockEl) clockEl.textContent = `${h}:${m}:${s}`;
+        if (dateEl)  dateEl.textContent  = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ── Sidebar Toggle ──
+    function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebar-overlay').classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebar-overlay').classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    // ── Auto-dismiss messages ──
+    setTimeout(() => {
+        document.querySelectorAll('.toast-enter').forEach(el => {
+            el.style.transition = 'opacity 0.4s';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 400);
+        });
+    }, 5000);
+
+    // ── Audit Live "X ago" ──
+    function timeAgo(dateStr) {
+        const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+        if (diff < 60)    return diff + 's ago';
+        if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+        return Math.floor(diff/86400) + 'd ago';
+    }
+    function refreshTimeAgo() {
+        document.querySelectorAll('[data-ts]').forEach(el => {
+            el.textContent = timeAgo(el.dataset.ts);
+        });
+    }
+    refreshTimeAgo();
+    setInterval(refreshTimeAgo, 30000);
+
+    // ── Mark active nav link ──
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+            link.classList.add('active');
+        }
+    });
+</script>
+</html>

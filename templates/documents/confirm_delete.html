@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-4">
+    <div class="bg-white rounded-2xl shadow-sm border-t-4 border-red-500 overflow-hidden">
+        <!-- Icon Header -->
+        <div class="bg-red-50 px-6 pt-8 pb-6 text-center">
+            <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-500"></i>
+            </div>
+            <h2 class="text-xl font-black text-gray-800">Confirm Deletion</h2>
+            <p class="text-sm text-gray-500 mt-2">This action is permanent and cannot be undone.</p>
+        </div>
+
+        <div class="px-6 py-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6 text-sm text-gray-700 text-center">
+                You are about to permanently delete:<br>
+                <strong class="text-gray-900 font-bold">{{ object_name }}</strong>
+            </div>
+
+            <form method="POST">
+                {% csrf_token %}
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <a href="{% url cancel_url %}" class="flex-1 text-center bg-gray-100 text-gray-700 px-5 py-3 rounded-xl hover:bg-gray-200 transition font-semibold text-sm">
+                        <i class="fas fa-arrow-left mr-1"></i> Cancel
+                    </a>
+                    <button type="submit" class="flex-1 bg-red-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow flex items-center justify-center gap-2 text-sm hover:shadow-md">
+                        <i class="fas fa-trash-alt"></i> Delete Permanently
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <title>Quotation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&amp;family=Poppins:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { font-family: 'Poppins', sans-serif; background: #f0f4f8; }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        @media print {
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .a4-invoice { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            html, body { width: 8.5in; height: 11in; }
+        }
+        .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
+        .a4-invoice { width: 8.5in; height: 11in; background: white; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+        .invoice-header { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 32px 28px 24px; position: relative; overflow: hidden; }
+        .invoice-title { font-size: 42px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
+        .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
+        .invoice-body { padding: 28px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
+        .section-title { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 8px; }
+        .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
+        .info-block { line-height: 1.6; }
+        .info-value { font-size: 11px; font-weight: 500; color: #1e293b; }
+        .company-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: #059669; margin-bottom: 2px; }
+        .divider { height: 1px; background: linear-gradient(to right, transparent, #059669, transparent); margin: 12px 0; }
+        .invoice-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; }
+        .detail-item { border-left: 2px solid #059669; padding-left: 8px; }
+        .detail-label { font-size: 8px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 2px; }
+        .detail-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; }
+        th { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
+        td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
+        tbody tr:nth-child(odd) { background: #f8fafc; }
+        .amount-section { display: grid; grid-template-columns: 1fr 220px; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed #cbd5e1; }
+        .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #059669; margin-bottom: 4px; }
+        .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border: none; }
+        .invoice-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 12px; border-top: 1px dashed #cbd5e1; margin-top: auto; }
+        .signature-box { text-align: center; padding: 8px; }
+        .signature-line { height: 30px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; }
+    </style>
+</head>
+<body class="h-full">
+    <div class="a4-container">
+        <button onclick="window.print()" class="no-print" style="position:absolute; top:20px; right:20px; padding:10px; background:blue; color:white; border-radius:4px; font-weight:bold; cursor:pointer;">Print</button>
+        <div class="a4-invoice">
+            <div class="invoice-header">
+                <div>
+                    <h1 class="invoice-title">QUOTATION</h1>
+                    <p class="invoice-subtitle">Professional Business Document</p>
+                </div>
+            </div>
+            <div class="invoice-body">
+                <div class="info-row">
+                    <div class="info-block">
+                        <div class="section-title">From</div>
+                        <div class="company-name">{{ transaction.supplier_name }}</div>
+                        <div class="info-value">BIN: {{ transaction.supplier_bin }}</div>
+                        <div class="info-value">{{ transaction.supplier_address }}</div>
+                        <div class="info-value">{{ transaction.supplier_contact }}</div>
+                    </div>
+                    <div class="info-block">
+                        <div class="section-title">Quoted To</div>
+                        <div class="company-name">{{ transaction.buyer_name }}</div>
+                        <div class="info-value">BIN: {{ transaction.buyer_bin }}</div>
+                        <div class="info-value">{{ transaction.buyer_address }}</div>
+                        <div class="info-value">{{ transaction.buyer_contact }}</div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="invoice-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Quote Ref.</div>
+                        <div class="detail-value">Q-{{ transaction.id|stringformat:"04d" }} <br><span style="font-size:8px;color:#cbd5e1;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Issue Date</div>
+                        <div class="detail-value">{{ transaction.created_at|date:"M d, Y" }}</div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:8%;text-align:center;">SL</th>
+                            <th>Description</th>
+                            <th style="width:12%;text-align:center;">Unit</th>
+                            <th style="width:12%;text-align:center;">Qty</th>
+                            <th style="width:16%;text-align:right;">Rate</th>
+                            <th style="width:16%;text-align:right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% with cat_name=transaction.transaction_category.name|lower %}
+                        {% if 'lunch' in cat_name %}
+                            {% for item in transaction.grouped_lunch_items %}
+                            <tr>
+                                <td style="text-align:center;">{{ forloop.counter|stringformat:"02d" }}</td>
+                                <td style="text-align:left;">{{ item.description }}</td>
+                                <td style="text-align:center;">{{ item.unit }}</td>
+                                <td style="text-align:center;">{{ item.quantity }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_unit_price }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_total }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            {% for item in transaction.items.all %}
+                            <tr>
+                                <td style="text-align:center;">{{ forloop.counter|stringformat:"02d" }}</td>
+                                <td style="text-align:left;">{{ item.description }}</td>
+                                <td style="text-align:center;">{{ item.unit }}</td>
+                                <td style="text-align:center;">{{ item.quantity }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_unit_price }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_total }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+                    </tbody>
+                </table>
+                <div class="amount-section">
+                    <div class="terms">
+                        <div style="font-weight:700;margin-bottom:4px;">Quote Terms</div>
+                        Valid for 30 days from date of issue.
+                    </div>
+                    <div>
+                        <div class="amount-row">
+                            <span class="amount-label">Subtotal</span>
+                            <span class="amount-value mono">৳{{ transaction.display_subtotal }}</span>
+                        </div>
+                        {% if transaction.total_service_charge > 0 %}
+                        <div class="amount-row">
+                            <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
+                            <span class="amount-value mono">৳{{ transaction.total_service_charge }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="amount-row total" style="flex-direction:column;align-items:flex-start;padding:8px 10px;gap:4px;">
+                            <div style="display:flex;justify-content:space-between;width:100%;">
+                                <span class="amount-label" style="font-size:12px;">Grand Total</span>
+                                <span class="amount-value mono" style="font-size:14px;">৳{{ transaction.grand_total }}</span>
+                            </div>
+                            <div style="font-size:8px;opacity:0.85;font-weight:500;background:rgba(255,255,255,0.15);border-radius:3px;padding:2px 6px;">
+                                ✓ VAT &amp; Tax Included
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="invoice-footer">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Company Authorized</div>
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Client Approval</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Developer Credit -->
+            <div style="text-align:center;padding:6px 0;border-top:1px dashed #e2e8f0;font-size:7.5px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;">
+                System designed and Developed by &nbsp;<strong style="color:#059669;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in EEE, Specialized in Deep learning - 01849885607
+            </div>
+        </div>
+    </div>
+</body>
+</html>

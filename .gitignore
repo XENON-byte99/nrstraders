@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+db.sqlite3
+media/
+static_root/
+.env
+service_account_credentials.json
+.vscode/
+.idea/
+*.log

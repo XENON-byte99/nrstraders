@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-8">
+        <a href="{% url 'product_list' %}" class="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-indigo-600 transition-colors mb-4">
+            <i class="fas fa-arrow-left text-[10px]"></i> Back to Products
+        </a>
+        <h1 class="text-3xl font-black text-gray-800 tracking-tight">{{ title }}</h1>
+        <p class="text-gray-500 font-medium">Define product details and base pricing.</p>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-xl shadow-indigo-100/50 border border-indigo-50/50 overflow-hidden">
+        <form method="post" class="p-8 space-y-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Name -->
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Product Name</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                            <i class="fas fa-tag"></i>
+                        </div>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <p class="mt-1 text-xs text-red-500 font-bold px-1">{{ form.name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Category -->
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Category</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        {{ form.category }}
+                        {% if form.category.errors %}
+                            <p class="mt-1 text-xs text-red-500 font-bold px-1">{{ form.category.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Price -->
+                <div>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Base Price (৳)</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        {{ form.base_price }}
+                        {% if form.base_price.errors %}
+                            <p class="mt-1 text-xs text-red-500 font-bold px-1">{{ form.base_price.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Unit -->
+                <div>
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Unit</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        {{ form.unit }}
+                        {% if form.unit.errors %}
+                            <p class="mt-1 text-xs text-red-500 font-bold px-1">{{ form.unit.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Upscale Price -->
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Upscale Price (৳) - <span class="text-indigo-500 lowercase">Owner Only</span></label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        {{ form.upscale_value }}
+                        {% if form.upscale_value.help_text %}
+                            <p class="mt-1 text-[10px] text-gray-400 font-medium px-1">{{ form.upscale_value.help_text }}</p>
+                        {% endif %}
+                        {% if form.upscale_value.errors %}
+                            <p class="mt-1 text-xs text-red-500 font-bold px-1">{{ form.upscale_value.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Approval Status -->
+                <div class="md:col-span-2 bg-indigo-50/30 p-4 rounded-2xl border border-indigo-100/50">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        {{ form.is_approved }}
+                        <div>
+                            <span class="block text-sm font-bold text-gray-800">Approved Status</span>
+                            {% if form.is_approved.help_text %}
+                                <span class="block text-[10px] text-gray-500 font-medium">{{ form.is_approved.help_text }}</span>
+                            {% endif %}
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-gray-50 flex items-center justify-end gap-3">
+                <a href="{% url 'product_list' %}" class="px-6 py-2.5 rounded-xl border border-gray-100 text-gray-500 font-bold text-sm hover:bg-gray-50 transition-all">
+                    Cancel
+                </a>
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl shadow-lg shadow-indigo-100 transition-all font-bold text-sm flex items-center gap-2">
+                    <i class="fas fa-save text-xs"></i> Save Product
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Custom Styling for the form fields to match the UI */
+    input, select {
+        padding-left: 2.75rem !important;
+        border: 1px solid #f1f5f9 !important;
+        background-color: #f8fafc !important;
+        font-weight: 600 !important;
+        font-size: 0.875rem !important;
+        transition: all 0.2s ease !important;
+    }
+    input:focus, select:focus {
+        background-color: #fff !important;
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1) !important;
+        outline: none !important;
+    }
+</style>
+{% endblock %}

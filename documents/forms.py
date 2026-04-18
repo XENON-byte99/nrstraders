@@ -1,0 +1,261 @@
+from django import forms
+from .models import Transaction, TransactionItem, BusinessParty, TransactionCategory, Product, VisualRequisition, CheckAuthorization
+from django.forms import inlineformset_factory
+
+class TransactionForm(forms.ModelForm):
+    transaction_category = forms.ModelChoiceField(
+        queryset=TransactionCategory.objects.all(),
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    class Meta:
+        model = Transaction
+        fields = [
+            'transaction_category', 'invoice_number', 'challan_number',
+            'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
+            'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
+            'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Determine if we should apply defaults (if field is currently empty)
+        # We check both the instance value and the initial dictionary
+        if not self.initial.get('supplier_name') and not getattr(self.instance, 'supplier_name', None):
+            self.fields['supplier_name'].initial = "NRS Traders"
+            self.fields['supplier_bin'].initial = "007212741-0305"
+            self.fields['supplier_address'].initial = "Kadomtoli Adamjee Nagar, Siddhirganj , Narayanganj"
+            self.fields['supplier_contact'].initial = "01XXXXXXXXX"
+
+        if not self.initial.get('buyer_name') and not getattr(self.instance, 'buyer_name', None):
+            self.fields['buyer_name'].initial = "Lintas Bangladesh Co. LTD"
+            self.fields['buyer_bin'].initial = "000150053-0305"
+            self.fields['buyer_address'].initial = "Adamjee EPZ, Siddhirganj, Narayanganj, Dhaka"
+            self.fields['buyer_contact'].initial = "01XXXXXXXXX"
+
+class TransactionItemForm(forms.ModelForm):
+    class Meta:
+        model = TransactionItem
+        fields = ['description', 'unit', 'quantity', 'base_price', 'sort_order']
+
+TransactionItemFormSet = inlineformset_factory(
+    Transaction, 
+    TransactionItem, 
+    form=TransactionItemForm, 
+    extra=0, 
+    can_delete=True
+)
+
+class SupplierPricingForm(forms.ModelForm):
+    class Meta:
+        model = TransactionItem
+        fields = ['base_price']
+
+class SupplierPricingFormSet(inlineformset_factory(
+    Transaction, 
+    TransactionItem, 
+    form=SupplierPricingForm, 
+    extra=0, 
+    can_delete=False
+)):
+    pass
+
+class ApprovalPricingForm(forms.ModelForm):
+    class Meta:
+        model = TransactionItem
+        fields = ['base_price', 'unit_price_uplifted']
+
+class ApprovalPricingFormSet(inlineformset_factory(
+    Transaction,
+    TransactionItem,
+    form=ApprovalPricingForm,
+    extra=0,
+    can_delete=False
+)):
+    pass
+
+class BusinessPartyForm(forms.ModelForm):
+    class Meta:
+        model = BusinessParty
+        fields = ['party_type', 'name', 'bin_number', 'address', 'contact', 'whatsapp_number']
+
+class TransactionCategoryForm(forms.ModelForm):
+    class Meta:
+        model = TransactionCategory
+        fields = ['name', 'invoice_prefix', 'color_theme', 'default_vat', 'default_tax', 'default_duty', 'default_service_charge', 'default_profit_margin', 'default_supplier', 'default_buyer']
+
+# ── Lunch Supply Forms ─────────────────────────────────────────
+class LunchItemForm(forms.ModelForm):
+    entry_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True,
+    )
+    restaurant_name = forms.CharField(max_length=255, required=True)
+    base_price = forms.DecimalField(max_digits=10, decimal_places=2, initial=0)
+
+    class Meta:
+        model = TransactionItem
+        fields = ['entry_date', 'restaurant_name', 'base_price', 'quantity', 'sort_order']
+        widgets = {
+            'quantity': forms.NumberInput(attrs={'min': 1}),
+        }
+
+LunchItemFormSet = inlineformset_factory(
+    Transaction,
+    TransactionItem,
+    form=LunchItemForm,
+    extra=0,
+    can_delete=True,
+)
+
+class LunchSupplierPricingForm(forms.ModelForm):
+    """Supplier confirms/adjusts base_price for a lunch item."""
+    class Meta:
+        model = TransactionItem
+        fields = ['base_price']
+
+class LunchSupplierPricingFormSet(inlineformset_factory(
+    Transaction,
+    TransactionItem,
+    form=LunchSupplierPricingForm,
+    extra=0,
+    can_delete=False,
+)):
+    pass
+
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['name', 'category', 'base_price', 'upscale_value', 'unit', 'is_approved']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Product Name'}),
+            'category': forms.Select(attrs={'class': 'w-full p-2 border rounded-lg'}),
+            'base_price': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Actual Supplier Cost'}),
+            'upscale_value': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Owner Base Price (Upscale)'}),
+            'unit': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Pcs'}),
+            'is_approved': forms.CheckboxInput(attrs={'class': 'rounded text-indigo-600 focus:ring-indigo-500'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        if self.user:
+            is_owner = self.user.role == 'OWNER' or self.user.is_superuser
+            if not is_owner:
+                # Disable upscale_value and is_approved for non-owners
+                if 'upscale_value' in self.fields:
+                    self.fields['upscale_value'].widget.attrs['readonly'] = True
+                    self.fields['upscale_value'].widget.attrs['class'] += ' bg-gray-100 cursor-not-allowed'
+                    self.fields['upscale_value'].help_text = "Only the owner can set the upscale value."
+                
+                if 'is_approved' in self.fields:
+                    self.fields['is_approved'].disabled = True
+                    self.fields['is_approved'].help_text = "Approval is managed by the owner."
+        
+        # Categorize layout if needed or just styling
+        for field in self.fields.values():
+            if not isinstance(field.widget, forms.CheckboxInput):
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs['class'] = 'w-full p-2 border rounded-lg'
+                elif 'w-full' not in field.widget.attrs['class']:
+                    field.widget.attrs['class'] += ' w-full p-2 border rounded-lg'
+
+# ── Requisition Forms ─────────────────────────────────────────
+class RequisitionForm(forms.ModelForm):
+    transaction_category = forms.ModelChoiceField(
+        queryset=TransactionCategory.objects.all(),
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    class Meta:
+        model = Transaction
+        fields = ['transaction_category', 'buyer_name']
+        widgets = {
+            'buyer_name': forms.TextInput(attrs={'readonly': 'readonly'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Always default to Lintas as requested, regardless of user
+        if not self.instance.pk:
+            self.fields['buyer_name'].initial = "Lintas Bangladesh Co. LTD"
+
+class RequisitionItemForm(forms.ModelForm):
+    class Meta:
+        model = TransactionItem
+        fields = ['description', 'quantity', 'sort_order']
+        widgets = {
+            'quantity': forms.NumberInput(attrs={'min': 1}),
+        }
+
+RequisitionItemFormSet = inlineformset_factory(
+    Transaction,
+    TransactionItem,
+    form=RequisitionItemForm,
+    extra=1,
+    can_delete=True,
+)
+
+class VisualRequisitionForm(forms.ModelForm):
+    class Meta:
+        model = VisualRequisition
+        fields = ['image', 'description', 'authorized_users']
+        widgets = {
+            'description': forms.Textarea(attrs={'class': 'w-full p-2 border rounded-xl', 'rows': 3, 'placeholder': 'Optional description...'}),
+            'authorized_users': forms.CheckboxSelectMultiple(attrs={'class': 'space-y-2'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.models import User
+        # List all users EXCEPT the uploader if we know who they are, but for multi-select we list all active staff/partners
+        self.fields['authorized_users'].queryset = User.objects.all().order_by('username')
+        self.fields['authorized_users'].label_from_instance = lambda obj: f"{obj.username.title()} ({obj.role})"
+
+class CheckAuthorizationForm(forms.ModelForm):
+    issuer_select = forms.ModelChoiceField(
+        queryset=BusinessParty.objects.filter(party_type='BUYER'),
+        required=False,
+        label="Quick Select Issuer",
+        widget=forms.Select(attrs={'class': 'form-control', 'onchange': 'updateIssuer(this)'})
+    )
+
+    class Meta:
+        model = CheckAuthorization
+        fields = [
+            'reference_number', 'issuer_name', 'issuer_address', 'trading_name',
+            'nominee', 'nominee_nid', 'check_number', 'check_amount',
+            'purpose', 'reason', 'valid_from', 'valid_to'
+        ]
+        widgets = {
+            'valid_from': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'valid_to': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'issuer_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'reason': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'nominee': forms.Select(attrs={'class': 'form-control'}),
+            'nominee_nid': forms.TextInput(attrs={'readonly': 'readonly', 'class': 'bg-gray-100'}),
+            'reference_number': forms.TextInput(attrs={'readonly': 'readonly', 'class': 'bg-gray-100'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.models import User
+        self.fields['nominee'].queryset = User.objects.all().order_by('username')
+        
+        # Make check fields optional
+        self.fields['check_number'].required = False
+        self.fields['check_amount'].required = False
+        self.fields['purpose'].required = False
+        self.fields['reason'].required = False
+        
+        for field_name, field in self.fields.items():
+            if 'class' not in field.widget.attrs:
+                field.widget.attrs['class'] = 'form-control'
+            
+            # Make sure NID is updated if user is selected
+            if field_name == 'nominee':
+                field.widget.attrs['onchange'] = 'updateNID(this)'

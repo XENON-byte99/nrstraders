@@ -1,0 +1,21 @@
+*Quotation Alert: Test Category*
+Status: PRICED
+ID: TEST-001
+Date: 16 Apr 2026
+
+*Items:*
+• Item A (x2) - Base: BDT 100.00
+• Item B (x1) - Base: BDT 50.00
+
+*Financial Details:*
+• Profit Margin: 10.00%
+• VAT: 15.00%
+• Tax: 5.00%
+• Duty: 5.00%
+• Service Charge: 2.00%
+
+*Recent Updates:*
+Item A: ৳0 -> ৳100
+Item B: ৳0 -> ৳50
+
+*Total Estimate: BDT 355.67*

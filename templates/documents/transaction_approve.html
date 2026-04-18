@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% load whatsapp_tags %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto pb-20">
+
+    <!-- Header Card -->
+    <div class="bg-white rounded-2xl border-t-4 border-indigo-500 shadow-sm mb-5 p-5 md:p-7">
+        <div class="flex flex-wrap justify-between items-start gap-4 mb-6">
+            <div>
+                <h2 class="text-xl md:text-2xl font-black text-gray-800">
+                    <i class="fas fa-file-check text-indigo-500 mr-2"></i>Review &amp; Approve
+                </h2>
+                <p class="text-sm text-gray-500 mt-1">Verify all calculations. Changes here will update product upscale values upon approval.</p>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="text-right">
+                    <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Document</div>
+                    <div class="text-lg font-black font-mono text-indigo-700">{{ transaction.invoice_number|default:transaction.id }}</div>
+                    <div class="mt-1 inline-block text-xs font-bold text-gray-600 uppercase bg-gray-100 rounded-lg px-2.5 py-1">
+                        {{ transaction.transaction_category.name|default:"General" }}
+                    </div>
+                </div>
+                {% if is_locked %}
+                <span class="bg-green-100 text-green-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-green-200 flex items-center gap-1.5 mt-1">
+                    <i class="fas fa-lock text-xs"></i> Locked
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Supplier / Buyer Info -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+            <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i class="fas fa-building text-indigo-400"></i> Supplier
+                </h3>
+                <p class="font-bold text-gray-800">{{ transaction.supplier_name }}</p>
+                <p class="text-[10px] text-gray-500 mt-1">BIN: {{ transaction.supplier_bin|default:"—" }} | Contact: {{ transaction.supplier_contact|default:"—" }}</p>
+            </div>
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <h3 class="text-xs font-black text-blue-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i class="fas fa-user-tie text-blue-400"></i> Buyer
+                </h3>
+                <p class="font-bold text-gray-800">{{ transaction.buyer_name }}</p>
+                <p class="text-[10px] text-gray-500 mt-1">BIN: {{ transaction.buyer_bin|default:"—" }} | Contact: {{ transaction.buyer_contact|default:"—" }}</p>
+            </div>
+        </div>
+
+        <!-- Main Approval Form -->
+        <form method="post" id="approval-form">
+            {% csrf_token %}
+            {{ formset.management_form }}
+            
+            <!-- Shared Percentages for JS -->
+            <div id="tax-config" 
+                 data-vat="{{ transaction.vat_percentage }}" 
+                 data-tax="{{ transaction.tax_percentage }}" 
+                 data-duty="{{ transaction.duty_percentage }}" 
+                 data-sc="{{ transaction.service_charge_percentage }}"
+                 data-margin="{{ transaction.profit_margin }}">
+            </div>
+
+            <h3 class="font-bold text-sm text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i class="fas fa-calculator text-indigo-400"></i> Line Item Adjustments
+            </h3>
+            
+            <div class="overflow-x-auto rounded-xl border border-gray-100 mb-7 shadow-sm">
+                <table class="min-w-full text-sm" id="items-table">
+                    <thead class="bg-gray-800 text-[10px] font-bold text-gray-100 uppercase">
+                        <tr>
+                            <th class="py-3 px-4 text-left">Description</th>
+                            <th class="py-3 px-4 text-center w-12">Qty</th>
+                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
+                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Owner<br>Uplift</th>
+                            <th class="py-3 px-4 text-right w-24 bg-indigo-900/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
+                            <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT<br>{{ transaction.vat_percentage }}%</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">Tax<br>{{ transaction.tax_percentage }}%</th>
+                            <th class="py-3 px-4 text-right w-28 border-l border-gray-700" title="Final price the buyer pays per unit">Full<br>Price</th>
+                            <th class="py-3 px-4 text-right w-30 bg-gray-700">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for form in formset %}
+                        <tr class="item-row hover:bg-white transition-colors border-b border-gray-100" 
+                            data-qty="{{ form.instance.quantity }}"
+                            data-master-base="{{ form.instance.master_base_price|default:0 }}"
+                            data-master-upscale="{{ form.instance.master_upscale_value|default:0 }}">
+                            <td class="py-2 px-4 whitespace-nowrap">
+                                <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
+                                <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
+                                {{ form.id }}
+                            </td>
+                            <td class="py-1 px-4 text-center font-mono font-bold bg-gray-50/30">{{ form.instance.quantity }}</td>
+                            
+                            <!-- Supplier Cost -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
+                                <div class="relative group/price">
+                                    <input type="number" step="0.01" name="{{ form.base_price.html_name }}" 
+                                           value="{{ form.base_price.value|floatformat:2 }}"
+                                           class="base-cost-input w-full px-1 py-1 text-right font-mono text-[11px] bg-white border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                                           {% if is_locked %}disabled{% endif %}>
+                                    
+                                    {% if form.instance.master_base_price %}
+                                    <div class="master-price-hint text-[9px] text-gray-400 text-right mt-0.5 px-1 font-bold">
+                                        Inv: ৳{{ form.instance.master_base_price }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Owner Uplift (Manual) -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30">
+                                <div class="relative">
+                                    <input type="number" step="0.01" name="{{ form.unit_price_uplifted.html_name }}" 
+                                           value="{{ form.unit_price_uplifted.value|default:form.base_price.value|floatformat:2 }}"
+                                           class="uplifted-price-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none
+                                           {% if user.role == 'ACCOUNTANT' and not user.is_superuser %}bg-gray-50 cursor-not-allowed text-gray-400{% endif %}"
+                                           {% if is_locked or user.role == 'ACCOUNTANT' and not user.is_superuser %}readonly{% endif %}>
+                                </div>
+                            </td>
+
+                            <!-- Billed Price -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-blue-50/30 border-l border-gray-100">
+                                <span class="billed-price">৳0.00</span>
+                            </td>
+
+                            <!-- Markup Gain -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-emerald-600 bg-emerald-50/30 border-l border-gray-100">
+                                <span class="markup-profit">৳0.00</span>
+                            </td>
+
+                            <!-- VAT -->
+                            <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                                <span class="row-vat">৳0.00</span>
+                            </td>
+
+                            <!-- Tax -->
+                            <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                                <span class="row-tax">৳0.00</span>
+                            </td>
+
+                            <!-- Full Price -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-cyan-50/20 border-l border-gray-100">
+                                <span class="unit-total">৳0.00</span>
+                            </td>
+
+                            <!-- Line Total -->
+                            <td class="py-2 px-4 text-right font-mono font-black text-gray-900 bg-gray-100/50 border-l border-gray-100">
+                                <span class="line-total">৳0.00</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+             <!-- Calculation Legend -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-7 text-[10px] uppercase font-bold tracking-wider">
+                <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center gap-2" title="Price after your manual uplift and global margin">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span class="text-gray-500">Billed Price:</span>
+                    <span class="text-gray-800">Uplift + Margin %</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span class="text-gray-500">Markup Gain:</span>
+                    <span class="text-gray-800">Billed - Supplier Cost</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
+                    <span class="text-gray-500">Total Gain:</span>
+                    <span class="text-gray-800">Full Price - Supplier Cost</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+                    <span class="text-gray-500">Taxes:</span>
+                    <span class="text-gray-800">VAT ({{ transaction.vat_percentage }}%) + Others</span>
+                </div>
+            </div>
+           </div>
+
+            <!-- Totals Overview -->
+            <div class="flex justify-end mb-10">
+                <div class="w-full max-w-sm bg-gray-900 rounded-2xl p-5 shadow-xl text-white">
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-xs text-gray-400 uppercase font-black tracking-widest">
+                            <span>Subtotal (Base Cost)</span>
+                            <span id="grand-base-total">৳{{ transaction.total_base_cost|floatformat:2 }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Total Billed Amt</span>
+                            <span class="font-mono font-bold" id="grand-billed-total">৳{{ transaction.display_subtotal|floatformat:2 }}</span>
+                        </div>
+                        
+                        <div class="h-px bg-gray-800 my-1"></div>
+                        
+                        <div class="flex justify-between text-[11px] text-gray-400 uppercase font-bold">
+                            <span>Total VAT</span>
+                            <span class="font-mono" id="grand-vat-total">৳0.00</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] text-gray-400 uppercase font-bold">
+                            <span>Total Tax (AIT)</span>
+                            <span class="font-mono" id="grand-tax-total">৳0.00</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] text-gray-400 uppercase font-bold" id="duty-row" style="display:none">
+                            <span>Total Duty</span>
+                            <span class="font-mono" id="grand-duty-total">৳0.00</span>
+                        </div>
+
+                        <div class="h-px bg-gray-800 my-1"></div>
+
+                        <div class="flex justify-between text-sm text-emerald-400" id="summary-profit-row">
+                            <span>Est. Gross Profit</span>
+                            <span class="font-mono font-bold" id="grand-markup-total">৳{{ transaction.total_gross_profit|floatformat:2 }}</span>
+                        </div>
+                        <div class="h-px bg-gray-800 my-2"></div>
+                        <div class="flex justify-between items-center pt-2">
+                            <span class="text-xs font-black uppercase tracking-tighter text-indigo-300">Final Grand Total</span>
+                            <span class="text-2xl font-black font-mono text-white" id="grand-final-total">৳{{ transaction.grand_total|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logic Config for JS -->
+            {% if not is_locked %}
+            <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 pt-6 border-t border-gray-100">
+                <div class="flex gap-4">
+                    <a href="{% url 'transaction_list' %}" class="px-5 py-3 text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i>Cancel
+                    </a>
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white font-black px-10 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-3">
+                        <i class="fas fa-check-double"></i> Save & Confirm Approval
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <div class="flex justify-between items-center pt-6 border-t border-gray-100">
+                 <a href="{% url 'transaction_list' %}" class="text-gray-500 font-bold hover:text-gray-800">
+                    <i class="fas fa-arrow-left mr-2"></i>Return to List
+                </a>
+                <div class="bg-green-50 text-green-700 font-black px-6 py-4 rounded-xl border border-green-200 flex items-center gap-3 shadow-inner">
+                    <i class="fas fa-shield-check text-xl"></i> DOCUMENT LOCKED & APPROVED
+                </div>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Audit Log Integration -->
+    <div class="bg-white rounded-2xl border-t-4 border-orange-400 shadow-sm p-5 md:p-7">
+        <h3 class="font-bold text-sm text-gray-700 uppercase tracking-wider mb-5 flex items-center gap-2">
+            <i class="fas fa-history text-orange-400"></i> Modification History
+        </h3>
+        <div class="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            {% for log in transaction.audit_logs.all|dictsortreversed:"timestamp" %}
+            <div class="flex gap-3 text-xs border-l-2 border-gray-100 pl-4 py-1">
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="font-black text-gray-800">{{ log.user.username|default:"System" }}</span>
+                        <span class="text-gray-400 font-mono">{{ log.timestamp|date:"M d, H:i" }}</span>
+                    </div>
+                    <div class="text-gray-600 leading-relaxed">{{ log.action }}: {{ log.details }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-gray-400 italic text-center py-4">No history recorded yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #ccc; }
+    
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    
+    .base-cost-input:focus, .uplifted-price-input:focus {
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const config = document.getElementById('tax-config').dataset;
+    const vatPct = parseFloat(config.vat) || 0;
+    const taxPct = parseFloat(config.tax) || 0;
+    const dutyPct = parseFloat(config.duty) || 0;
+    const marginPct = parseFloat(config.margin) || 0;
+    
+    const rows = document.querySelectorAll('.item-row');
+
+    function calculate() {
+        let grandBase = 0;
+        let grandBilled = 0;
+        let grandVat = 0;
+        let grandTax = 0;
+        let grandDuty = 0;
+        let grandFinal = 0;
+        let grandMarkup = 0;
+
+        rows.forEach(row => {
+            const qty = parseFloat(row.dataset.qty) || 0;
+            const baseInput = row.querySelector('.base-cost-input');
+            const upliftedInput = row.querySelector('.uplifted-price-input');
+            
+            let base = parseFloat(baseInput.value) || 0;
+            let manualUplift = parseFloat(upliftedInput.value) || 0;
+
+            // Layer 3: Apply Global Margin on the manual uplift
+            const billedPrice = manualUplift * (1 + marginPct / 100);
+
+            // Layer 4: Government Taxes (Duty + Tax + VAT)
+            const duty = billedPrice * (dutyPct / 100);
+            const baseForTax = billedPrice + duty;
+            const grossBeforeVat = (taxPct > 0) ? (baseForTax * 100) / (100 - taxPct) : baseForTax;
+            const taxAmount = grossBeforeVat - baseForTax;
+            const vat = grossBeforeVat * (vatPct / 100);
+            const unitTotal = grossBeforeVat + vat;
+            
+            // Gains
+            const markupPerUnit = billedPrice - base;
+            const markupTotal = markupPerUnit * qty;
+            
+            const lineTotal = unitTotal * qty;
+
+            // Displays
+            row.querySelector('.billed-price').textContent = `৳${billedPrice.toFixed(2)}`;
+            row.querySelector('.markup-profit').textContent = `৳${markupPerUnit.toFixed(2)}`;
+            row.querySelector('.row-vat').textContent = `৳${vat.toFixed(2)}`;
+            row.querySelector('.row-tax').textContent = `৳${taxAmount.toFixed(2)}`;
+            row.querySelector('.unit-total').textContent = `৳${unitTotal.toFixed(2)}`;
+            row.querySelector('.line-total').textContent = `৳${lineTotal.toFixed(2)}`;
+
+            // Highlight deviations from master price
+            const masterBase = parseFloat(row.dataset.masterBase) || 0;
+            const hint = row.querySelector('.master-price-hint');
+            if (hint && masterBase > 0) {
+                if (Math.abs(base - masterBase) > 0.01) {
+                    hint.classList.remove('text-gray-400');
+                    hint.classList.add('text-red-500');
+                    baseInput.classList.add('border-red-200', 'bg-red-50/30');
+                } else {
+                    hint.classList.add('text-gray-400');
+                    hint.classList.remove('text-red-500');
+                    baseInput.classList.remove('border-red-200', 'bg-red-50/30');
+                }
+            }
+
+            // Show breakdown subtext for clarity
+            let breakdown = [];
+            if (vatPct > 0) breakdown.push(`${vatPct}% VAT`);
+            if (taxPct > 0) breakdown.push(`${taxPct}% Tax`);
+            if (dutyPct > 0) breakdown.push(`${dutyPct}% Duty`);
+            
+            const breakdownEl = row.querySelector('.tax-breakdown');
+            if (breakdownEl) {
+                breakdownEl.textContent = breakdown.join(' + ') || 'No Taxes';
+            }
+            
+            // Display Rule: Show if there is ANY profit
+            const hasProfit = (marginPct > 0) || (markupPerUnit > 0.01);
+            if (!hasProfit) {
+                row.querySelector('.markup-profit').style.visibility = 'hidden';
+            } else {
+                row.querySelector('.markup-profit').style.visibility = 'visible';
+            }
+
+            // Accumulate Grands
+            grandBase += base * qty;
+            grandBilled += billedPrice * qty;
+            grandVat += vat * qty;
+            grandTax += taxAmount * qty;
+            grandDuty += duty * qty;
+            grandFinal += lineTotal;
+            grandMarkup += markupTotal;
+        });
+
+        // Update Overall Summary
+        document.getElementById('grand-base-total').textContent = `৳${grandBase.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        document.getElementById('grand-billed-total').textContent = `৳${grandBilled.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        
+        document.getElementById('grand-vat-total').textContent = `৳${grandVat.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        document.getElementById('grand-tax-total').textContent = `৳${grandTax.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        
+        if (grandDuty > 0) {
+            document.getElementById('duty-row').style.display = 'flex';
+            document.getElementById('grand-duty-total').textContent = `৳${grandDuty.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        } else {
+            document.getElementById('duty-row').style.display = 'none';
+        }
+
+        document.getElementById('grand-markup-total').textContent = `৳${grandMarkup.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        document.getElementById('grand-final-total').textContent = `৳${grandFinal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+    }
+
+    // Event Listeners
+    rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+    });
+
+    // Initial run
+    calculate();
+});
+</script>
+{% endblock %}

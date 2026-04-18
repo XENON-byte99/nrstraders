@@ -1,0 +1,398 @@
+{% extends 'base.html' %}
+{% load whatsapp_tags %}
+
+{% block content %}
+ beach: indigo, green
+<style>
+    /* Touch-friendly inputs */
+    input[type="number"], input[type="text"], select, textarea {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        background: #fff;
+        box-sizing: border-box;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        -webkit-appearance: none;
+        width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    input[type="number"] { text-align: right; }
+    .items-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+    .items-table-wrap table { min-width: 580px; width: 100%; border-collapse: collapse; }
+    .items-table-wrap thead th {
+        font-size: 11px; font-weight: 700; color: #fff;
+        text-transform: uppercase; padding: 10px 12px;
+        background: #4f46e5; white-space: nowrap;
+    }
+    .items-table-wrap tbody td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    .items-table-wrap tbody tr:hover td { background: #f8faff; }
+    .drag-handle { cursor: grab; color: #9ca3af; }
+    .drag-handle:active { cursor: grabbing; }
+</style>
+
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-wrap items-start justify-between mb-5 gap-3">
+        <div>
+            <h2 class="text-xl md:text-2xl font-black text-gray-800">
+                <i class="fas fa-dollar-sign text-indigo-500 mr-2"></i>Update Pricing
+            </h2>
+            <p class="text-sm text-indigo-600 font-mono mt-0.5">{{ transaction.invoice_number|default:"Transaction" }}</p>
+        </div>
+        <a href="{% url 'transaction_list' %}" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-xl hover:bg-gray-100 transition">
+            <i class="fas fa-arrow-left text-xs"></i> Back
+        </a>
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-building text-indigo-400 w-4 text-center"></i>
+            <span class="text-gray-500">Supplier:</span>
+            <span class="font-semibold text-gray-800">{{ transaction.supplier_name }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <i class="fas fa-user-tie text-indigo-400 w-4 text-center"></i>
+            <span class="text-gray-500">Buyer:</span>
+            <span class="font-semibold text-gray-800">{{ transaction.buyer_name }}</span>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <form method="post" class="p-4 md:p-6">
+            {% csrf_token %}
+            {{ formset.management_form }}
+
+            {% if is_lunch %}
+            <!-- ══ LUNCH Pricing Table ══ -->
+            <div class="mb-4 flex items-center justify-between flex-wrap gap-2">
+                <p class="text-sm font-bold text-gray-700">
+                    <i class="fas fa-utensils text-orange-400 mr-1"></i>Daily Lunch Entries
+                </p>
+                <p class="text-xs text-gray-400 italic">Enter or confirm each day's restaurant bill. Each row has a challan print link.</p>
+            </div>
+
+            <div class="items-table-wrap border border-gray-100 rounded-xl mb-4">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-left" style="min-width:110px">📅 Date</th>
+                            <th class="text-left" style="min-width:160px">🍽 Restaurant</th>
+                            <th class="text-right w-36">💰 Bill Amount (৳)</th>
+                            <th class="text-center w-16">🔢 Qty</th>
+                            <th class="text-center w-10 !bg-red-500/80"><i class="fas fa-trash text-xs"></i></th>
+                            <th class="text-center w-10">PDF</th>
+                        </tr>
+                    </thead>
+                    <tbody id="item-formset">
+                        {% for item_form in formset %}
+                        <tr class="border-b item-row bg-white">
+                            <td>{{ item_form.entry_date }}</td>
+                            <td>{{ item_form.restaurant_name }}</td>
+                            <td>{{ item_form.base_price }}</td>
+                            <td>{{ item_form.quantity }}</td>
+                            <td class="text-center">
+                                <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                                <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </td>
+                            <td class="text-center">
+                                {% if item_form.instance.pk and item_form.instance.entry_date %}
+                                {% with d=item_form.instance.entry_date|date:"Y-m-d" %}
+                                <a href="{% url 'print_lunch_daily_challan' pk=transaction.pk date_str=d %}"
+                                   target="_blank"
+                                   class="text-orange-500 hover:text-orange-700 p-1 rounded transition"
+                                   title="Print Combined Daily Challan for {{ item_form.instance.entry_date|date:'d M Y' }}">
+                                    <i class="fas fa-calendar-check text-xs"></i>
+                                </a>
+                                {% endwith %}
+                                {% endif %}
+                            </td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty lunch row template -->
+            <table class="hidden">
+                <tbody id="empty-form-template">
+                    <tr class="border-b item-row bg-white">
+                        <td>
+                            <input type="date" name="items-__prefix__-entry_date"
+                                   id="id_items-__prefix__-entry_date"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="text" name="items-__prefix__-restaurant_name"
+                                   id="id_items-__prefix__-restaurant_name"
+                                   placeholder="Restaurant name..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-base_price"
+                                   id="id_items-__prefix__-base_price"
+                                   value="0.00" step="0.01" min="0"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-quantity"
+                                   id="id_items-__prefix__-quantity"
+                                   value="1" min="1"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:center;">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="text-center"></td>
+                        <td class="hidden">
+                            <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
+                            <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="button" id="add-item" class="mt-2 mb-5 inline-flex items-center gap-2 bg-orange-50 text-orange-700 border border-orange-200 px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-100 transition w-full sm:w-auto justify-center">
+                <i class="fas fa-plus text-xs"></i> Add Lunch Entry
+            </button>
+
+            {% elif is_meal %}
+            <!-- ══ MEAL / Editable Pricing Table ══ -->
+            <div class="mb-4 flex items-center justify-between flex-wrap gap-2">
+                <p class="text-sm font-bold text-gray-700">
+                    <i class="fas fa-list-alt text-indigo-400 mr-1"></i>Item List
+                </p>
+                <p class="text-xs text-gray-400 italic">Enter the delivery/pricing details. Drag rows to reorder.</p>
+            </div>
+
+            <div class="items-table-wrap border border-gray-100 rounded-xl mb-4">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-8"></th>
+                            <th class="text-left" style="min-width:180px">Description</th>
+                            <th class="text-center w-24">Unit</th>
+                            <th class="text-center w-20">Qty</th>
+                            <th class="text-right w-32">Unit Price (৳)</th>
+                            <th class="text-center w-10 !bg-red-500/80"><i class="fas fa-trash text-xs"></i></th>
+                            <th class="text-center w-10">PDF</th>
+                        </tr>
+                    </thead>
+                    <tbody id="item-formset">
+                        {% for item_form in formset %}
+                        <tr class="border-b item-row bg-white">
+                            <td class="text-center drag-handle" title="Drag to reorder">
+                                <i class="fas fa-grip-vertical text-gray-300"></i>
+                            </td>
+                            <td>{{ item_form.description }}</td>
+                            <td>{{ item_form.unit }}</td>
+                            <td>{{ item_form.quantity }}</td>
+                            <td>{{ item_form.base_price }}</td>
+                            <td class="text-center">
+                                <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                                <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </td>
+                            <td class="text-center">
+                                {% if item_form.instance.pk %}
+                                <a href="{% url 'print_single_challan' pk=transaction.pk item_pk=item_form.instance.pk %}" target="_blank" class="text-indigo-400 hover:text-indigo-700 p-1 rounded transition" title="Print Challan">
+                                    <i class="fas fa-file-invoice text-xs"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty form template (hidden) -->
+            <table class="hidden">
+                <tbody id="empty-form-template">
+                    <tr class="border-b item-row bg-white">
+                        <td class="text-center drag-handle"><i class="fas fa-grip-vertical text-gray-300"></i></td>
+                        <td>{{ formset.empty_form.description }}</td>
+                        <td>{{ formset.empty_form.unit }}</td>
+                        <td>{{ formset.empty_form.quantity }}</td>
+                        <td>{{ formset.empty_form.base_price }}</td>
+                        <td class="text-center">
+                            <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="text-center"></td>
+                        <td class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="button" id="add-item" class="mt-2 mb-5 inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
+                <i class="fas fa-plus text-xs"></i> Add Row
+            </button>
+
+            {% else %}
+            <!-- ══ Read-only Pricing (non-meal) ══ -->
+            <div class="items-table-wrap border border-gray-100 rounded-xl mb-5">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-left" style="min-width:180px">Description</th>
+                            <th class="text-center w-24">Unit</th>
+                            <th class="text-center w-20">Qty</th>
+                            <th class="text-right w-48">Unit Price (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in transaction.items.all %}
+                        <tr class="border-b">
+                            <td>{{ item.description }}</td>
+                            <td class="text-center text-gray-600">{{ item.unit }}</td>
+                            <td class="text-center text-gray-600">{{ item.quantity }}</td>
+                            <td class="text-right">
+                                {% for field in formset %}
+                                    {% if field.instance.id == item.id %}
+                                        {{ field.id }}
+                                        {{ field.base_price }}
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
+                <a href="{% url 'transaction_list' %}" class="flex-1 sm:flex-none text-center bg-gray-100 text-gray-700 px-5 py-3 rounded-xl hover:bg-gray-200 transition font-semibold text-sm">Cancel</a>
+                {% if is_meal or is_lunch %}
+                <button type="submit" name="save_draft" class="flex-1 sm:flex-none bg-gray-600 text-white px-5 py-3 rounded-xl hover:bg-gray-700 transition font-bold text-sm flex items-center justify-center gap-2">
+                    <i class="fas fa-cloud text-xs"></i> Save Draft
+                </button>
+                {% endif %}
+                <button type="submit" name="submit_pricing"
+                    class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 font-bold shadow text-sm flex items-center justify-center gap-2 hover:shadow-md"
+                    onclick="return confirm('Submit pricing? You will not be able to edit it afterwards.');">
+                    <i class="fas fa-check-circle text-xs"></i> Submit Pricing
+                </button>
+                <a href="{% whatsapp_link transaction 'owner' %}" target="_blank" class="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold shadow text-sm flex items-center justify-center gap-2 hover:shadow-md">
+                    <i class="fab fa-whatsapp text-xs"></i> Notify Owner
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    {% if is_meal %}
+    document.addEventListener('DOMContentLoaded', function() {
+        const tbody = document.getElementById('item-formset');
+        if (tbody) {
+            new Sortable(tbody, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: updateSortOrders
+            });
+        }
+
+        function updateSortOrders() {
+            document.querySelectorAll('#item-formset tr.item-row').forEach((row, i) => {
+                const s = row.querySelector('input[name$="-sort_order"]');
+                if (s) s.value = i;
+            });
+        }
+        updateSortOrders();
+
+        document.getElementById('add-item').addEventListener('click', function() {
+            const tbody = document.getElementById('item-formset');
+            const template = document.getElementById('empty-form-template').querySelector('tr');
+            const newRow = template.cloneNode(true);
+            const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+            const count = parseInt(totalForms.value);
+
+            newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+            const today = new Date().toLocaleDateString('en-GB');
+
+            newRow.querySelectorAll('input').forEach(inp => {
+                if (inp.name.includes('-id')) inp.value = '';
+                else if (inp.type !== 'hidden') {
+                    if (inp.name.includes('quantity')) inp.value = '1';
+                    else if (inp.name.includes('price')) inp.value = '0.00';
+                    else if (inp.name.includes('description')) inp.value = today;
+                    else if (inp.name.includes('unit')) inp.value = 'Pcs';
+                    else inp.value = '';
+                } else if (inp.name.includes('sort_order')) inp.value = count;
+            });
+
+            tbody.appendChild(newRow);
+            totalForms.value = count + 1;
+            updateSortOrders();
+        });
+
+        window.removeRow = function(btn) {
+            const row = btn.closest('tr');
+            const delCb = row.querySelector('input[name$="-DELETE"]');
+            if (delCb) { delCb.checked = true; row.style.display = 'none'; }
+            else {
+                row.querySelectorAll('input').forEach(i => { if (i.type !== 'hidden') i.value = ''; });
+                row.style.display = 'none';
+            }
+            updateSortOrders();
+        };
+    });
+    {% endif %}
+
+    {% if is_lunch %}
+    document.addEventListener('DOMContentLoaded', function() {
+        const todayISO = new Date().toISOString().substring(0, 10);
+        const addBtn = document.getElementById('add-item');
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                const tbody = document.getElementById('item-formset');
+                const template = document.getElementById('empty-form-template').querySelector('tr');
+                const newRow = template.cloneNode(true);
+                const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+                const count = parseInt(totalForms.value);
+                newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+                newRow.querySelectorAll('input').forEach(inp => {
+                    if (inp.name.includes('-id')) inp.value = '';
+                    else if (inp.type !== 'hidden') {
+                        if (inp.name.includes('entry_date')) inp.value = todayISO;
+                        else if (inp.name.includes('quantity')) inp.value = '1';
+                        else if (inp.name.includes('base_price')) inp.value = '0.00';
+                        else inp.value = '';
+                    } else if (inp.name.includes('sort_order')) inp.value = count;
+                });
+                tbody.appendChild(newRow);
+                totalForms.value = count + 1;
+                const dateInp = newRow.querySelector('input[name$="-entry_date"]');
+                if (dateInp) dateInp.focus();
+            });
+        }
+        window.removeRow = function(btn) {
+            const row = btn.closest('tr');
+            const delCb = row.querySelector('input[name$="-DELETE"]');
+            if (delCb) { delCb.checked = true; row.style.display = 'none'; }
+            else {
+                row.querySelectorAll('input').forEach(i => { if (i.type !== 'hidden') i.value = ''; });
+                row.style.display = 'none';
+            }
+        };
+    });
+    {% endif %}
+</script>
+{% endblock %}

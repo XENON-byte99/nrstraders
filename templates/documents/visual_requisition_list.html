@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-content">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tight">Image Requisitions</h1>
+            <p class="text-sm text-gray-500 font-medium">View and manage shared requisition photos.</p>
+        </div>
+        {% if request.user.p_manage_visual_requisitions or request.user.is_superuser %}
+        <div class="flex items-center gap-3">
+            <a href="{% url 'visual_requisition_create' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all font-bold text-sm">
+                <i class="fas fa-upload text-xs"></i> New Requisition
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Gallery Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {% for req in requisitions %}
+        <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col group hover:shadow-xl hover:shadow-indigo-100/50 transition-all">
+            <!-- Image Area -->
+            <div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                <img src="{{ req.image.url }}" alt="Requisition" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                    <a href="{{ req.image.url }}" target="_blank" class="w-full bg-white/20 backdrop-blur-md text-white border border-white/30 py-2 rounded-xl text-center text-xs font-bold hover:bg-white hover:text-indigo-600 transition-all">
+                        <i class="fas fa-expand-alt mr-1"></i> Full View
+                    </a>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="p-4 flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full">
+                        {{ req.created_at|date:"d M Y" }}
+                    </span>
+                    {% if request.user.p_manage_visual_requisitions or request.user.is_superuser %}
+                    <a href="{% url 'visual_requisition_delete' req.id %}" onclick="return confirm('Delete this requisition?')" class="text-gray-300 hover:text-red-500 transition-colors">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <p class="text-xs text-gray-600 font-medium line-clamp-2 mb-3">
+                    {% if req.description %}{{ req.description }}{% else %}No description provided.{% endif %}
+                </p>
+
+                <div class="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+                    <span class="text-[10px] text-gray-400 font-bold flex items-center gap-1">
+                        <i class="fas fa-user-circle text-xs text-gray-300"></i>
+                        Uploaded by {{ req.uploader.username }}
+                    </span>
+                    <div class="flex -space-x-2">
+                        {% for auth_user in req.authorized_users.all|slice:":3" %}
+                        <div class="w-6 h-6 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-[8px] font-black text-indigo-600 shadow-sm" title="{{ auth_user.username }}">
+                            {{ auth_user.username|make_list|first|upper }}
+                        </div>
+                        {% endfor %}
+                        {% if req.authorized_users.count > 3 %}
+                        <div class="w-6 h-6 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[8px] font-black text-gray-400 shadow-sm">
+                            +{{ req.authorized_users.count|add:"-3" }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full py-20 text-center">
+            <div class="w-20 h-20 bg-gray-50 rounded-[2.5rem] flex items-center justify-center text-gray-200 mx-auto mb-4 border-2 border-dashed border-gray-100">
+                <i class="fas fa-images text-3xl"></i>
+            </div>
+            <h3 class="text-gray-500 font-bold">No requisitions found</h3>
+            <p class="text-xs text-gray-400 mt-1">Requisitions shared with you will appear here.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

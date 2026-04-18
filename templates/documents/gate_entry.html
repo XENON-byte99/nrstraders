@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gate Entry Report{% if date_from %} | {{ date_from }} – {{ date_to }}{% endif %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-break { page-break-after: always; }
+      body { background: white !important; }
+      .shadow-sm, .shadow-md { box-shadow: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ══ SCREEN HEADER (hidden on print) ══ -->
+  <div class="no-print bg-gradient-to-r from-indigo-700 to-purple-700 text-white px-4 py-4 shadow-md">
+    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-black tracking-tight"><i class="fas fa-door-open mr-2"></i>Gate Entry Report</h1>
+        <p class="text-indigo-200 text-sm mt-0.5">All items listed per invoice — date range filter</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'bill_summary' %}" class="bg-white/20 hover:bg-white/30 text-white text-sm font-bold px-3 py-2 rounded-lg transition">
+          <i class="fas fa-arrow-left mr-1"></i>Back
+        </a>
+        <button onclick="window.print()" class="bg-white text-indigo-700 hover:bg-indigo-50 text-sm font-black px-4 py-2 rounded-lg transition shadow">
+          <i class="fas fa-print mr-1"></i>Print / PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DATE FILTER FORM (screen only) ══ -->
+  <div class="no-print max-w-5xl mx-auto px-4 mt-5">
+    <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">From Date</label>
+        <input type="date" name="date_from" value="{{ date_from }}"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">To Date</label>
+        <input type="date" name="date_to" value="{{ date_to }}"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none">
+      </div>
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-lg text-sm transition">
+        <i class="fas fa-search mr-1"></i>Generate
+      </button>
+    </form>
+  </div>
+
+  <!-- ══ PRINT HEADER (visible on print only) ══ -->
+  <div class="hidden print:block text-center mb-4 pt-4">
+    <h1 class="text-2xl font-black">GATE ENTRY REPORT</h1>
+    <p class="text-gray-600 text-sm">
+      Period: <strong>{% if date_from %}{{ date_from }}{% else %}All Time{% endif %}</strong>
+      to <strong>{{ date_to }}</strong>
+    </p>
+    <hr class="my-2">
+  </div>
+
+  <!-- ══ SUMMARY STRIP ══ -->
+  <div class="max-w-5xl mx-auto px-4 mt-4">
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-500 uppercase font-bold mb-1">Invoices</p>
+        <p class="text-2xl font-black text-indigo-600">{{ invoice_count }}</p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-500 uppercase font-bold mb-1">Total Items</p>
+        <p class="text-2xl font-black text-gray-800">{{ grand_items }}</p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+        <p class="text-xs text-gray-500 uppercase font-bold mb-1">Total Qty</p>
+        <p class="text-2xl font-black text-emerald-600">{{ grand_qty }}</p>
+      </div>
+    </div>
+
+    <!-- ══ INVOICE SUMMARY TABLE ══ -->
+    {% if invoices %}
+      <div class="bg-white border border-gray-200 rounded-xl shadow-sm mb-5 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm" style="min-width:480px">
+            <thead class="bg-gray-50 text-xs text-gray-500 uppercase font-bold">
+              <tr>
+                <th class="py-3 px-4 text-left w-32 border-b">Date</th>
+                <th class="py-3 px-4 text-left border-b">Items</th>
+                <th class="py-3 px-4 text-left w-40 border-b">Restaurant</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              {% for invoice in invoices %}
+              <tr class="hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-800 align-top whitespace-nowrap">
+                  {{ invoice.date|date:"d M Y" }}
+                  <div class="text-xs text-gray-400 font-normal mt-0.5">{{ invoice.invoice_number }}</div>
+                </td>
+                <td class="py-3 px-4 text-gray-800 align-top leading-relaxed">
+                  {% for item in invoice.items %}
+                    {{ item.description }} - {{ item.quantity }}{{ item.unit }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    <span class="text-gray-400 italic">No items in this invoice</span>
+                  {% endfor %}
+                </td>
+                <td class="py-3 px-4 text-gray-600 align-top text-xs">
+                  {% if invoice.is_lunch %}
+                    {% for item in invoice.items %}
+                      {% if item.restaurant_name %}
+                        <span class="inline-block bg-orange-50 text-orange-700 font-semibold px-2 py-0.5 rounded-full mb-1">{{ item.restaurant_name }}</span>
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    {% else %}
+      <div class="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
+        <i class="fas fa-folder-open text-4xl text-gray-300 mb-3"></i>
+        <p class="text-gray-500 font-semibold">No invoices found for the selected date range.</p>
+        <p class="text-gray-400 text-sm mt-1">Adjust the date filter above and try again.</p>
+      </div>
+    {% endif %}
+
+    <!-- Print Footer -->
+    <div class="hidden print:block text-center text-xs text-gray-400 mt-6 pt-4 border-t">
+      Generated on: {% now "d M Y, H:i" %} &nbsp;|&nbsp; Total Invoices: {{ invoice_count }} &nbsp;|&nbsp; Total Items: {{ grand_items }} &nbsp;|&nbsp; Total Qty: {{ grand_qty }}
+    </div>
+
+    <div class="no-print h-12"></div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex flex-wrap justify-between items-center mb-5 gap-3">
+    <div>
+        <h2 class="text-xl md:text-2xl font-black text-gray-800">
+            <i class="fas fa-tags text-purple-500 mr-2"></i>Manage Categories
+        </h2>
+        <p class="text-sm text-gray-500 mt-0.5">Configure invoice categories and default tax templates.</p>
+    </div>
+            {% if user.p_manage_categories or user.is_superuser %}
+    <a href="{% url 'category_create' %}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition-all hover:shadow-md">
+        <i class="fas fa-plus text-xs"></i> Add Category
+    </a>
+    {% endif %}
+</div>
+
+<!-- Desktop Table -->
+<div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-4xl">
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-100">
+                <tr>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Color</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Category Name</th>
+                    <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Prefix</th>
+                            {% if user.p_manage_categories or user.is_superuser %}
+                    <th class="px-5 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for cat in categories %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-4">
+                        <span class="inline-block w-5 h-5 rounded-full bg-{{ cat.color_theme|default:'gray' }}-400 shadow-sm border-2 border-white ring-1 ring-{{ cat.color_theme|default:'gray' }}-200"></span>
+                    </td>
+                    <td class="px-5 py-4 font-semibold text-gray-800">{{ cat.name }}</td>
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center gap-1 bg-{{ cat.color_theme|default:'gray' }}-100 text-{{ cat.color_theme|default:'gray' }}-700 px-3 py-1 rounded-lg font-mono text-xs font-bold border border-{{ cat.color_theme|default:'gray' }}-200">
+                            {{ cat.invoice_prefix }}
+                        </span>
+                    </td>
+                            {% if user.p_manage_categories or user.is_superuser %}
+                    <td class="px-5 py-4 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'category_update' cat.id %}" class="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition text-xs font-bold">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </a>
+                            <a href="{% url 'category_delete' cat.id %}" class="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg transition text-xs font-bold">
+                                <i class="fas fa-trash mr-1"></i>Del
+                            </a>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-5 py-16 text-center">
+                        <div class="flex flex-col items-center gap-2">
+                            <i class="fas fa-tags text-4xl text-gray-200"></i>
+                            <p class="text-gray-400 font-medium">No categories yet.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Mobile Cards -->
+<div class="md:hidden space-y-3">
+    {% for cat in categories %}
+    <div class="bg-white rounded-2xl shadow-sm border-l-4 border-{{ cat.color_theme|default:'gray' }}-400 border border-gray-100 overflow-hidden">
+        <div class="p-4 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+                <p class="font-bold text-gray-800">{{ cat.name }}</p>
+                <span class="inline-block bg-{{ cat.color_theme|default:'gray' }}-100 text-{{ cat.color_theme|default:'gray' }}-700 font-mono text-xs font-bold px-2 py-0.5 rounded mt-1">
+                    {{ cat.invoice_prefix }}
+                </span>
+            </div>
+                    {% if user.p_manage_categories or user.is_superuser %}
+            <div class="flex gap-2 shrink-0">
+                <a href="{% url 'category_update' cat.id %}" class="text-blue-500 hover:text-blue-700 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition">
+                    <i class="fas fa-edit text-sm"></i>
+                </a>
+                <a href="{% url 'category_delete' cat.id %}" class="text-red-400 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition">
+                    <i class="fas fa-trash text-sm"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+        <i class="fas fa-tags text-4xl text-gray-200 mb-2"></i>
+        <p class="text-gray-400 font-medium">No categories found.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

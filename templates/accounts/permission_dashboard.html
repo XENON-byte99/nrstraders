@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load account_extras %}
+
+{% block content %}
+<div class="page-content">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-black text-gray-800 tracking-tight">System Permissions</h1>
+            <p class="text-sm text-gray-500 font-medium mt-1">Manage granular access rights for every staff and partner.</p>
+        </div>
+        <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-lg shadow-lg shadow-indigo-200">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div>
+                <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Owner Control</span>
+                <span class="text-xs font-bold text-indigo-700">Changes take effect immediately</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permissions Table -->
+    <div class="bg-white rounded-[2.5rem] shadow-xl shadow-indigo-100/30 border border-gray-100 overflow-hidden overflow-x-auto custom-scroll">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-50/50 border-b border-gray-100">
+                    <th class="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest sticky left-0 bg-gray-50/50 z-10 w-48">User / Role</th>
+                    {% for field_id, label in permission_fields %}
+                    <th class="px-3 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center whitespace-nowrap">{{ label }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for target_user in target_users %}
+                <tr class="hover:bg-indigo-50/20 transition-colors group">
+                    <td class="px-6 py-4 sticky left-0 bg-white group-hover:bg-indigo-50/20 transition-colors border-r border-gray-50 z-10 min-w-48">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-xs text-gray-500 shadow-inner shrink-0">
+                                {{ target_user.username|make_list|first|upper }}
+                            </div>
+                            <div class="min-w-0">
+                                <span class="font-bold text-gray-800 text-sm block truncate">{{ target_user.username|title }}</span>
+                                <span class="text-[9px] font-black text-indigo-400 uppercase tracking-wide">{{ target_user.role }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    {% for field_id, label in permission_fields %}
+                    <td class="px-3 py-4 text-center">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" 
+                                   class="sr-only peer" 
+                                   {% if target_user|getattr:field_id %}checked{% endif %}
+                                   onchange="updatePermission({{ target_user.id }}, '{{ field_id }}', this.checked)">
+                            <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Instructions -->
+    <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="p-5 bg-white rounded-3xl border border-gray-100 shadow-sm">
+            <i class="fas fa-info-circle text-indigo-500 mb-3 block text-xl"></i>
+            <h4 class="font-bold text-gray-800 text-sm mb-1">Live Updates</h4>
+            <p class="text-xs text-gray-500 leading-relaxed font-medium">Toggling a switch sends an instant update to the server. No need to click "Save".</p>
+        </div>
+        <div class="p-5 bg-white rounded-3xl border border-gray-100 shadow-sm">
+            <i class="fas fa-user-shield text-emerald-500 mb-3 block text-xl"></i>
+            <h4 class="font-bold text-gray-800 text-sm mb-1">Superuser Safety</h4>
+            <p class="text-xs text-gray-500 leading-relaxed font-medium">SuperAdmins do not appear in this list as they always possess all permissions for safety.</p>
+        </div>
+        <div class="p-5 bg-white rounded-3xl border border-gray-100 shadow-sm">
+            <i class="fas fa-sync text-orange-500 mb-3 block text-xl"></i>
+            <h4 class="font-bold text-gray-800 text-sm mb-1">Session Effect</h4>
+            <p class="text-xs text-gray-500 leading-relaxed font-medium">Permissions apply immediately on the user's next request or page refresh.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+async function updatePermission(userId, permName, value) {
+    try {
+        const response = await fetch('{% url "api_update_permission" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                perm_name: permName,
+                value: value
+            })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert('Failed to update permission');
+            location.reload();
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error connecting to the server.');
+        location.reload();
+    }
+}
+</script>
+
+<style>
+    .custom-scroll::-webkit-scrollbar { height: 8px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; border: 2px solid #f8fafc; }
+</style>
+{% endblock %}

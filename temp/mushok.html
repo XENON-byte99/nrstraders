@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="bn" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bangladesh Tax Challan - NBR Form</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+    <script src="/_sdk/element_sdk.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f5f5f5;
+        }
+
+        @media print {
+            body {
+                background: white !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .mushok-form {
+                box-shadow: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            html,
+            body {
+                width: 8.27in;
+                height: 11.69in;
+            }
+        }
+
+        .container-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100%;
+            padding: 16px;
+        }
+
+        .mushok-form {
+            width: 8.27in;
+            height: 11.69in;
+            background: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding: 20px;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #000;
+        }
+
+        .mushok-form {
+            width: 8.27in;
+            height: 11.69in;
+            background: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding: 16px;
+            font-size: 10px;
+            line-height: 1.3;
+            color: #000;
+            font-family: 'Calibri', 'Arial', sans-serif;
+        }
+
+        .govt-header {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .form-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 2px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 4px;
+        }
+
+        .form-subtitle {
+            text-align: center;
+            font-size: 9px;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        .header-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 8px;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header-field {
+            display: flex;
+            gap: 12px;
+            font-size: 9px;
+        }
+
+        .header-label {
+            font-weight: bold;
+            min-width: 140px;
+            text-align: right;
+        }
+
+        .header-value {
+            flex: 1;
+            border-bottom: 1px dotted #333;
+            padding: 0 4px;
+        }
+
+        .header-right-field {
+            display: flex;
+            gap: 12px;
+            font-size: 9px;
+        }
+
+        .header-right-label {
+            font-weight: bold;
+            min-width: 100px;
+        }
+
+        .header-right-value {
+            flex: 1;
+            border-bottom: 1px dotted #333;
+            padding: 0 4px;
+        }
+
+        .section-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .section-field {
+            display: flex;
+            gap: 8px;
+            font-size: 9px;
+            align-items: center;
+        }
+
+        .section-label {
+            font-weight: bold;
+            min-width: 120px;
+            text-align: right;
+        }
+
+        .section-value {
+            flex: 1;
+            border-bottom: 1px dotted #333;
+            padding: 0 4px;
+            min-height: 16px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            border: 1px solid #000;
+            font-size: 8px;
+        }
+
+        .items-table th {
+            background: #e0e0e0;
+            border: 1px solid #000;
+            padding: 3px 2px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+            line-height: 1.2;
+        }
+
+        .items-table td {
+            border: 1px solid #000;
+            padding: 3px 2px;
+            text-align: left;
+        }
+
+        .items-table td.number {
+            text-align: center;
+            width: 5%;
+        }
+
+        .items-table td.amount {
+            text-align: right;
+            width: 10%;
+        }
+
+        .items-table td:nth-child(10),
+        .items-table td:nth-child(11),
+        .items-table th:nth-child(10),
+        .items-table th:nth-child(11) {
+            width: 12%;
+            padding: 4px 3px;
+        }
+
+        .footer-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #000;
+            flex: 1;
+        }
+
+        .footer-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .footer-right {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 20px;
+        }
+
+        .footer-field {
+            display: flex;
+            gap: 8px;
+            font-size: 9px;
+        }
+
+        .footer-label {
+            font-weight: bold;
+            min-width: 100px;
+            text-align: right;
+        }
+
+        .footer-value {
+            flex: 1;
+            border-bottom: 1px dotted #333;
+            padding: 0 4px;
+        }
+
+        .signature-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 12px;
+        }
+
+        .signature-area {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 24px;
+            min-height: 60px;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #000;
+            width: 120px;
+        }
+
+        .signature-label {
+            font-size: 8px;
+            font-weight: bold;
+            text-align: left;
+            margin-top: 2px;
+        }
+
+        .seal-area {
+            border: 2px dashed #666;
+            padding: 16px;
+            text-align: center;
+            font-size: 8px;
+            font-weight: bold;
+            color: #999;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #999;
+            border-radius: 3px;
+            font-size: 10px;
+            font-family: Arial, sans-serif;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        .toolbar {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-right: 12px;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            font-size: 10px;
+            border-radius: 3px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-add {
+            background: #0066cc;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background: #0052a3;
+        }
+
+        .btn-remove {
+            background: #ff6600;
+            color: white;
+        }
+
+        .btn-remove:hover {
+            background: #e55a00;
+        }
+
+        .btn-print {
+            background: #009900;
+            color: white;
+        }
+
+        .btn-print:hover {
+            background: #007700;
+        }
+    </style>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+    </style>
+    <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+</head>
+
+<body class="h-full">
+    <div class="container-wrapper">
+        <div class="toolbar no-print">
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-bold">আইটেম সংখ্যা</label> <input type="number" id="itemCount"
+                    class="form-input" value="5" min="1" max="15" style="width: 140px;">
+            </div><button onclick="addItemRow()" class="toolbar-btn btn-add"> <i data-lucide="plus"
+                    style="width:14px;height:14px;"></i> আইটেম যোগ করুন </button> <button onclick="removeItemRow()"
+                class="toolbar-btn btn-remove"> <i data-lucide="minus" style="width:14px;height:14px;"></i> আইটেম অপসারণ
+                করুন </button> <button onclick="window.print()" class="toolbar-btn btn-print"> <i data-lucide="printer"
+                    style="width:14px;height:14px;"></i> প্রিন্ট করুন </button>
+        </div>
+        <div class="mushok-form" id="invoiceDocument"></div>
+    </div>
+    <script>
+        const defaultConfig = {
+            supplier_name: 'NRS TRADERS',
+            supplier_bin: '123456789',
+            supplier_address: 'Kadomtoli Adamjee Nagar, Siddhirganj, Narayanganj',
+            purchaser_name: 'Lintas Bangladesh Company Ltd',
+            purchaser_bin: '987654321',
+            purchaser_address: 'Adamjee EPZ, Siddhirganj, Narayanganj, Dhaka',
+            destination_supply: 'As above',
+            vehicle_info: 'N/A',
+            challan_no: 'C-2024-001',
+            challan_date: new Date().toLocaleDateString('en-GB'),
+            challan_time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            invoice_no: 'INV-2024-001',
+            person_name: 'Md. Nahidur Rahman Sakib',
+            person_designation: 'Proprietor & CEO'
+        };
+
+        let itemCount = 5;
+
+        const sampleItems = [
+            { desc: 'Raw materials - Cotton Fabric', qty: 100, unit: 'Meters', rate: '৳250', sup_duty: '5%', vat: '15%' },
+            { desc: 'Dyes and chemicals', qty: 50, unit: 'Liters', rate: '৳500', sup_duty: '0%', vat: '15%' },
+            { desc: 'Printing ink - Premium quality', qty: 25, unit: 'Kg', rate: '৳2000', sup_duty: '5%', vat: '15%' },
+            { desc: 'Machinery parts - Spindle bearings', qty: 12, unit: 'Units', rate: '৳5000', sup_duty: '5%', vat: '15%' },
+            { desc: 'Packaging materials - Cartons', qty: 200, unit: 'Boxes', rate: '৳150', sup_duty: '0%', vat: '15%' }
+        ];
+
+        function calculateAmount(qty, rate) {
+            const rateNum = parseInt(rate.replace(/[^0-9]/g, '')) || 0;
+            return (qty * rateNum).toLocaleString('en-BD');
+        }
+
+        function generateTableRows() {
+            let rows = '';
+            for (let i = 0; i < itemCount; i++) {
+                const item = sampleItems[i % sampleItems.length];
+                const amount = calculateAmount(item.qty, item.rate);
+                const supDutyAmt = Math.round((parseInt(amount.replace(/,/g, '')) * parseInt(item.sup_duty)) / 100).toLocaleString('en-BD');
+                const vatAmt = Math.round((parseInt(amount.replace(/,/g, '')) * parseInt(item.vat)) / 100).toLocaleString('en-BD');
+                const totalWithTax = (parseInt(amount.replace(/,/g, '')) + parseInt(supDutyAmt.replace(/,/g, '')) + parseInt(vatAmt.replace(/,/g, ''))).toLocaleString('en-BD');
+
+                rows += `<tr>
+          <td class="number">${i + 1}</td>
+          <td style="width: 25%;">${item.desc}</td>
+          <td style="width: 8%; text-align: center;">${item.qty}</td>
+          <td style="width: 8%; text-align: center;">${item.unit}</td>
+          <td class="amount">${item.rate}</td>
+          <td class="amount">৳${amount}</td>
+          <td class="amount">${item.sup_duty}</td>
+          <td class="amount">৳${supDutyAmt}</td>
+          <td class="amount">${item.vat}</td>
+          <td class="amount">৳${vatAmt}</td>
+          <td class="amount">৳${totalWithTax}</td>
+        </tr>`;
+            }
+            return rows;
+        }
+
+        function buildInvoice(config) {
+            const c = { ...defaultConfig, ...config };
+
+            return `
+        <div class="govt-header">
+          <div>Government of the People's Republic of Bangladesh</div>
+          <div>National Board of Revenue (NBR)</div>
+          <div style="margin-top: 2px;">Tax Challan</div>
+        </div>
+        <div style="font-size: 8px; text-align: center; margin-bottom: 4px;">[See Clauses (C) and (f) of Sub-Rule (1) of Rule 40]</div>
+
+        <div class="form-title">TAX CHALLAN</div>
+
+        <!-- Header Container: Left and Right -->
+        <div class="header-container">
+          <div class="header-left">
+            <div class="header-field">
+              <div class="header-label">Name of Registered Person:</div>
+              <div class="header-value">${c.supplier_name}</div>
+            </div>
+            <div class="header-field">
+              <div class="header-label">BIN of Registered Person:</div>
+              <div class="header-value">${c.supplier_bin}</div>
+            </div>
+            <div class="header-field">
+              <div class="header-label">Address of challan issued:</div>
+              <div class="header-value">${c.supplier_address}</div>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="header-right-field">
+              <div class="header-right-label">Challan No:</div>
+              <div class="header-right-value">${c.challan_no}</div>
+            </div>
+            <div class="header-right-field">
+              <div class="header-right-label">Date of issue:</div>
+              <div class="header-right-value">${c.challan_date}</div>
+            </div>
+            <div class="header-right-field">
+              <div class="header-right-label">Time of issue:</div>
+              <div class="header-right-value">${c.challan_time}</div>
+            </div>
+            <div class="header-right-field">
+              <div class="header-right-label">Invoice No:</div>
+              <div class="header-right-value">${c.invoice_no}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Purchaser and Destination Section -->
+        <div class="section-row" style="margin-top: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div class="section-field">
+              <div class="section-label">Name of purchaser:</div>
+              <div class="section-value">${c.purchaser_name}</div>
+            </div>
+            <div class="section-field">
+              <div class="section-label">BIN Number of purchaser:</div>
+              <div class="section-value">${c.purchaser_bin}</div>
+            </div>
+            <div class="section-field">
+              <div class="section-label">Address of purchaser:</div>
+              <div class="section-value">${c.purchaser_address}</div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div class="section-field">
+              <div class="section-label">Destination of Supply:</div>
+              <div class="section-value">${c.destination_supply}</div>
+            </div>
+            <div class="section-field">
+              <div class="section-label">Vehicle Type and Number:</div>
+              <div class="section-value">${c.vehicle_info}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Items Table -->
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>SL No</th>
+              <th>Description of goods/service<br>(with brand name)</th>
+              <th>Unit of supply</th>
+              <th>Quantity</th>
+              <th>Unit price<br>(Taka)</th>
+              <th>Total price<br>(Taka)</th>
+              <th>Supp. duty<br>rate</th>
+              <th>Supp. duty<br>Amount (Taka)</th>
+              <th>VAT Rate/<br>Specific Tax</th>
+              <th>VAT/Specific Tax<br>Amount (Taka)</th>
+              <th>Total with all<br>Duty & Tax</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${generateTableRows()}
+          </tbody>
+        </table>
+
+        <!-- Footer Container: Left and Right -->
+        <div class="footer-container">
+          <div class="footer-left">
+            <div class="footer-field">
+              <div class="footer-label">Name of person In-Charge:</div>
+              <div class="footer-value">${c.person_name}</div>
+            </div>
+            <div class="footer-field">
+              <div class="footer-label">Designation:</div>
+              <div class="footer-value">${c.person_designation}</div>
+            </div>
+            <div class="signature-section">
+              <div class="signature-area">
+                <div class="signature-line"></div>
+                <div class="signature-label">Signature</div>
+              </div>
+            </div>
+          </div>
+          <div class="footer-right">
+            <div class="seal-area">
+              SEAL / STAMP<br>OF THE SUPPLIER
+            </div>
+          </div>
+        </div>
+      `;
+        }
+
+        function renderInvoice(config) {
+            const doc = document.getElementById('invoiceDocument');
+            doc.innerHTML = buildInvoice(config);
+        }
+
+        function addItemRow() {
+            if (itemCount < 15) {
+                itemCount++;
+                document.getElementById('itemCount').value = itemCount;
+                renderInvoice(window.elementSdk?.config || {});
+            }
+        }
+
+        function removeItemRow() {
+            if (itemCount > 1) {
+                itemCount--;
+                document.getElementById('itemCount').value = itemCount;
+                renderInvoice(window.elementSdk?.config || {});
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('itemCount').addEventListener('change', (e) => {
+                itemCount = Math.max(1, Math.min(15, parseInt(e.target.value) || 1));
+                e.target.value = itemCount;
+                renderInvoice(window.elementSdk?.config || defaultConfig);
+            });
+
+            renderInvoice(defaultConfig);
+            lucide.createIcons();
+        });
+
+        window.elementSdk.init({
+            defaultConfig,
+            onConfigChange: async (config) => {
+                renderInvoice(config);
+                lucide.createIcons();
+            },
+            mapToCapabilities: (config) => ({
+                recolorables: [],
+                borderables: [],
+                fontEditable: undefined,
+                fontSizeable: undefined
+            }),
+            mapToEditPanelValues: (config) => new Map([
+                ['supplier_name', config.supplier_name || defaultConfig.supplier_name],
+                ['supplier_bin', config.supplier_bin || defaultConfig.supplier_bin],
+                ['supplier_address', config.supplier_address || defaultConfig.supplier_address],
+                ['purchaser_name', config.purchaser_name || defaultConfig.purchaser_name],
+                ['purchaser_bin', config.purchaser_bin || defaultConfig.purchaser_bin],
+                ['purchaser_address', config.purchaser_address || defaultConfig.purchaser_address],
+                ['destination_supply', config.destination_supply || defaultConfig.destination_supply],
+                ['vehicle_info', config.vehicle_info || defaultConfig.vehicle_info],
+                ['challan_no', config.challan_no || defaultConfig.challan_no],
+                ['challan_date', config.challan_date || defaultConfig.challan_date],
+                ['challan_time', config.challan_time || defaultConfig.challan_time],
+                ['invoice_no', config.invoice_no || defaultConfig.invoice_no],
+                ['person_name', config.person_name || defaultConfig.person_name],
+                ['person_designation', config.person_designation || defaultConfig.person_designation]
+            ])
+        });
+    </script>
+    <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'9eac7848134ab24c',t:'MTc3NTkzNjQ5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
+</body>
+
+</html>

@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Management &amp; Document Generator</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+    <script src="/_sdk/element_sdk.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        @media print {
+            body {
+                background: white !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .document-page {
+                page-break-after: always;
+                box-shadow: none !important;
+                margin: 0 !important;
+            }
+
+            .document-page:last-child {
+                page-break-after: avoid;
+            }
+        }
+
+        .main-wrapper {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .input-form {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .input-form input,
+        .input-form select {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .input-form input:focus,
+        .input-form select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+
+        .btn-secondary:hover {
+            background: #efefef;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .document-page {
+            width: 8.27in;
+            height: 11.69in;
+            background: white;
+            margin: 20px auto;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            color: #333;
+            font-size: 11px;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .document-page-landscape {
+            width: 11.69in;
+            height: 8.27in;
+            background: white;
+            margin: 20px auto;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            color: #333;
+            font-size: 9px;
+            line-height: 1.4;
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .copy-section {
+            padding: 16px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            position: relative;
+            background: #fafafa;
+        }
+
+        .copy-label {
+            position: absolute;
+            top: -12px;
+            left: 12px;
+            background: white;
+            padding: 2px 8px;
+            font-weight: 700;
+            font-size: 10px;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 3px;
+        }
+
+        .copy-header {
+            text-align: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .copy-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #667eea;
+            margin: 0 0 2px 0;
+        }
+
+        .copy-subtitle {
+            font-size: 9px;
+            color: #999;
+            margin: 0;
+        }
+
+        .copy-info {
+            font-size: 8px;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .copy-info-label {
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .copy-info-value {
+            color: #333;
+            margin-left: 4px;
+        }
+
+        .copy-items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 6px 0;
+            font-size: 8px;
+        }
+
+        .copy-items-table th {
+            background: #667eea;
+            color: white;
+            padding: 4px 3px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #667eea;
+        }
+
+        .copy-items-table td {
+            padding: 3px 3px;
+            border: 1px solid #ddd;
+        }
+
+        .copy-items-table tr:nth-child(even) {
+            background: #f5f5f5;
+        }
+
+        .copy-total {
+            text-align: right;
+            font-weight: 600;
+            padding-top: 4px;
+            border-top: 1px solid #ddd;
+            margin-top: 4px;
+            font-size: 9px;
+        }
+
+        .copy-sig {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 8px;
+        }
+
+        .copy-sig-block {
+            text-align: center;
+        }
+
+        .copy-sig-line {
+            border-top: 1px solid #333;
+            width: 60px;
+            margin-bottom: 4px;
+        }
+
+        .copy-sig-label {
+            font-size: 7px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .doc-header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .doc-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin: 0 0 4px 0;
+        }
+
+        .doc-subtitle {
+            font-size: 12px;
+            color: #999;
+            margin: 0;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 11px;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 10px;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #667eea;
+        }
+
+        td {
+            padding: 8px 6px;
+            border: 1px solid #ddd;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .total-row {
+            background: #f0f0f0 !important;
+            font-weight: 600;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .signature-area {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #ddd;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .signature-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .sig-line {
+            border-top: 1px solid #333;
+            width: 100%;
+        }
+
+        .sig-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .items-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 12px 0;
+        }
+
+        .item-row {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 80px;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .item-row input {
+            width: 100%;
+        }
+
+        .item-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: #999;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+    </style>
+    <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+</head>
+
+<body class="h-full">
+    <div class="main-wrapper"><!-- Input Form Section -->
+        <div class="input-form no-print">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <div class="flex items-center gap-3 mb-6"><i data-lucide="briefcase"
+                        style="width: 28px; height: 28px; color: #667eea;"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">Supply Management System</h1>
+                </div>
+                <div class="tabs"><button class="tab active" onclick="switchTab('supply')">Supply Details</button>
+                    <button class="tab" onclick="switchTab('items')">Add Items</button> <button class="tab"
+                        onclick="switchTab('generate')">Generate Documents</button>
+                </div><!-- Supply Details Tab -->
+                <div id="supply-tab" class="tab-content active">
+                    <div class="form-grid">
+                        <div class="form-group"><label class="form-label">Supplier Name</label> <input type="text"
+                                id="supplierName" placeholder="Enter company name" value="Elite Trading Co.">
+                        </div>
+                        <div class="form-group"><label class="form-label">Supplier BIN</label> <input type="text"
+                                id="supplierBin" placeholder="Enter BIN number" value="123456789">
+                        </div>
+                        <div class="form-group"><label class="form-label">Supplier Address</label> <input type="text"
+                                id="supplierAddress" placeholder="Enter full address" value="123 Business Park, Dhaka">
+                        </div>
+                        <div class="form-group"><label class="form-label">Supplier Contact</label> <input type="text"
+                                id="supplierContact" placeholder="Enter phone/email" value="+88-1234-567890">
+                        </div>
+                    </div>
+                    <hr class="my-8">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Buyer Information</h3>
+                    <div class="form-grid">
+                        <div class="form-group"><label class="form-label">Buyer Name</label> <input type="text"
+                                id="buyerName" placeholder="Enter buyer name" value="Premium Retail Ltd">
+                        </div>
+                        <div class="form-group"><label class="form-label">Buyer BIN</label> <input type="text"
+                                id="buyerBin" placeholder="Enter BIN number" value="987654321">
+                        </div>
+                        <div class="form-group"><label class="form-label">Buyer Address</label> <input type="text"
+                                id="buyerAddress" placeholder="Enter full address" value="456 Market Street, Dhaka">
+                        </div>
+                        <div class="form-group"><label class="form-label">Buyer Contact</label> <input type="text"
+                                id="buyerContact" placeholder="Enter phone/email" value="+88-9876-543210">
+                        </div>
+                    </div>
+                    <hr class="my-8">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Tax &amp; Document Details</h3>
+                    <div class="form-grid">
+                        <div class="form-group"><label class="form-label">VAT Percentage (%)</label> <input
+                                type="number" id="vatPercentage" placeholder="Enter VAT %" value="15" min="0" max="100">
+                        </div>
+                        <div class="form-group"><label class="form-label">Supply Duty Percentage (%)</label> <input
+                                type="number" id="dutyPercentage" placeholder="Enter duty %" value="5" min="0"
+                                max="100">
+                        </div>
+                        <div class="form-group"><label class="form-label">Profit Margin (%)</label> <input type="number"
+                                id="profitMargin" placeholder="Enter profit margin %" value="0" min="0" max="500">
+                        </div>
+                        <div class="form-group"><label class="form-label">Invoice Number</label> <input type="text"
+                                id="invoiceNumber" placeholder="Enter invoice number" value="INV-2024-001">
+                        </div>
+                        <div class="form-group"><label class="form-label">Challan Number</label> <input type="text"
+                                id="challanNumber" placeholder="Enter challan number" value="CHL-2024-001">
+                        </div>
+                    </div>
+                </div><!-- Add Items Tab -->
+                <div id="items-tab" class="tab-content">
+                    <div class="mb-4"><button class="btn-primary" onclick="addItemField()"> <i data-lucide="plus"
+                                style="width: 16px; height: 16px; display: inline; margin-right: 6px;"></i> Add New Item
+                        </button>
+                    </div>
+                    <div class="items-container" id="itemsContainer">
+                        <div class="item-row">
+                            <div><span class="item-label">Item Description</span> <input type="text"
+                                    placeholder="E.g., Cotton Fabric" class="item-desc" value="Premium Cotton Fabric">
+                            </div>
+                            <div><span class="item-label">Quantity</span> <input type="number" placeholder="Qty"
+                                    class="item-qty" value="100" min="0">
+                            </div>
+                            <div><span class="item-label">Unit Price (৳)</span> <input type="number" placeholder="Price"
+                                    class="item-price" value="250" min="0">
+                            </div><button class="btn-danger" onclick="removeItemField(this)">Remove</button>
+                        </div>
+                        <div class="item-row">
+                            <div><span class="item-label">Item Description</span> <input type="text"
+                                    placeholder="E.g., Dyes" class="item-desc" value="Industrial Dyes">
+                            </div>
+                            <div><span class="item-label">Quantity</span> <input type="number" placeholder="Qty"
+                                    class="item-qty" value="50" min="0">
+                            </div>
+                            <div><span class="item-label">Unit Price (৳)</span> <input type="number" placeholder="Price"
+                                    class="item-price" value="500" min="0">
+                            </div><button class="btn-danger" onclick="removeItemField(this)">Remove</button>
+                        </div>
+                    </div>
+                </div><!-- Generate Documents Tab -->
+                <div id="generate-tab" class="tab-content">
+                    <div class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500 mb-6">
+                        <h3 class="font-bold text-blue-900 mb-2">Ready to Generate?</h3>
+                        <p class="text-blue-800 text-sm mb-4">Click the button below to generate three professional
+                            documents: Invoice, Quotation, and Tax Challan. Each will be on a separate page for easy
+                            printing.</p><button class="btn-primary" onclick="generateDocuments()"> <i
+                                data-lucide="file-text"
+                                style="width: 16px; height: 16px; display: inline; margin-right: 6px;"></i> Generate All
+                            Documents </button>
+                    </div>
+                    <div id="successMessage" style="display: none;"
+                        class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500 text-green-800">
+                        ✓ Documents generated successfully! Scroll down to view and print.
+                    </div>
+                </div>
+            </div>
+        </div><!-- Documents Container -->
+        <div id="documentsContainer"></div>
+    </div>
+    <script>
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function addItemField() {
+            const container = document.getElementById('itemsContainer');
+            const newItem = document.createElement('div');
+            newItem.className = 'item-row';
+            newItem.innerHTML = `
+        <div>
+          <span class="item-label">Item Description</span>
+          <input type="text" placeholder="E.g., Product Name" class="item-desc">
+        </div>
+        <div>
+          <span class="item-label">Quantity</span>
+          <input type="number" placeholder="Qty" class="item-qty" value="1" min="0">
+        </div>
+        <div>
+          <span class="item-label">Unit Price (৳)</span>
+          <input type="number" placeholder="Price" class="item-price" value="0" min="0">
+        </div>
+        <button class="btn-danger" onclick="removeItemField(this)">Remove</button>
+      `;
+            container.appendChild(newItem);
+        }
+
+        function removeItemField(button) {
+            button.parentElement.remove();
+        }
+
+        function generateDocuments() {
+            const supplierName = document.getElementById('supplierName').value;
+            const supplierBin = document.getElementById('supplierBin').value;
+            const supplierAddress = document.getElementById('supplierAddress').value;
+            const supplierContact = document.getElementById('supplierContact').value;
+            const buyerName = document.getElementById('buyerName').value;
+            const buyerBin = document.getElementById('buyerBin').value;
+            const buyerAddress = document.getElementById('buyerAddress').value;
+            const buyerContact = document.getElementById('buyerContact').value;
+            const vatPct = parseFloat(document.getElementById('vatPercentage').value) || 0;
+            const dutyPct = parseFloat(document.getElementById('dutyPercentage').value) || 0;
+            const profitMarginPct = parseFloat(document.getElementById('profitMargin').value) || 0;
+            const invoiceNum = document.getElementById('invoiceNumber').value;
+            const challanNum = document.getElementById('challanNumber').value;
+
+            const items = [];
+            document.querySelectorAll('.item-row').forEach(row => {
+                const desc = row.querySelector('.item-desc').value;
+                const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const displayPrice = parseFloat(row.querySelector('.item-price').value) || 0;
+                // Apply profit margin to calculate taxable price (hidden from display)
+                const taxablePrice = displayPrice * (1 + profitMarginPct / 100);
+                if (desc && qty && displayPrice) {
+                    items.push({ desc, qty, displayPrice, taxablePrice });
+                }
+            });
+
+            if (items.length === 0) {
+                alert('Please add at least one item');
+                return;
+            }
+
+            const today = new Date().toLocaleDateString('en-GB');
+            const container = document.getElementById('documentsContainer');
+            container.innerHTML = '';
+
+            // Generate Invoice
+            container.innerHTML += generateInvoice(supplierName, supplierBin, supplierAddress, supplierContact, buyerName, buyerBin, buyerAddress, buyerContact, invoiceNum, today, items, vatPct, dutyPct);
+
+            // Generate Quotation
+            container.innerHTML += generateQuotation(supplierName, supplierBin, supplierAddress, supplierContact, buyerName, buyerBin, buyerAddress, today, items, vatPct, dutyPct);
+
+            // Generate Tax Challan
+            container.innerHTML += generateChallan(supplierName, supplierBin, supplierAddress, buyerName, buyerBin, buyerAddress, challanNum, today, items, vatPct, dutyPct);
+
+            // Generate Gate Pass (3-in-1 Landscape)
+            container.innerHTML += generateGatePass(supplierName, supplierBin, supplierAddress, buyerName, buyerBin, buyerAddress, today, items, vatPct, dutyPct);
+
+            document.getElementById('successMessage').style.display = 'block';
+            setTimeout(() => {
+                window.scrollTo(0, document.body.scrollHeight);
+                lucide.createIcons();
+            }, 100);
+        }
+
+        function generateInvoice(supplier, supplierBin, supplierAddr, supplierContact, buyer, buyerBin, buyerAddr, buyerContact, invNum, date, items, vat, duty) {
+            let itemsHtml = '';
+            let displaySubtotal = 0;
+            let taxableSubtotal = 0;
+            items.forEach((item, idx) => {
+                const displayTotal = item.qty * item.displayPrice;
+                const taxableTotal = item.qty * item.taxablePrice;
+                displaySubtotal += displayTotal;
+                taxableSubtotal += taxableTotal;
+                itemsHtml += `<tr>
+          <td class="text-center">${idx + 1}</td>
+          <td>${item.desc}</td>
+          <td class="text-center">${item.qty}</td>
+          <td class="text-right">৳${item.displayPrice.toLocaleString()}</td>
+          <td class="text-right">৳${displayTotal.toLocaleString()}</td>
+        </tr>`;
+            });
+            const dutyAmt = Math.round(taxableSubtotal * duty / 100);
+            const vatAmt = Math.round((taxableSubtotal + dutyAmt) * vat / 100);
+            const total = displaySubtotal + dutyAmt + vatAmt; // Total includes hidden profit in duty/vat
+
+            return `<div class="document-page">
+        <div class="doc-header">
+          <h1 class="doc-title">INVOICE</h1>
+          <p class="doc-subtitle">Professional Business Document</p>
+        </div>
+        <div class="section">
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">From</span>
+              <span class="info-value"><strong>${supplier}</strong></span>
+              <span class="info-value">BIN: ${supplierBin}</span>
+              <span class="info-value">${supplierAddr}</span>
+              <span class="info-value">${supplierContact}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Bill To</span>
+              <span class="info-value"><strong>${buyer}</strong></span>
+              <span class="info-value">BIN: ${buyerBin}</span>
+              <span class="info-value">${buyerAddr}</span>
+              <span class="info-value">${buyerContact}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Invoice #</span>
+              <span class="info-value">${invNum}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Date</span>
+              <span class="info-value">${date}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">SL</th>
+                <th>Description</th>
+                <th class="text-center">Qty</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+              <tr class="total-row">
+                <td colspan="4" class="text-right">Subtotal</td>
+                <td class="text-right">৳${displaySubtotal.toLocaleString()}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="4" class="text-right">Supply Duty (${duty}%)</td>
+                <td class="text-right">৳${dutyAmt.toLocaleString()}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="4" class="text-right">VAT (${vat}%)</td>
+                <td class="text-right">৳${vatAmt.toLocaleString()}</td>
+              </tr>
+              <tr style="background: #667eea; color: white;">
+                <td colspan="4" class="text-right" style="font-weight: 700;">TOTAL</td>
+                <td class="text-right" style="font-weight: 700;">৳${total.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="signature-area">
+          <div class="signature-block">
+            <div class="sig-line"></div>
+            <div class="sig-label">Authorized Signature</div>
+          </div>
+          <div class="signature-block">
+            <div class="sig-line"></div>
+            <div class="sig-label">Buyer Signature</div>
+          </div>
+        </div>
+      </div>`;
+        }
+
+        function generateQuotation(supplier, supplierBin, supplierAddr, supplierContact, buyer, buyerBin, buyerAddr, date, items, vat, duty) {
+            let itemsHtml = '';
+            let displaySubtotal = 0;
+            let taxableSubtotal = 0;
+            items.forEach((item, idx) => {
+                const displayTotal = item.qty * item.displayPrice;
+                const taxableTotal = item.qty * item.taxablePrice;
+                displaySubtotal += displayTotal;
+                taxableSubtotal += taxableTotal;
+                itemsHtml += `<tr>
+          <td class="text-center">${idx + 1}</td>
+          <td>${item.desc}</td>
+          <td class="text-center">${item.qty}</td>
+          <td class="text-right">৳${item.displayPrice.toLocaleString()}</td>
+          <td class="text-right">৳${displayTotal.toLocaleString()}</td>
+        </tr>`;
+            });
+            const dutyAmt = Math.round(taxableSubtotal * duty / 100);
+            const vatAmt = Math.round((taxableSubtotal + dutyAmt) * vat / 100);
+            const total = displaySubtotal + dutyAmt + vatAmt;
+
+            return `<div class="document-page">
+        <div class="doc-header">
+          <h1 class="doc-title">QUOTATION</h1>
+          <p class="doc-subtitle">Price Quote & Terms</p>
+        </div>
+        <div class="section">
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">From</span>
+              <span class="info-value"><strong>${supplier}</strong></span>
+              <span class="info-value">BIN: ${supplierBin}</span>
+              <span class="info-value">${supplierAddr}</span>
+              <span class="info-value">${supplierContact}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">For</span>
+              <span class="info-value"><strong>${buyer}</strong></span>
+              <span class="info-value">BIN: ${buyerBin}</span>
+              <span class="info-value">${buyerAddr}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="info-row">
+            <span class="info-label">Quotation Date</span>
+            <span class="info-value">${date}</span>
+          </div>
+        </div>
+        <div class="section">
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">SL</th>
+                <th>Item Description</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-right">Rate (৳)</th>
+                <th class="text-right">Amount (৳)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+              <tr class="total-row">
+                <td colspan="4" class="text-right">Subtotal</td>
+                <td class="text-right">৳${displaySubtotal.toLocaleString()}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="4" class="text-right">Supply Duty (${duty}%)</td>
+                <td class="text-right">৳${dutyAmt.toLocaleString()}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="4" class="text-right">VAT (${vat}%)</td>
+                <td class="text-right">৳${vatAmt.toLocaleString()}</td>
+              </tr>
+              <tr style="background: #667eea; color: white;">
+                <td colspan="4" class="text-right" style="font-weight: 700;">QUOTED PRICE</td>
+                <td class="text-right" style="font-weight: 700;">৳${total.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Terms & Conditions</div>
+          <p style="font-size: 10px; line-height: 1.5; margin: 0;">
+            This quotation is valid for 30 days from the date mentioned above. Payment terms: 50% advance, 50% on delivery. Delivery period: 7-10 business days. All prices are in Bangladeshi Taka (৳).
+          </p>
+        </div>
+        <div class="signature-area">
+          <div class="signature-block">
+            <div class="sig-line"></div>
+            <div class="sig-label">Supplier Representative</div>
+          </div>
+        </div>
+      </div>`;
+        }
+
+        function generateChallan(supplier, supplierBin, supplierAddr, buyer, buyerBin, buyerAddr, challanNum, date, items, vat, duty) {
+            let itemsHtml = '';
+            let displaySubtotal = 0;
+            let taxableSubtotal = 0;
+            items.forEach((item, idx) => {
+                const displayTotal = item.qty * item.displayPrice;
+                const taxableTotal = item.qty * item.taxablePrice;
+                displaySubtotal += displayTotal;
+                taxableSubtotal += taxableTotal;
+                const itemDutyAmt = Math.round(taxableTotal * duty / 100);
+                const itemVatAmt = Math.round((taxableTotal + itemDutyAmt) * vat / 100);
+                const totalWithTax = displayTotal + itemDutyAmt + itemVatAmt;
+                itemsHtml += `<tr>
+          <td class="text-center">${idx + 1}</td>
+          <td>${item.desc}</td>
+          <td class="text-center">${item.qty}</td>
+          <td class="text-right">৳${item.displayPrice.toLocaleString()}</td>
+          <td class="text-right">৳${displayTotal.toLocaleString()}</td>
+          <td class="text-right">${duty}%</td>
+          <td class="text-right">৳${itemDutyAmt.toLocaleString()}</td>
+          <td class="text-right">${vat}%</td>
+          <td class="text-right">৳${itemVatAmt.toLocaleString()}</td>
+          <td class="text-right">৳${totalWithTax.toLocaleString()}</td>
+        </tr>`;
+            });
+
+            const dutyAmt = Math.round(taxableSubtotal * duty / 100);
+            const vatAmt = Math.round((taxableSubtotal + dutyAmt) * vat / 100);
+            const total = displaySubtotal + dutyAmt + vatAmt;
+
+            return `<div class="document-page">
+        <div class="doc-header">
+          <h1 class="doc-title">TAX CHALLAN</h1>
+          <p class="doc-subtitle">Government of Bangladesh - National Board of Revenue</p>
+        </div>
+        <div class="section">
+          <div class="section-title">Registered Person (Supplier)</div>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Name</span>
+              <span class="info-value">${supplier}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">BIN</span>
+              <span class="info-value">${supplierBin}</span>
+            </div>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Address</span>
+            <span class="info-value">${supplierAddr}</span>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">Purchaser (Buyer)</div>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Name</span>
+              <span class="info-value">${buyer}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">BIN</span>
+              <span class="info-value">${buyerBin}</span>
+            </div>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Address</span>
+            <span class="info-value">${buyerAddr}</span>
+          </div>
+        </div>
+        <div class="section">
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Challan No</span>
+              <span class="info-value">${challanNum}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Date</span>
+              <span class="info-value">${date}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">SL</th>
+                <th>Description</th>
+                <th class="text-center">Qty</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Duty %</th>
+                <th class="text-right">Duty Amt</th>
+                <th class="text-right">VAT %</th>
+                <th class="text-right">VAT Amt</th>
+                <th class="text-right">Total with Tax</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+              <tr class="total-row">
+                <td colspan="4" class="text-right">Subtotal</td>
+                <td class="text-right">৳${displaySubtotal.toLocaleString()}</td>
+                <td colspan="5"></td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="6" class="text-right">Total Duty (${duty}%)</td>
+                <td class="text-right">৳${dutyAmt.toLocaleString()}</td>
+                <td colspan="2"></td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="7" class="text-right">Total VAT (${vat}%)</td>
+                <td class="text-right">৳${vatAmt.toLocaleString()}</td>
+                <td></td>
+              </tr>
+              <tr style="background: #667eea; color: white;">
+                <td colspan="9" class="text-right" style="font-weight: 700;">GRAND TOTAL</td>
+                <td class="text-right" style="font-weight: 700;">৳${total.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="signature-area">
+          <div class="signature-block">
+            <div class="sig-line"></div>
+            <div class="sig-label">Authorized Officer</div>
+          </div>
+          <div class="signature-block">
+            <div class="sig-line"></div>
+            <div class="sig-label">Company Seal/Stamp</div>
+          </div>
+        </div>
+      </div>`;
+        }
+
+        function generateGatePass(supplier, supplierBin, supplierAddr, buyer, buyerBin, buyerAddr, date, items, vat, duty) {
+            const createCopy = (copyType) => {
+                let itemsHtml = '';
+                let displaySubtotal = 0;
+                let taxableSubtotal = 0;
+                items.forEach((item, idx) => {
+                    const displayTotal = item.qty * item.displayPrice;
+                    const taxableTotal = item.qty * item.taxablePrice;
+                    displaySubtotal += displayTotal;
+                    taxableSubtotal += taxableTotal;
+                    itemsHtml += `<tr>
+            <td style="text-align: center;">${idx + 1}</td>
+            <td>${item.desc}</td>
+            <td style="text-align: center;">${item.qty}</td>
+            <td style="text-align: right;">৳${item.displayPrice.toLocaleString()}</td>
+            <td style="text-align: right;">৳${displayTotal.toLocaleString()}</td>
+          </tr>`;
+                });
+                const dutyAmt = Math.round(taxableSubtotal * duty / 100);
+                const vatAmt = Math.round((taxableSubtotal + dutyAmt) * vat / 100);
+                const total = displaySubtotal + dutyAmt + vatAmt;
+
+                return `<div class="copy-section">
+          <div class="copy-label">${copyType}</div>
+          <div class="copy-header">
+            <h3 class="copy-title">GATE PASS</h3>
+            <p class="copy-subtitle">Goods Movement Document</p>
+          </div>
+          <div class="copy-info">
+            <span class="copy-info-label">FROM:</span>
+            <span class="copy-info-value"><strong>${supplier}</strong> (BIN: ${supplierBin})</span>
+          </div>
+          <div class="copy-info">
+            <span class="copy-info-label">TO:</span>
+            <span class="copy-info-value"><strong>${buyer}</strong> (BIN: ${buyerBin})</span>
+          </div>
+          <div class="copy-info">
+            <span class="copy-info-label">DATE:</span>
+            <span class="copy-info-value">${date}</span>
+          </div>
+          <table class="copy-items-table">
+            <thead>
+              <tr>
+                <th>SL</th>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div class="copy-total">
+            <div>Subtotal: ৳${displaySubtotal.toLocaleString()}</div>
+            <div>Duty (${duty}%): ৳${dutyAmt.toLocaleString()}</div>
+            <div>VAT (${vat}%): ৳${vatAmt.toLocaleString()}</div>
+            <div style="border-top: 1px solid #333; padding-top: 3px; margin-top: 3px; font-weight: 700;">TOTAL: ৳${total.toLocaleString()}</div>
+          </div>
+          <div class="copy-sig">
+            <div class="copy-sig-block">
+              <div class="copy-sig-line"></div>
+              <div class="copy-sig-label">Authorized By</div>
+            </div>
+            <div class="copy-sig-block">
+              <div class="copy-sig-line"></div>
+              <div class="copy-sig-label">Received By</div>
+            </div>
+          </div>
+        </div>`;
+            };
+
+            return `<div class="document-page-landscape">
+        ${createCopy('ORIGINAL')}
+        ${createCopy('GATE COPY')}
+        ${createCopy('RECEIVED COPY')}
+      </div>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+
+        window.elementSdk.init({
+            defaultConfig: {},
+            onConfigChange: async (config) => { },
+            mapToCapabilities: () => ({ recolorables: [], borderables: [], fontEditable: undefined, fontSizeable: undefined }),
+            mapToEditPanelValues: () => new Map()
+        });
+    </script>
+    <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'9eac69f29376b24c',t:'MTc3NTkzNTkxMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
+</body>
+
+</html>

@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Header & Summary -->
+    <div class="flex flex-col lg:flex-row gap-5">
+        <!-- Main Header -->
+        <div class="flex-1 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-center">
+            <div class="flex items-center gap-4 mb-2">
+                <div class="w-12 h-12 rounded-2xl bg-yellow-100 flex items-center justify-center">
+                    <i class="fas fa-hand-holding-dollar text-yellow-600 text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-black text-gray-800 tracking-tight">Money Tracker</h2>
+                    <p class="text-sm text-gray-500 font-medium">Record and confirm real-life money transfers.</p>
+                </div>
+            </div>
+            {% if user.p_manage_peer_transactions or user.is_superuser %}
+            <div class="mt-4">
+                <a href="{% url 'peer_transaction_create' %}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-sm transition-all hover:shadow-md">
+                    <i class="fas fa-plus-circle text-xs"></i> New Money Entry
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="flex gap-4">
+            <div class="flex-1 lg:w-40 bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                <span class="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Total Involved</span>
+                <span class="text-xl font-black text-gray-800">BDT {{ transactions.count }}</span>
+                <span class="text-[10px] text-gray-400 mt-1 italic">Records</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden md:block bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50/50 border-b border-gray-100">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-wider">Transaction Info</th>
+                        <th class="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-wider">Sender</th>
+                        <th class="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-wider">Receiver</th>
+                        <th class="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-right text-xs font-black text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for t in transactions %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-gray-900 line-clamp-1">{{ t.description|default:"No description" }}</span>
+                                <span class="text-[11px] text-gray-400 mt-0.5">{{ t.created_at|date:"d M Y, h:i A" }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex flex-col items-center">
+                                <span class="font-bold text-gray-800">{{ t.sender.username }}</span>
+                                {% if t.initiator == t.sender %}
+                                <span class="text-[9px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded font-black mt-1">INITIATOR</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex flex-col items-center">
+                                <span class="font-bold text-gray-800">{{ t.receiver.username }}</span>
+                                {% if t.initiator == t.receiver %}
+                                <span class="text-[9px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded font-black mt-1">INITIATOR</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center font-black text-gray-900">
+                            BDT {{ t.amount }}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="inline-flex px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest
+                                {% if t.status == 'CONFIRMED' %}bg-emerald-100 text-emerald-700
+                                {% elif t.status == 'PENDING' %}bg-amber-100 text-amber-700
+                                {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                {{ t.status }}
+                            </span>
+                            <div class="mt-2 flex justify-center gap-1.5">
+                                <span title="Sender Confirmation" class="w-2 h-2 rounded-full {% if t.sender_confirmed %}bg-emerald-500{% else %}bg-gray-300 animate-pulse{% endif %}"></span>
+                                <span title="Receiver Confirmation" class="w-2 h-2 rounded-full {% if t.receiver_confirmed %}bg-emerald-500{% else %}bg-gray-300 animate-pulse{% endif %}"></span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                {% if t.status == 'PENDING' %}
+                                    {% if request.user == t.sender and not t.sender_confirmed or request.user == t.receiver and not t.receiver_confirmed %}
+                                        <form action="{% url 'peer_transaction_confirm' t.id %}" method="POST" class="inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl transition font-bold text-xs shadow-sm flex items-center gap-1.5">
+                                                <i class="fas fa-check-circle"></i> Confirm
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% if user.p_manage_peer_transactions or user.is_superuser %}
+                                    <form action="{% url 'peer_transaction_delete' t.id %}" method="POST" class="inline" onsubmit="return confirm('Delete this record?')">
+                                        {% csrf_token %}
+                                        <button type="submit" class="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-xl transition">
+                                            <i class="fas fa-trash-alt text-xs"></i>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">
+                            No money transactions recorded yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div class="md:hidden space-y-4">
+        {% for t in transactions %}
+        <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        {{ t.created_at|date:"d M Y" }}
+                    </span>
+                    <div class="flex flex-col items-end gap-1.5">
+                        <span class="px-2 py-0.5 text-[9px] font-black rounded-full uppercase tracking-widest
+                            {% if t.status == 'CONFIRMED' %}bg-emerald-100 text-emerald-700
+                            {% elif t.status == 'PENDING' %}bg-amber-100 text-amber-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ t.status }}
+                        </span>
+                        <div class="flex gap-1">
+                            <span title="Sender" class="w-1.5 h-1.5 rounded-full {% if t.sender_confirmed %}bg-emerald-500{% else %}bg-gray-300{% endif %}"></span>
+                            <span title="Receiver" class="w-1.5 h-1.5 rounded-full {% if t.receiver_confirmed %}bg-emerald-500{% else %}bg-gray-300{% endif %}"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="font-black text-gray-800 text-base mb-1">{{ t.description|default:"Untitled Transfer" }}</h3>
+                <p class="text-xl font-black text-indigo-600 mb-4">BDT {{ t.amount }}</p>
+
+                <div class="grid grid-cols-2 gap-4 bg-gray-50 rounded-2xl p-3 border border-gray-100/50">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Sender</span>
+                        <span class="font-bold text-gray-800 text-xs">{{ t.sender.username }}</span>
+                        {% if t.initiator == t.sender %}<span class="text-[8px] text-indigo-400 font-bold uppercase mt-0.5 italic">Initiator</span>{% endif %}
+                    </div>
+                    <div class="flex flex-col border-l border-gray-200 pl-4">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Receiver</span>
+                        <span class="font-bold text-gray-800 text-xs">{{ t.receiver.username }}</span>
+                        {% if t.initiator == t.receiver %}<span class="text-[8px] text-indigo-400 font-bold uppercase mt-0.5 italic">Initiator</span>{% endif %}
+                    </div>
+                </div>
+
+                {% if t.status == 'PENDING' %}
+                    {% if request.user == t.sender and not t.sender_confirmed or request.user == t.receiver and not t.receiver_confirmed %}
+                    <div class="mt-4">
+                        <form action="{% url 'peer_transaction_confirm' t.id %}" method="POST">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95">
+                                <i class="fas fa-check-circle"></i> Confirm Transaction
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

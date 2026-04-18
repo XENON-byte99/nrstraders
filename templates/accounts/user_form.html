@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .form-field input[type="text"], .form-field input[type="email"],
+    .form-field input[type="password"], .form-field select {
+        width: 100%;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 11px 14px;
+        font-size: 14px;
+        background: #f9fafb;
+        box-sizing: border-box;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        -webkit-appearance: none;
+    }
+    .form-field input:focus, .form-field select:focus {
+        outline: none;
+        border-color: #6366f1;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .form-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 6px;
+    }
+</style>
+
+<div class="max-w-xl mx-auto">
+    <div class="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-7 pb-5 border-b border-gray-100">
+            <div>
+                <h2 class="text-xl font-black text-gray-800">
+                    <i class="fas fa-user-plus text-indigo-500 mr-2"></i>Register New User
+                </h2>
+                <p class="text-sm text-gray-400 mt-1">Create a new access account for a team member.</p>
+            </div>
+            <a href="{% url 'user_list' %}" class="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-xl transition text-sm font-bold flex-shrink-0">
+                <i class="fas fa-times text-xs"></i>
+            </a>
+        </div>
+
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm flex items-center gap-2">
+                <i class="fas fa-exclamation-circle text-red-400 text-xs"></i>
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+            {% endif %}
+
+            {% for field in form %}
+            {% if field.name == 'google_drive_json_key' %}
+                {% if form.instance.role == 'OWNER' %}
+                <div class="form-field">
+                    <label class="form-label">{{ field.label }}</label>
+                    <textarea name="{{ field.name }}" class="w-full border-1.5 border-gray-200 rounded-xl p-3 text-sm font-mono bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all outline-none" rows="8" placeholder="Paste Service Account JSON content here...">{{ field.value|default:'' }}</textarea>
+                    {% if field.help_text %}
+                        <p class="text-xs text-gray-400 mt-1.5">{{ field.help_text|safe }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% else %}
+            <div class="form-field">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <p class="text-xs text-gray-400 mt-1.5">{{ field.help_text|safe }}</p>
+                {% endif %}
+                {% if field.errors %}
+                    <ul class="mt-1.5 space-y-0.5">
+                    {% for error in field.errors %}
+                        <li class="text-xs text-red-500 flex items-center gap-1">
+                            <i class="fas fa-exclamation-circle text-[10px]"></i> {{ error }}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+
+            <div class="pt-4">
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow transition hover:shadow-md flex items-center justify-center gap-2">
+                    <i class="fas fa-check-circle text-sm"></i> Register Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

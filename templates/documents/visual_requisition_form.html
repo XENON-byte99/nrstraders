@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="page-content max-w-2xl mx-auto">
+    <div class="mb-8">
+        <a href="{% url 'visual_requisition_list' %}" class="inline-flex items-center gap-2 text-gray-400 hover:text-indigo-600 font-bold text-xs mb-4 transition-colors">
+            <i class="fas fa-arrow-left"></i> Back to Gallery
+        </a>
+        <h1 class="text-3xl font-black text-gray-800 tracking-tight">New Visual Requisition</h1>
+        <p class="text-sm text-gray-500 font-medium mt-1">Upload a photo and choose who can see it.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        <!-- Image Upload -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Requisition Photo</label>
+            <div class="relative group">
+                <input type="file" name="image" id="id_image" accept="image/*" class="sr-only" required onchange="previewImage(this)">
+                <label for="id_image" class="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-3xl py-12 px-6 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all text-center group">
+                    <div id="preview-container" class="mb-4">
+                        <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-camera text-2xl"></i>
+                        </div>
+                    </div>
+                    <span class="text-sm font-bold text-gray-700 block" id="file-name">Click to upload or drag image</span>
+                    <span class="text-[10px] text-gray-400 mt-1 uppercase font-black tracking-wide">Supports: JPG, PNG, WEBP</span>
+                </label>
+            </div>
+            {% if form.image.errors %}
+                <p class="text-xs text-red-500 mt-2 font-bold">{{ form.image.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Description / Note</label>
+            {{ form.description }}
+            {% if form.description.errors %}
+                <p class="text-xs text-red-500 mt-2 font-bold">{{ form.description.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Permissions -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Who should see this?</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 custom-scroll">
+                {% for choice in form.authorized_users %}
+                <label class="relative flex items-center p-3 rounded-2xl border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 cursor-pointer transition-all group">
+                    {{ choice.tag }}
+                    <div class="ml-3">
+                        <span class="text-sm font-bold text-gray-700 block group-hover:text-indigo-600 transition-colors">{{ choice.choice_label }}</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            {% if form.authorized_users.errors %}
+                <p class="text-xs text-red-500 mt-2 font-bold">{{ form.authorized_users.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-3xl shadow-xl shadow-indigo-200 transition-all font-black uppercase tracking-widest flex items-center justify-center gap-3">
+            <i class="fas fa-cloud-upload-alt"></i> Upload & Share
+        </button>
+    </form>
+</div>
+
+<style>
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+    
+    input[type="checkbox"] {
+        width: 1.25rem; height: 1.25rem;
+        border-radius: 0.5rem; border: 2px solid #e2e8f0;
+        cursor: pointer; appearance: none;
+        transition: all 0.2s;
+    }
+    input[type="checkbox"]:checked {
+        background-color: #4f46e5; border-color: #4f46e5;
+        background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+    }
+</style>
+
+<script>
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        const container = document.getElementById('preview-container');
+        const fileName = document.getElementById('file-name');
+        
+        reader.onload = function(e) {
+            container.innerHTML = `
+                <div class="relative w-24 h-24 mx-auto">
+                    <img src="${e.target.result}" class="w-full h-full object-cover rounded-2xl shadow-lg border-2 border-white ring-4 ring-indigo-50">
+                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-lg">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+            `;
+            fileName.textContent = input.files[0].name;
+            fileName.classList.remove('text-gray-700');
+            fileName.classList.add('text-indigo-600');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>
+{% endblock %}

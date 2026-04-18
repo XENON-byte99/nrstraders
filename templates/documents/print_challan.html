@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Challan</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; }
+        @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            .no-print { display: none !important; }
+            body { background: white !important; margin: 0; padding: 0; }
+            .wrapper { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+            .challan-wrapper { box-shadow: none !important; }
+            .challan-copy { box-shadow: none !important; margin-bottom: 0 !important; }
+        }
+        .copies-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            width: 100%;
+            height: 100%;
+        }
+        .challan-copy {
+            border: 2.5px solid var(--border-color, #1e293b); position: relative; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            margin-bottom: 20px;
+            background: var(--light-bg);
+            page-break-inside: avoid;
+            display: flex;
+            flex-direction: column;
+            min-height: 95vh;
+        }
+        table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
+        th, td { border: 1px solid var(--border-color, #1e293b); padding: 4px 6px; font-size: 10px; text-align: left; }
+        th { font-weight: 700; text-align: center; letter-spacing: 0.03em; font-size: 10px; }
+        .sig-line { border-top: 1.5px solid var(--border-color, #1e293b); text-align: center; font-size: 7px; padding-top: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+        .watermark { position: absolute; opacity: 0.05; font-size: 60px; font-weight: 700; transform: rotate(-45deg); pointer-events: none; top: 30%; left: 10%; }
+        .wrapper { width:100%; max-width:1400px; margin: 0 auto; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <button onclick="window.print()" class="no-print" style="padding: 10px; margin-bottom: 20px; background: #1e293b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Print Challan Copies</button>
+        <div class="copies-container">
+        <!-- Original Copy -->
+        <div class="challan-copy flex flex-col" style="--border-color:#059669;--accent-color:#064e3b;--light-bg:#f0fdf4;background:#f0fdf4;">
+            <div class="watermark" style="color:#059669;">ORIGINAL</div>
+            <div style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;padding:10px 8px;text-align:center;">
+                <div style="font-size:11px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;">ORIGINAL</div>
+            </div>
+            <div style="padding:10px;border-bottom:2px solid #bdf1da;">
+                <div style="text-align:right;font-size:8px;color:#0f172a;font-weight:600;margin-bottom:8px;border-bottom:1px dashed #bdf1da;padding-bottom:4px;">
+                   
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;justify-content:center;">
+                    <div style="text-align:center;">
+                        <div style="font-size:14px;font-weight:700;color:#064e3b;margin-bottom:3px;">{{ transaction.supplier_name }}</div>
+                        <div style="font-size:9px;color:#0f172a;margin-bottom:2px;">{{ transaction.supplier_address }}</div>
+                        <div style="font-size:9px;color:#0f172a;font-weight:600;">BIN: {{ transaction.supplier_bin }}</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                    <div style="background:white;border:1.2px solid #bdf1da;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#064e3b;margin-bottom:3px;">CHALLAN #</div>
+                        <div style="font-size:10px;font-weight:800;color:#064e3b;">{{ transaction.challan_number }} <br><span style="font-size:7px;">{{ transaction.transaction_category.name|default:"General"|upper }}</span></div>
+                    </div>
+                    <div style="background:white;border:1.2px solid #bdf1da;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#064e3b;margin-bottom:3px;">DATE</div>
+                        <div style="font-size:10px;font-weight:700;color:#064e3b;">{{ transaction.created_at|date:"M d, Y" }}</div>
+                    </div>
+                </div>
+                <div style="background:white;border:1.2px solid #bdf1da;padding:7px;">
+                    <div style="font-size:8px;font-weight:700;color:#064e3b;margin-bottom:3px;">PARTY DETAILS</div>
+                    <div style="font-size:9px;font-weight:700;margin-bottom:2px;">Name: {{ transaction.buyer_name }}</div>
+                    <div style="font-size:9px;font-weight:500;">Address: {{ transaction.buyer_address }}</div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:50px;">UNIT</th>
+                        <th style="width:35px;">QTY</th>
+                        <th style="width:50px;">REMARKS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if date_items %}
+                    {% for item in date_items %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                            <div style="font-size:8px;color:#064e3b;">Bill — {{ challan_date|date:"d M Y" }}</div>
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% elif single_item %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">1</td>
+                        <td>
+                            {% if single_item.restaurant_name %}
+                                {{ single_item.restaurant_name }}
+                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#064e3b;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                            {% else %}
+                                {{ transaction.transaction_category.name|title|default:single_item.description }}
+                            {% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% else %}
+                    {% for item in transaction.items.all %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+            <div style="padding:8px;border-top:2px solid #6ee7b7;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#059669;color:#064e3b;">Prepared By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#059669;color:#064e3b;">Verified By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#059669;color:#064e3b;">Received By</div></div>
+                </div>
+                <div
+                    style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #6ee7b7;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
+                    System designed and Developed by &nbsp;<strong style="color:#064e3b;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in
+                    EEE, Specialized in Deep learning - 01849885607
+                </div>
+            </div>
+        </div>
+
+        <!-- Receiver Copy -->
+        <div class="challan-copy flex flex-col" style="--border-color:#2563eb;--accent-color:#1e3a8a;--light-bg:#eff6ff;background:#eff6ff;">
+            <div class="watermark" style="color:#2563eb;">RECEIVER</div>
+            <div style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;padding:10px 8px;text-align:center;">
+                <div style="font-size:11px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;">RECEIVER COPY</div>
+            </div>
+            <div style="padding:10px;border-bottom:2px solid #93c5fd;">
+                <div style="text-align:right;font-size:8px;color:#0f172a;font-weight:600;margin-bottom:8px;border-bottom:1px dashed #93c5fd;padding-bottom:4px;">
+                  
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;justify-content:center;">
+                    <div style="text-align:center;">
+                        <div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">{{ transaction.supplier_name }}</div>
+                        <div style="font-size:9px;color:#0f172a;margin-bottom:2px;">{{ transaction.supplier_address }}</div>
+                        <div style="font-size:9px;color:#0f172a;font-weight:600;">BIN: {{ transaction.supplier_bin }}</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                    <div style="background:white;border:1.2px solid #93c5fd;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">CHALLAN #</div>
+                        <div style="font-size:10px;font-weight:800;color:#1e3a8a;">{{ transaction.challan_number }} <br><span style="font-size:7px;">{{ transaction.transaction_category.name|default:"General"|upper }}</span></div>
+                    </div>
+                    <div style="background:white;border:1.2px solid #93c5fd;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">DATE</div>
+                        <div style="font-size:10px;font-weight:700;color:#1e3a8a;">{{ transaction.created_at|date:"M d, Y" }}</div>
+                    </div>
+                </div>
+                <div style="background:white;border:1.2px solid #93c5fd;padding:7px;">
+                    <div style="font-size:8px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">PARTY DETAILS</div>
+                    <div style="font-size:9px;font-weight:700;margin-bottom:2px;">Name: {{ transaction.buyer_name }}</div>
+                    <div style="font-size:9px;font-weight:500;">Address: {{ transaction.buyer_address }}</div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:50px;">UNIT</th>
+                        <th style="width:35px;">QTY</th>
+                        <th style="width:50px;">PRICE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if date_items %}
+                    {% for item in date_items %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                            <div style="font-size:8px;color:#1e3a8a;">{{ challan_date|date:"d M Y" }}</div>
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_unit_price }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% elif single_item %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">1</td>
+                        <td>
+                            {% if single_item.restaurant_name %}
+                                {{ single_item.restaurant_name }}
+                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#1e3a8a;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                            {% else %}
+                                {{ transaction.transaction_category.name|title|default:single_item.description }}
+                            {% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ single_item.billed_unit_price }}</td>
+                    </tr>
+                    {% else %}
+                    {% for item in transaction.items.all %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_unit_price }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+            <div style="padding:8px;border-top:2px solid #93c5fd;">
+                 <!-- Subtotals for Receiver Copy -->
+                 <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:6px;padding:6px;margin-bottom:8px;">
+                    <div style="display:flex;gap:6px;font-size:8px;margin-bottom:6px;align-items:flex-end;">
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;">Subtotal:</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#1e3a8a;">৳{{ transaction.display_subtotal }}</div>
+                      </div>
+                      {% if transaction.total_service_charge > 0 %}
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;">SER. CHARGE ({{ transaction.service_charge_percentage }}%):</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#1e3a8a;">৳{{ transaction.total_service_charge }}</div>
+                      </div>
+                      {% endif %}
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;">VAT ({{ transaction.vat_percentage }}%):</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#1e3a8a;">৳{{ transaction.total_vat }}</div>
+                      </div>
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;">Tax ({{ transaction.tax_percentage }}%):</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#1e3a8a;">৳{{ transaction.total_tax }}</div>
+                      </div>
+                    </div>
+                    <div style="width:100%;">
+                      <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;background:#eff6ff;padding:0 3px;">Total Amount:</span>
+                      <div style="border:2px solid #1e3a8a;border-radius:4px;padding:4px;text-align:center;font-weight:800;color:#1e3a8a;font-size:11px;margin-top:3px;">৳{{ transaction.grand_total }}</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#2563eb;color:#1e3a8a;">Prepared By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#2563eb;color:#1e3a8a;">Verified By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#2563eb;color:#1e3a8a;">Received By</div></div>
+                </div>
+                <div
+                    style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #93c5fd;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
+                    System designed and Developed by &nbsp;<strong style="color:#1e3a8a;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in
+                    EEE, Specialized in Deep learning - 01849885607
+                </div>
+            </div>
+        </div>
+
+        <!-- Gate Entry Copy -->
+        <div class="challan-copy flex flex-col" style="--border-color:#667eea;--accent-color:#764ba2;--light-bg:#f5f7ff;background:#f5f7ff;">
+            <div class="watermark" style="color:#667eea;">GATE</div>
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;padding:10px 8px;text-align:center;">
+                <div style="font-size:11px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;">GATE ENTRY</div>
+            </div>
+            <div style="padding:10px;border-bottom:2px solid #c7d2fe;">
+                <div style="text-align:right;font-size:8px;color:#1e293b;font-weight:600;margin-bottom:8px;border-bottom:1px dashed #c7d2fe;padding-bottom:4px;">
+                  
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;justify-content:center;">
+                    <div style="text-align:center;">
+                        <div style="font-size:14px;font-weight:700;color:#764ba2;margin-bottom:3px;">{{ transaction.supplier_name }}</div>
+                        <div style="font-size:9px;color:#1e293b;margin-bottom:2px;">{{ transaction.supplier_address }}</div>
+                        <div style="font-size:9px;color:#1e293b;font-weight:600;">BIN: {{ transaction.supplier_bin }}</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                    <div style="background:white;border:1.2px solid #c7d2fe;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#764ba2;margin-bottom:3px;">CHALLAN #</div>
+                        <div style="font-size:10px;font-weight:800;color:#764ba2;">{{ transaction.challan_number }} <br><span style="font-size:7px;">{{ transaction.transaction_category.name|default:"General"|upper }}</span></div>
+                    </div>
+                    <div style="background:white;border:1.2px solid #c7d2fe;padding:6px 7px;">
+                        <div style="font-size:8px;font-weight:700;color:#764ba2;margin-bottom:3px;">DATE</div>
+                        <div style="font-size:10px;font-weight:700;color:#764ba2;">{{ transaction.created_at|date:"M d, Y" }}</div>
+                    </div>
+                </div>
+                <div style="background:white;border:1.2px solid #c7d2fe;padding:7px;">
+                    <div style="font-size:8px;font-weight:700;color:#764ba2;margin-bottom:3px;">PARTY DETAILS</div>
+                    <div style="font-size:9px;font-weight:700;margin-bottom:2px;">Name: {{ transaction.buyer_name }}</div>
+                    <div style="font-size:9px;font-weight:500;">Address: {{ transaction.buyer_address }}</div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:50px;">UNIT</th>
+                        <th style="width:35px;">QTY</th>
+                        <th style="width:50px;">REMARKS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if date_items %}
+                    {% for item in date_items %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                            <div style="font-size:8px;color:#764ba2;">{{ challan_date|date:"d M Y" }}</div>
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% elif single_item %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">1</td>
+                        <td>
+                            {% if single_item.restaurant_name %}
+                                {{ single_item.restaurant_name }}
+                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#764ba2;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                            {% else %}
+                                {{ transaction.transaction_category.name|title|default:single_item.description }}
+                            {% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% else %}
+                    {% for item in transaction.items.all %}
+                    <tr>
+                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                        <td>
+                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+            <div style="padding:8px;border-top:2px solid #c7d2fe;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#667eea;color:#764ba2;">Prepared By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#667eea;color:#764ba2;">Verified By</div></div>
+                    <div style="text-align:center;"><div style="height:65px;"></div><div class="sig-line" style="--border-color:#667eea;color:#764ba2;">Gate Entry</div></div>
+                </div>
+                <div style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #c7d2fe;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
+                    System designed and Developed by &nbsp;<strong style="color:#764ba2;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in EEE, Specialized in Deep learning - 01849885607
+                </div>
+            </div>
+        </div> <!-- End of copies container -->
+    </div>
+</body>
+</html>

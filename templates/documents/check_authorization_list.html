@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Check Collection Authorizations</h1>
+        <p class="text-sm text-gray-500 font-medium">Manage and issue authorizations for check collection.</p>
+    </div>
+    <a href="{% url 'authorization_create' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl shadow-lg shadow-indigo-100 transition-all font-black text-xs uppercase tracking-widest flex items-center gap-2">
+        <i class="fas fa-plus text-[10px]"></i> New Authorization
+    </a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for auth in authorizations %}
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-50/50 transition-all group">
+        <div class="p-6">
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
+                    {{ auth.reference_number }}
+                </span>
+                <span class="text-[10px] text-gray-400 font-bold">{{ auth.created_at|date:"d M Y" }}</span>
+            </div>
+            
+            <h3 class="font-bold text-gray-900 mb-1">{{ auth.nominee.get_full_name|default:auth.nominee.username }}</h3>
+            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-4">Nominee ID: {{ auth.nominee_nid }}</p>
+            
+            <div class="space-y-2 mb-6">
+                <div class="flex items-center text-xs text-gray-600 gap-2">
+                    <i class="fas fa-building text-gray-300 w-4 text-center"></i>
+                    <span class="truncate">{{ auth.issuer_name }}</span>
+                </div>
+                <div class="flex items-center text-xs text-gray-600 gap-2">
+                    <i class="fas fa-money-check text-gray-300 w-4 text-center"></i>
+                    <span>BDT {{ auth.check_amount }}</span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-gray-50">
+                <div class="text-[10px] text-gray-400 font-bold italic">
+                    Until {{ auth.valid_to|date:"d M Y" }}
+                </div>
+                <div class="flex gap-2">
+                    <a href="{% url 'authorization_update' auth.pk %}" class="p-2.5 rounded-xl bg-gray-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Edit Authorization">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'authorization_print' auth.pk %}" class="p-2.5 rounded-xl bg-gray-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Print Document">
+                        <i class="fas fa-print"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+        <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300 mx-auto mb-4">
+            <i class="fas fa-file-signature text-2xl"></i>
+        </div>
+        <h3 class="text-gray-500 font-bold">No Authorizations Found</h3>
+        <p class="text-xs text-gray-400 mt-1">Start by creating a new authorization for a staff member.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,674 @@
+{% extends 'base.html' %}
+{% load whatsapp_tags %}
+
+{% block content %}
+<style>
+    /* ── Form field styles ── */
+    .form-input, input[type="text"], input[type="number"], textarea, select {
+        width: 100%;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #fff;
+        box-sizing: border-box;
+        -webkit-appearance: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .form-label {
+        font-size: 11px; font-weight: 700; color: #6b7280;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        display: block; margin-bottom: 5px;
+    }
+    .section-card {
+        background: #f9fafb; border: 1.5px solid #f3f4f6;
+        border-radius: 16px; padding: 18px; margin-bottom: 0;
+    }
+    .section-title {
+        font-size: 12px; font-weight: 800; color: #4f46e5;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        margin-bottom: 14px; display: flex; align-items: center; gap: 7px;
+    }
+    /* ── Items Table Scroll ── */
+    .items-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+    .items-scroll table { min-width: 520px; width: 100%; border-collapse: collapse; }
+    .items-scroll thead th {
+        font-size: 11px; font-weight: 700; color: #6b7280;
+        text-transform: uppercase; padding: 10px 10px;
+        border-bottom: 2px solid #e5e7eb; background: #f8faff;
+        white-space: nowrap;
+    }
+    .items-scroll tbody tr:hover td { background: #f8faff; }
+    .items-scroll input, .items-scroll select { margin-bottom: 0; }
+    .items-scroll input[name$="-quantity"] {
+        width: 80px !important;
+        text-align: center;
+    }
+    
+    /* ── Product Suggestions ── */
+    #product-suggestions {
+        position: absolute;
+        z-index: 1000;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        max-height: 250px;
+        overflow-y: auto;
+        width: 300px;
+        display: none;
+    }
+    .suggestion-item {
+        padding: 10px 14px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.15s;
+    }
+    .suggestion-item:hover, .suggestion-item.active {
+        background: #f1f5f9;
+        color: #4f46e5;
+    }
+    .suggestion-name { font-weight: 600; font-size: 13px; }
+    .suggestion-price { font-weight: 700; font-size: 11px; color: #10b981; }
+    .suggestion-unit { font-size: 10px; color: #94a3b8; margin-left: 4px; }
+</style>
+
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between mb-5 gap-3">
+        <div>
+            <h2 class="text-xl md:text-2xl font-black text-gray-800">
+                <i class="fas fa-file-invoice-dollar text-indigo-500 mr-2"></i>
+                {% if is_update %}Edit{% else %}New{% endif %} Quotation / Bill
+            </h2>
+            <p class="text-sm text-gray-400 mt-0.5">Fill in supplier, buyer, and item details below.</p>
+        </div>
+        <a href="{% url 'transaction_list' %}" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-xl hover:bg-gray-100 transition">
+            <i class="fas fa-arrow-left text-xs"></i> Back
+        </a>
+    </div>
+
+    <!-- Immutability Warning -->
+    {% if form.instance.status != 'DRAFT' and user.role != 'OWNER' and not user.is_superuser and form.instance.pk %}
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded-r-2xl shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                <i class="fas fa-lock"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-black text-amber-800">Bill Immutable</h3>
+                <p class="text-xs text-amber-600 font-medium">This bill is finalized or locked. {% if user.role == "OWNER" or user.is_superuser %}As an Owner/Admin, you can still make corrections.{% else %}Non-owners can only edit bills in DRAFT status.{% endif %}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+
+        <!-- ── Supplier & Buyer (side by side on md) ── -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <!-- Supplier -->
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-building text-indigo-400"></i> Supplier Info</div>
+                <div class="mb-3">
+                    <label class="form-label">Load Saved Supplier <i class="fas fa-magic text-indigo-300 ml-1 text-[10px]"></i></label>
+                    <select id="supplier_select">
+                        <option value="">— Choose or type manually —</option>
+                        {% for party in parties %}
+                            {% if party.party_type == 'SUPPLIER' %}
+                                <option value="{{ party.id }}">{{ party.name }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="border-t border-gray-200 pt-3 space-y-2">
+                    <div><label class="form-label">{{ form.supplier_name.label }}</label>{{ form.supplier_name }}</div>
+                    <div><label class="form-label">{{ form.supplier_bin.label }}</label>{{ form.supplier_bin }}</div>
+                    <div><label class="form-label">{{ form.supplier_address.label }}</label>{{ form.supplier_address }}</div>
+                    <div><label class="form-label">{{ form.supplier_contact.label }}</label>{{ form.supplier_contact }}</div>
+                </div>
+            </div>
+
+            <!-- Buyer -->
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-user-tie text-blue-400"></i> Buyer Info</div>
+                <div class="mb-3">
+                    <label class="form-label">Load Saved Buyer <i class="fas fa-magic text-indigo-300 ml-1 text-[10px]"></i></label>
+                    <select id="buyer_select">
+                        <option value="">— Choose or type manually —</option>
+                        {% for party in parties %}
+                            {% if party.party_type == 'BUYER' %}
+                                <option value="{{ party.id }}">{{ party.name }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="border-t border-gray-200 pt-3 space-y-2">
+                    <div><label class="form-label">{{ form.buyer_name.label }}</label>{{ form.buyer_name }}</div>
+                    <div><label class="form-label">{{ form.buyer_bin.label }}</label>{{ form.buyer_bin }}</div>
+                    <div><label class="form-label">{{ form.buyer_address.label }}</label>{{ form.buyer_address }}</div>
+                    <div><label class="form-label">{{ form.buyer_contact.label }}</label>{{ form.buyer_contact }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Tax & Identifiers ── -->
+        <div class="section-card">
+            <div class="section-title"><i class="fas fa-percent text-orange-400"></i> Tax &amp; Identifiers</div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div><label class="form-label">{{ form.vat_percentage.label }}</label>{{ form.vat_percentage }}</div>
+                <div><label class="form-label">{{ form.duty_percentage.label }}</label>{{ form.duty_percentage }}</div>
+                <div><label class="form-label">{{ form.tax_percentage.label }}</label>{{ form.tax_percentage }}</div>
+                <div><label class="form-label">{{ form.service_charge_percentage.label }}</label>{{ form.service_charge_percentage }}</div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="form-label">Category</label>
+                    {{ form.transaction_category }}
+                </div>
+                <div><label class="form-label">{{ form.invoice_number.label }}</label>{{ form.invoice_number }}</div>
+                <div><label class="form-label">{{ form.challan_number.label }}</label>{{ form.challan_number }}</div>
+            </div>
+
+            <div><label class="form-label">{{ form.profit_margin.label }}</label>{{ form.profit_margin }}</div>
+            <p class="text-xs text-gray-400 mt-2 italic flex items-center gap-1">
+                <i class="fas fa-magic text-indigo-300 text-[10px]"></i>
+                Invoice/challan numbers auto-fill when you pick a category.
+            </p>
+        </div>
+
+        <!-- ── Items ── -->
+        <div class="section-card">
+            <div class="section-title" id="items-section-title">
+                <i class="fas fa-list text-green-500"></i>
+                <span id="items-section-label">{% if is_lunch %}Daily Lunch Entries{% else %}Items{% endif %}</span>
+            </div>
+            {{ formset.management_form }}
+
+            <!-- Normal Items Table (hidden for lunch) -->
+            <div id="normal-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if is_lunch %}hidden{% endif %}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-left" style="min-width:180px">Description</th>
+                            <th class="text-center" style="width:80px">Unit</th>
+                            <th class="text-center" style="width:90px">Qty</th>
+                            <th class="text-right" style="width:120px">Display Price (৳)</th>
+                            <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                                <i class="fas fa-trash text-xs"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="item-formset">
+                        {% for item_form in formset %}
+                        <tr class="border-b item-row">
+                            <td>
+                                <div class="autocomplete-container">
+                                    {{ item_form.description }}
+                                    <div class="suggestions-list"></div>
+                                </div>
+                            </td>
+                            <td>{{ item_form.unit }}</td>
+                            <td>{{ item_form.quantity }}</td>
+                            <td>{{ item_form.base_price }}</td>
+                            <td class="text-center">
+                                <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                                <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Lunch Items Table -->
+            <div id="lunch-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if not is_lunch %}hidden{% endif %}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-left" style="min-width:120px">📅 Entry Date</th>
+                            <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
+                            <th class="text-right" style="width:130px">💰 Bill Amount (৳)</th>
+                            <th class="text-center" style="width:65px">🔢 Qty</th>
+                            <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                                <i class="fas fa-trash text-xs"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="lunch-formset">
+                        {% if is_lunch %}
+                            {% for item_form in formset %}
+                            <tr class="border-b item-row">
+                                <td>{{ item_form.entry_date }}</td>
+                                <td>{{ item_form.restaurant_name }}</td>
+                                <td>{{ item_form.base_price }}</td>
+                                <td>{{ item_form.quantity }}</td>
+                                <td class="text-center">
+                                    <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                                    <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </td>
+                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Hidden empty form templates -->
+            <table class="hidden">
+                <tbody id="empty-form-template">
+                    <tr class="border-b item-row">
+                        <td>
+                            <div class="autocomplete-container">
+                                {{ formset.empty_form.description }}
+                                <div class="suggestions-list"></div>
+                            </div>
+                        </td>
+                        <td>{{ formset.empty_form.unit }}</td>
+                        <td>{{ formset.empty_form.quantity }}</td>
+                        <td>{{ formset.empty_form.base_price }}</td>
+                        <td class="text-center">
+                            <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="hidden">
+                <tbody id="empty-lunch-template">
+                    <tr class="border-b item-row">
+                        <td>
+                            <input type="date" name="items-__prefix__-entry_date"
+                                   id="id_items-__prefix__-entry_date"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="text" name="items-__prefix__-restaurant_name"
+                                   id="id_items-__prefix__-restaurant_name"
+                                   placeholder="Restaurant name..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-base_price"
+                                   id="id_items-__prefix__-base_price"
+                                   value="0.00" step="0.01" min="0"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-quantity"
+                                   id="id_items-__prefix__-quantity"
+                                   value="1" min="1"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:center;">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="hidden">
+                            <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
+                            <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="button" id="add-item"
+                class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
+                <i class="fas fa-plus text-xs"></i>
+                <span id="add-item-label">{% if is_lunch %}Add Lunch Entry{% else %}Add Another Item{% endif %}</span>
+            </button>
+            <p class="text-gray-400 text-xs mt-2 italic">
+                <i class="fas fa-info-circle text-xs mr-0.5"></i>
+                {% if is_lunch %}Each row = one day's restaurant bill. Final invoice is generated after approval.{% else %}Prices can be left at 0 — suppliers can fill them later.{% endif %}
+            </p>
+        </div>
+
+        <!-- ── Action Buttons ── -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-end items-center pb-6">
+            <a href="{% url 'transaction_list' %}" class="flex-1 sm:flex-none text-center bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition text-sm">
+                Cancel
+            </a>
+            {% if is_update %}
+                {% if form.instance.status == 'DRAFT' %}
+                <a href="{% whatsapp_link form.instance 'supplier' %}" target="_blank" class="flex-1 sm:flex-none bg-green-50 text-green-700 px-5 py-3 rounded-xl font-bold hover:bg-green-100 transition text-sm border border-green-200 flex items-center justify-center gap-2">
+                    <i class="fab fa-whatsapp text-base"></i> Notify Supplier
+                </a>
+                {% elif form.instance.status == 'PRICED' %}
+                <a href="{% whatsapp_link form.instance 'owner' %}" target="_blank" class="flex-1 sm:flex-none bg-orange-50 text-orange-700 px-5 py-3 rounded-xl font-bold hover:bg-orange-100 transition text-sm border border-orange-200 flex items-center justify-center gap-2">
+                    <i class="fab fa-whatsapp text-base"></i> Notify Owner
+                </a>
+                {% endif %}
+            {% endif %}
+            <button type="submit" 
+                {% if user.role != 'OWNER' and not user.is_superuser and form.instance.status != 'DRAFT' and form.instance.pk %}disabled{% endif %}
+                class="flex-1 sm:flex-none bg-indigo-600 text-white px-8 py-3 rounded-xl shadow font-black hover:bg-indigo-700 transition flex items-center justify-center gap-2 text-sm hover:shadow-md disabled:bg-gray-300 disabled:cursor-not-allowed">
+                <i class="fas fa-save text-xs"></i> {% if is_update %}Save Changes{% else %}Save as Draft{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Suggestion Dropdown -->
+<div id="product-suggestions"></div>
+
+<script>
+const parties = {
+    {% for party in parties %}
+    "{{ party.id }}": {
+        "name": "{{ party.name|escapejs }}",
+        "bin": "{{ party.bin_number|escapejs }}",
+        "address": "{{ party.address|escapejs }}",
+        "contact": "{{ party.contact|escapejs }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+function fillParty(selectId, prefix) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+        const p = parties[this.value];
+        const fields = ['name','bin','address','contact'];
+        fields.forEach(f => {
+            const el = document.getElementById('id_' + prefix + '_' + f);
+            if (el) el.value = p ? p[f] : '';
+        });
+    });
+}
+fillParty('supplier_select', 'supplier');
+fillParty('buyer_select', 'buyer');
+
+// ── Lunch mode detection ──
+let isLunchMode = {{ is_lunch|yesno:"true,false" }};
+
+function setLunchMode(on) {
+    isLunchMode = on;
+    document.getElementById('normal-items-table').classList.toggle('hidden', on);
+    document.getElementById('lunch-items-table').classList.toggle('hidden', !on);
+    document.getElementById('add-item-label').textContent = on ? 'Add Lunch Entry' : 'Add Another Item';
+    document.getElementById('items-section-label').textContent = on ? 'Daily Lunch Entries' : 'Items';
+}
+
+// ── Add Item Row ──
+document.getElementById('add-item').addEventListener('click', function() {
+    const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+    const count = parseInt(totalForms.value);
+
+    if (isLunchMode) {
+        // Add lunch row
+        const tbody = document.getElementById('lunch-formset');
+        const template = document.getElementById('empty-lunch-template').querySelector('tr');
+        const newRow = template.cloneNode(true);
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+        newRow.querySelectorAll('input').forEach(input => {
+            if (input.name.includes('-id')) input.value = '';
+            else if (input.name.includes('-sort_order')) input.value = count;
+            else if (input.type !== 'hidden') {
+                if (input.name.includes('quantity')) input.value = '1';
+                else if (input.name.includes('base_price')) input.value = '0.00';
+                else input.value = '';
+            }
+        });
+        tbody.appendChild(newRow);
+        totalForms.value = count + 1;
+        const dateInput = newRow.querySelector('input[name$="-entry_date"]');
+        if (dateInput) dateInput.focus();
+    } else {
+        // Add normal row
+        const tbody = document.getElementById('item-formset');
+        const template = document.getElementById('empty-form-template').querySelector('tr');
+        const newRow = template.cloneNode(true);
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+        newRow.querySelectorAll('input').forEach(input => {
+            if (input.name.includes('-id')) input.value = '';
+            else if (input.name.includes('-sort_order')) input.value = count;
+            else if (input.type !== 'hidden') {
+                if (input.name.includes('quantity')) input.value = '1';
+                else if (input.name.includes('price')) input.value = '0.00';
+                else if (input.name.includes('unit')) input.value = 'Pcs';
+                else input.value = '';
+            }
+        });
+        tbody.appendChild(newRow);
+        totalForms.value = count + 1;
+        const desc = newRow.querySelector('input[name$="-description"]');
+        if (desc) { desc.focus(); desc.select(); }
+    }
+});
+
+// ── Remove Row ──
+window.removeRow = function(btn) {
+    const row = btn.closest('tr');
+    const delCb = row.querySelector('input[name$="-DELETE"]');
+    if (delCb) { delCb.checked = true; row.style.display = 'none'; }
+    else {
+        row.querySelectorAll('input').forEach(i => { if (i.type !== 'hidden') i.value = ''; });
+        row.style.display = 'none';
+    }
+};
+
+// ── Category Auto-Fill + Lunch Mode Switch ──
+const categorySelect = document.querySelector('[name="transaction_category"]');
+const fieldMap = {
+    vat:            '[name="vat_percentage"]',
+    tax:            '[name="tax_percentage"]',
+    duty:           '[name="duty_percentage"]',
+    service_charge: '[name="service_charge_percentage"]',
+    profit_margin:  '[name="profit_margin"]',
+    next_invoice:   '[name="invoice_number"]',
+    next_challan:   '[name="challan_number"]',
+};
+if (categorySelect) {
+    // Also detect lunch from the selected option text on category change
+    const catOptions = categorySelect.options;
+    categorySelect.addEventListener('change', function() {
+        const catId = this.value;
+        if (!catId) return;
+        // Check if "lunch" in selected option text
+        const selectedText = catOptions[catOptions.selectedIndex].text.toLowerCase();
+        setLunchMode(selectedText.includes('lunch'));
+
+        fetch(`/api/category/${catId}/defaults/`)
+            .then(r => r.json())
+            .then(data => {
+                for (const [key, sel] of Object.entries(fieldMap)) {
+                    const el = document.querySelector(sel);
+                    if (el && data[key] !== undefined) {
+                        el.value = data[key];
+                        highlightField(el);
+                    }
+                }
+                
+                // --- Auto-fill Supplier Details ---
+                if (data.supplier && data.supplier.name) {
+                    fillField('[name="supplier_name"]', data.supplier.name);
+                    fillField('[name="supplier_bin"]', data.supplier.bin);
+                    fillField('[name="supplier_address"]', data.supplier.address);
+                    fillField('[name="supplier_contact"]', data.supplier.contact);
+                }
+                
+                // --- Auto-fill Buyer Details ---
+                if (data.buyer && data.buyer.name) {
+                    fillField('[name="buyer_name"]', data.buyer.name);
+                    fillField('[name="buyer_bin"]', data.buyer.bin);
+                    fillField('[name="buyer_address"]', data.buyer.address);
+                    fillField('[name="buyer_contact"]', data.buyer.contact);
+                }
+            })
+            .catch(() => {});
+    });
+
+    // --- AUTO-TRIGGER ON LOAD ---
+    // If key info is missing (Draft/Requisition), trigger sync immediately
+    if (categorySelect && categorySelect.value) {
+        const inv = document.querySelector('[name="invoice_number"]');
+        const sName = document.querySelector('[name="supplier_name"]');
+        const sBin = document.querySelector('[name="supplier_bin"]');
+        
+        // Trigger if number is missing OR if party details are missing
+        if (!inv?.value || !sName?.value || !sBin?.value) {
+            setTimeout(() => categorySelect.dispatchEvent(new Event('change')), 100);
+        }
+    }
+}
+
+function fillField(selector, value) {
+    const el = document.querySelector(selector);
+    if (el) {
+        el.value = value;
+        highlightField(el);
+    }
+}
+
+// ── Product Suggestions Logic ──
+const suggestionBox = document.getElementById('product-suggestions');
+let currentSuggestionIndex = -1;
+let activeDescInput = null;
+
+function showSuggestions(input) {
+    const query = input.value.trim();
+    if (query.length < 1) {
+        hideSuggestions();
+        return;
+    }
+
+    const categoryId = categorySelect ? categorySelect.value : '';
+    activeDescInput = input;
+
+    fetch(`/api/products/search/?q=${encodeURIComponent(query)}&category_id=${categoryId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                renderSuggestions(data.results, input);
+            } else {
+                hideSuggestions();
+            }
+        })
+        .catch(() => hideSuggestions());
+}
+
+function renderSuggestions(products, input) {
+    const rect = input.getBoundingClientRect();
+    suggestionBox.style.left = `${rect.left + window.scrollX}px`;
+    suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    suggestionBox.style.width = `${Math.max(rect.width, 250)}px`;
+    suggestionBox.style.display = 'block';
+    
+    suggestionBox.innerHTML = products.map((p, index) => `
+        <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+            <div>
+                <span class="suggestion-name">${p.name}</span>
+                <span class="suggestion-unit">${p.unit}</span>
+            </div>
+            <span class="suggestion-price">৳${p.base_price}</span>
+        </div>
+    `).join('');
+    
+    currentSuggestionIndex = -1;
+}
+
+function selectProduct(product) {
+    if (!activeDescInput) return;
+    
+    // Fill description
+    activeDescInput.value = product.name;
+    
+    // Find unit and price fields in the same row
+    const row = activeDescInput.closest('tr');
+    const unitField = row.querySelector('input[name$="-unit"]');
+    const priceField = row.querySelector('input[name$="-base_price"]');
+    
+    if (unitField) {
+        unitField.value = product.unit;
+        highlightField(unitField);
+    }
+    if (priceField) {
+        priceField.value = product.base_price;
+        highlightField(priceField);
+    }
+    
+    hideSuggestions();
+}
+
+function highlightField(el) {
+    el.style.transition = 'background 0.4s';
+    el.style.background = '#d1fae5';
+    setTimeout(() => el.style.background = '', 600);
+}
+
+function hideSuggestions() {
+    suggestionBox.style.display = 'none';
+    currentSuggestionIndex = -1;
+}
+
+function initSuggestionListeners() {
+    // Delegation for dynamic rows
+    document.addEventListener('input', function(e) {
+        if (e.target.name && e.target.name.endsWith('-description') && !isLunchMode) {
+            showSuggestions(e.target);
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (!suggestionBox.style.display || suggestionBox.style.display === 'none') return;
+        
+        const items = suggestionBox.querySelectorAll('.suggestion-item');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            currentSuggestionIndex = (currentSuggestionIndex + 1) % items.length;
+            updateActiveSuggestion(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            currentSuggestionIndex = (currentSuggestionIndex - 1 + items.length) % items.length;
+            updateActiveSuggestion(items);
+        } else if (e.key === 'Enter') {
+            if (currentSuggestionIndex >= 0) {
+                e.preventDefault();
+                items[currentSuggestionIndex].click();
+            }
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!suggestionBox.contains(e.target) && e.target !== activeDescInput) {
+            hideSuggestions();
+        }
+    });
+}
+
+function updateActiveSuggestion(items) {
+    items.forEach((item, idx) => {
+        item.classList.toggle('active', idx === currentSuggestionIndex);
+        if (idx === currentSuggestionIndex) {
+            item.scrollIntoView({ block: 'nearest' });
+        }
+    });
+}
+
+initSuggestionListeners();
+</script>
+{% endblock %}

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check Collection Authorization - {{ auth.reference_number }}</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&amp;family=Source+Sans+3:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+   <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: 'Source Sans 3', sans-serif; background: #f0f4f8; }
+    .heading-font { font-family: 'DM Serif Display', serif; }
+    
+    @media print {
+      body { background: white !important; }
+      .no-print { display: none !important; }
+      .print-area { box-shadow: none !important; margin: 0 !important; border: none !important; }
+      html, body { width: 8.27in; height: 11.69in; }
+    }
+    
+    .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
+    .print-area { 
+        width: 8.27in; 
+        height: 11.69in; 
+        background: white; 
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); 
+        position: relative; 
+        padding: 50px;
+        display: flex;
+        flex-direction: column;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+   </style>
+ </head>
+ <body class="h-full">
+  <div class="a4-container">
+   <!-- Print Button -->
+   <div class="no-print" style="position:fixed; top:20px; right:20px; z-index:100; display:flex; gap:10px;">
+    <a href="{% url 'authorization_list' %}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 shadow-lg">
+        <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back 
+    </a>
+    <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-wider shadow-lg"> 
+        <i data-lucide="printer" style="width:16px;height:16px;"></i> Print
+    </button>
+   </div>
+
+   <!-- Authorization Document -->
+   <div class="print-area">
+    <!-- Decorative top stripe -->
+    <div class="absolute top-0 left-0 right-0 h-2" style="background: linear-gradient(90deg, #1e293b, #3b5998, #1e293b);"></div>
+    
+    <!-- Header -->
+    <div class="text-center mt-4 mb-8">
+     <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background:#eef2ff;">
+      <i data-lucide="file-check" style="width:32px;height:32px;color:#3b5998;"></i>
+     </div>
+     <h2 class="heading-font text-3xl text-slate-900 mb-1">Authorization to Collect Check</h2>
+     <p class="text-slate-500 text-sm tracking-wide uppercase font-medium">Official Authorization Letter</p>
+    </div>
+
+    <div class="w-16 h-0.5 mx-auto mb-8" style="background:#3b5998;"></div>
+
+    <!-- Date & Reference -->
+    <div class="flex flex-wrap gap-6 mb-8 text-sm">
+     <div class="flex-1">
+      <span class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Date of Issue</span>
+      <span class="text-slate-800 font-bold border-b-2 border-slate-100 pb-1 px-1">{{ auth.created_at|date:"M d, Y" }}</span>
+     </div>
+     <div class="flex-1">
+      <span class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Reference No.</span>
+      <span class="text-slate-800 font-bold border-b-2 border-slate-100 pb-1 px-1">{{ auth.reference_number }}</span>
+     </div>
+    </div>
+
+    <!-- To / From Section -->
+    <div class="grid grid-cols-2 gap-6 mb-8">
+     <div class="p-5 rounded-xl border-2 border-slate-50 bg-slate-50/50">
+      <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <i data-lucide="building-2" style="width:12px;height:12px;"></i> Issuing Company (Paying)
+      </h3>
+      <div class="text-sm font-bold text-slate-900 mb-1">{{ auth.issuer_name }}</div>
+      <div class="text-xs text-slate-500 leading-relaxed">{{ auth.issuer_address }}</div>
+     </div>
+     <div class="p-5 rounded-xl border-2 border-slate-50 bg-slate-50/50">
+      <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <i data-lucide="briefcase" style="width:12px;height:12px;"></i> Trading Company (Nominating)
+      </h3>
+      <div class="text-sm font-bold text-slate-900 mb-1">{{ auth.trading_name }}</div>
+      <div class="text-xs text-slate-500 italic mt-2">Authorized Signatory: {{ owner_name }}</div>
+     </div>
+    </div>
+
+    <!-- Authorization Body -->
+    <div class="mb-8 p-8 rounded-2xl" style="background: linear-gradient(135deg, #f8fafc, #eff6ff); border: 1px solid #e2e8f0;">
+     <h3 class="text-[10px] font-black uppercase tracking-widest mb-6 flex items-center gap-2" style="color:#3b5998;">
+         <i data-lucide="shield-check" style="width:14px;height:14px;"></i> Letter of Authorization
+     </h3>
+     <p class="text-slate-700 text-sm leading-relaxed mb-6">
+         This is to certify that <strong>{{ auth.trading_name }}</strong> nominates and authorizes 
+         <strong class="text-slate-900 border-b border-slate-300 pb-0.5">{{ auth.nominee.get_full_name|default:auth.nominee.username }}</strong> 
+         (Nominee) to receive and collect {% if auth.check_number %}the check mentioned below{% else %}any pending payments/checks{% endif %} from the issuing company on our behalf.
+     </p>
+     
+     <div class="space-y-4">
+        <div class="flex border-b border-slate-200 pb-2">
+            <span class="w-40 text-xs font-bold text-slate-400 uppercase">Nominee ID (NID)</span>
+            <span class="text-sm text-slate-900 font-bold font-mono">{{ auth.nominee_nid }}</span>
+        </div>
+        {% if auth.check_number %}
+        <div class="flex border-b border-slate-200 pb-2">
+            <span class="w-40 text-xs font-bold text-slate-400 uppercase">Check Number</span>
+            <span class="text-sm text-slate-900 font-bold">{{ auth.check_number }}</span>
+        </div>
+        {% endif %}
+        {% if auth.check_amount %}
+        <div class="flex border-b border-slate-200 pb-2">
+            <span class="w-40 text-xs font-bold text-slate-400 uppercase">Check Amount</span>
+            <span class="text-sm text-slate-900 font-bold">BDT {{ auth.check_amount }}</span>
+        </div>
+        {% endif %}
+        {% if auth.purpose %}
+        <div class="flex border-b border-slate-200 pb-2">
+            <span class="w-40 text-xs font-bold text-slate-400 uppercase">Purpose</span>
+            <span class="text-sm text-slate-900 font-medium">{{ auth.purpose }}</span>
+        </div>
+        {% endif %}
+     </div>
+    </div>
+
+    <!-- Reason -->
+    {% if auth.reason %}
+    <div class="mb-8 px-6">
+     <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Reason for Authorization</h3>
+     <p class="text-sm text-slate-600 leading-relaxed">{{ auth.reason }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Validity -->
+    <div class="flex gap-12 mb-8 px-6">
+     <div>
+      <span class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Valid From</span>
+      <span class="text-sm text-slate-900 font-bold">{{ auth.valid_from|date:"d M Y" }}</span>
+     </div>
+     <div>
+      <span class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Valid Until</span>
+      <span class="text-sm text-slate-900 font-bold">{{ auth.valid_to|date:"d M Y" }}</span>
+     </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="grid grid-cols-2 gap-16 mb-8 pt-6 border-t border-slate-100 mt-2">
+     <div class="relative flex flex-col items-start text-left">
+      {% load static %}
+      <div class="h-16 w-full relative">
+          <img src="{% static 'images/signature.png' %}" alt="Signature" class="absolute -bottom-2 left-0 h-24 opacity-95 mix-blend-multiply">
+      </div>
+      <div class="border-b-2 border-slate-900 mb-3 w-56"></div>
+      <p class="text-xs font-black text-slate-900 uppercase tracking-widest">Authorized Signatory</p>
+      <p class="text-[11px] text-slate-700 font-bold mt-1">{{ owner_name }}</p>
+      <p class="text-[10px] text-slate-400">{{ owner_designation }}</p>
+     </div>
+     
+     <div class="flex flex-col items-start text-left">
+      <div class="h-16 w-full"></div> 
+      <div class="border-b-2 border-slate-300 mb-3 w-56"></div>
+      <p class="text-xs font-black text-slate-900 uppercase tracking-widest">Nominee's Signature</p>
+      <p class="text-[11px] text-slate-700 font-bold mt-1">{{ auth.nominee.get_full_name|default:auth.nominee.username }}</p>
+      <p class="text-[10px] text-slate-400">NID: {{ auth.nominee_nid }}</p>
+     </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="text-center pt-8 border-t border-slate-50">
+     <p class="text-[10px] text-slate-400 italic">
+         This authorization is valid for the specified check only. 
+         The nominee must present their original National ID (NID) card for verification when collecting the check.
+     </p>
+    </div>
+   </div>
+  </div>
+  <script>lucide.createIcons();</script>
+ </body>
+</html>

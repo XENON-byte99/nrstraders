@@ -1,0 +1,472 @@
+{% extends 'base.html' %}
+{% load whatsapp_tags %}
+{% block content %}
+<div class="w-full max-w-7xl mx-auto px-3 sm:px-5 py-4 md:py-8 space-y-4 md:space-y-6">
+
+  <!-- ═══ HEADER & FILTER PANEL ═══ -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="p-4 md:p-6 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-indigo-500">
+      <h2 class="text-xl md:text-2xl font-black text-white"><i class="fas fa-chart-pie mr-2 opacity-80"></i>Bill Summary Dashboard</h2>
+      <p class="text-xs text-indigo-200 mt-1">Approved / Submitted / Released transactions</p>
+    </div>
+    <form method="get" class="p-4 md:p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+        <select name="status" onchange="this.form.submit()" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+          <option value="ALL" {% if current_status == 'ALL' %}selected{% endif %}>All</option>
+          <option value="APPROVED" {% if current_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+          <option value="SUBMITTED" {% if current_status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+          <option value="RELEASED" {% if current_status == 'RELEASED' %}selected{% endif %}>Released</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sort By</label>
+        <select name="sort" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+          <option value="-created_at" {% if current_sort == '-created_at' %}selected{% endif %}>Newest</option>
+          <option value="created_at" {% if current_sort == 'created_at' %}selected{% endif %}>Oldest</option>
+          <option value="status" {% if current_sort == 'status' %}selected{% endif %}>Status↑</option>
+          <option value="-status" {% if current_sort == '-status' %}selected{% endif %}>Status↓</option>
+          <option value="invoice_number" {% if current_sort == 'invoice_number' %}selected{% endif %}>Invoice↑</option>
+          <option value="-invoice_number" {% if current_sort == '-invoice_number' %}selected{% endif %}>Invoice↓</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">From</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">To</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+      </div>
+      <div class="col-span-2 sm:col-span-1 flex gap-2 items-end">
+        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition"><i class="fas fa-filter mr-1"></i>Apply</button>
+        <a href="{% url 'bill_summary' %}" class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded-lg text-sm font-bold transition">Clear</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- ═══ KPI CARDS ═══ -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 md:p-4">
+      <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase mb-1">Total Bills</p>
+      <p class="text-2xl md:text-3xl font-black text-indigo-900">{{ total_bills }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 md:p-4">
+      <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase mb-1">Grand Revenue</p>
+      <p class="text-base md:text-xl font-black text-gray-800 font-mono leading-tight">&#2547;{{ grand_revenue|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-orange-100 shadow-sm p-3 md:p-4">
+      <p class="text-[10px] md:text-xs font-bold text-orange-400 uppercase mb-1">VAT Collected</p>
+      <p class="text-base md:text-xl font-black text-orange-500 font-mono leading-tight">&#2547;{{ total_vat|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-indigo-100 shadow-sm p-3 md:p-4">
+      <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase mb-1">Grand Upscale</p>
+      <p class="text-base md:text-xl font-black text-indigo-700 font-mono leading-tight">&#2547;{{ total_upscale_revenue|floatformat:2 }}</p>
+    </div>
+    <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-3 md:p-4">
+      <p class="text-[10px] md:text-xs font-bold text-green-100 uppercase mb-1"><i class="fas fa-chart-line mr-1"></i>Gross Profit</p>
+      <p class="text-base md:text-xl font-black text-white font-mono leading-tight">&#2547;{{ total_gross_profit|floatformat:2 }}</p>
+      <p class="text-[10px] text-green-200 mt-1 font-semibold">{{ profit_margin_pct|floatformat:1 }}% margin</p>
+    </div>
+  </div>
+
+  <!-- ═══ CATEGORY BREAKDOWN + SIDEBAR ═══ -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
+
+    <!-- Category Table -->
+    <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="p-3 md:p-4 border-b border-gray-100 bg-gray-50">
+        <h3 class="font-bold text-gray-800 text-sm md:text-base"><i class="fas fa-tags text-indigo-500 mr-2"></i>Breakdown by Category</h3>
+      </div>
+      <div class="overflow-x-auto -webkit-overflow-scrolling-touch">
+        <table class="w-full text-xs md:text-sm" style="min-width:480px">
+          <thead class="bg-gray-50 text-gray-400 uppercase text-[10px] md:text-xs font-bold border-b border-gray-100">
+            <tr>
+              <th class="py-2 px-3 w-6"></th>
+              <th class="py-2 px-3 text-left">Category</th>
+              <th class="py-2 px-2 text-center">#</th>
+              <th class="py-2 px-3 text-right">Supply</th>
+              <th class="py-2 px-3 text-right">Upscale</th>
+              <th class="py-2 px-3 text-right">VAT</th>
+              <th class="py-2 px-3 text-right text-indigo-700">Grand</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for cat in category_breakdown %}
+            <tr class="hover:bg-indigo-50/30 cursor-pointer transition" onclick="toggleCat('cat-{{ forloop.counter }}', this)">
+              <td class="py-2.5 px-3 text-gray-400 text-[10px]"><i class="fas fa-chevron-right transition-transform" id="icon-cat-{{ forloop.counter }}"></i></td>
+              <td class="py-2.5 px-3 font-semibold text-gray-800 whitespace-nowrap">{{ cat.name }}</td>
+              <td class="py-2.5 px-2 text-center text-gray-600 font-bold">{{ cat.count }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.original_price|floatformat:2 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-indigo-600 font-semibold">&#2547;{{ cat.subtotal|floatformat:2 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.vat|floatformat:2 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-bold text-indigo-800">&#2547;{{ cat.grand_total|floatformat:2 }}</td>
+            </tr>
+            <tr id="cat-{{ forloop.counter }}" class="hidden">
+              <td colspan="7" class="p-0 bg-slate-50">
+                <div class="px-4 md:px-6 py-3 overflow-x-auto">
+                  <p class="text-[10px] font-bold text-indigo-600 uppercase mb-2">Invoices in {{ cat.name }}</p>
+                  <table class="w-full text-[10px] md:text-xs" style="min-width:400px">
+                    <thead class="text-gray-400 border-b border-gray-200">
+                      <tr>
+                        <th class="py-1 pr-3 text-left">Date</th>
+                        <th class="py-1 pr-3 text-left">Invoice</th>
+                        <th class="py-1 pr-3 text-right">Supply</th>
+                        <th class="py-1 pr-3 text-right">Upscale</th>
+                        <th class="py-1 pr-3 text-right">Grand</th>
+                        <th class="py-1 pr-2 text-center">Status</th>
+                        <th class="py-1 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dashed divide-gray-200">
+                      {% for t in cat.transactions %}
+                      <tr class="hover:bg-white transition">
+                        <td class="py-1 pr-3 text-gray-400 whitespace-nowrap">{{ t.date|date:"d M Y" }}</td>
+                        <td class="py-1 pr-3 font-mono text-indigo-600 font-bold whitespace-nowrap">{{ t.invoice_number }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:2 }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-indigo-600">&#2547;{{ t.upscale_price|floatformat:2 }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-green-700 font-bold">&#2547;{{ t.grand_total|floatformat:2 }}</td>
+                        <td class="py-1 pr-2 text-center">
+                          {% if request.user.p_edit_bill or request.user.is_superuser %}
+                          <form method="post" action="{% url 'transaction_update_status' t.pk %}">{% csrf_token %}
+                            <select name="status" onchange="this.form.submit()" class="border rounded px-1 py-0.5 text-[10px] bg-white font-bold {% if t.status == 'APPROVED' %}text-yellow-600{% elif t.status == 'SUBMITTED' %}text-blue-600{% else %}text-green-600{% endif %}">
+                              <option value="APPROVED" {% if t.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                              <option value="SUBMITTED" {% if t.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                              <option value="RELEASED" {% if t.status == 'RELEASED' %}selected{% endif %}>Released</option>
+                            </select>
+                          </form>
+                          {% else %}
+                          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold {% if t.status == 'APPROVED' %}bg-yellow-100 text-yellow-700{% elif t.status == 'SUBMITTED' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">{{ t.status }}</span>
+                          {% endif %}
+                        </td>
+                        <td class="py-1 text-center">
+                          <div class="flex items-center justify-center gap-1">
+                            <a href="{% if t.status == 'PRICED' or t.status == 'SUBMITTED' %}{% whatsapp_link t.tx_obj 'owner' %}{% else %}{% whatsapp_link t.tx_obj 'accountant' %}{% endif %}" target="_blank" class="text-green-500 hover:text-green-700 font-bold" title="WhatsApp">
+                              <i class="fab fa-whatsapp"></i>
+                            </a>
+                            <a href="{% url 'transaction_approve' t.pk %}" target="_blank" class="text-indigo-400 hover:text-indigo-600"><i class="fas fa-external-link-alt text-[10px]"></i></a>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="py-10 text-center text-gray-400 italic text-xs">No bills in this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sidebar Panels -->
+    <div class="flex flex-col gap-4">
+      <!-- Status Overview -->
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="p-3 md:p-4 border-b border-gray-100 bg-gray-50">
+          <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-tasks text-indigo-500 mr-2"></i>Status Overview</h3>
+        </div>
+        <div class="p-4 space-y-3">
+          {% with approved=status_counts.APPROVED|default:0 submitted=status_counts.SUBMITTED|default:0 released=status_counts.RELEASED|default:0 %}
+          <!-- Approved -->
+          <div class="rounded-lg border border-yellow-100 bg-yellow-50/50 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span>
+                <span class="text-sm font-bold text-yellow-700">Approved</span>
+                <span class="text-xs bg-yellow-100 text-yellow-600 font-black px-1.5 py-0.5 rounded-full">{{ approved }}</span>
+              </div>
+              <span class="font-mono font-black text-yellow-700 text-sm">&#2547;{{ status_amounts.APPROVED|floatformat:2 }}</span>
+            </div>
+            <div class="bg-yellow-100 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-yellow-400 h-1.5 rounded-full" style="width:{{ approved_pct|floatformat:0 }}%"></div>
+            </div>
+          </div>
+          <!-- Submitted -->
+          <div class="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
+                <span class="text-sm font-bold text-blue-700">Submitted</span>
+                <span class="text-xs bg-blue-100 text-blue-600 font-black px-1.5 py-0.5 rounded-full">{{ submitted }}</span>
+              </div>
+              <span class="font-mono font-black text-blue-700 text-sm">&#2547;{{ status_amounts.SUBMITTED|floatformat:2 }}</span>
+            </div>
+            <div class="bg-blue-100 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-blue-400 h-1.5 rounded-full" style="width:{{ submitted_pct|floatformat:0 }}%"></div>
+            </div>
+          </div>
+          <!-- Released -->
+          <div class="rounded-lg border border-green-100 bg-green-50/50 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+                <span class="text-sm font-bold text-green-700">Released</span>
+                <span class="text-xs bg-green-100 text-green-600 font-black px-1.5 py-0.5 rounded-full">{{ released }}</span>
+              </div>
+              <span class="font-mono font-black text-green-700 text-sm">&#2547;{{ status_amounts.RELEASED|floatformat:2 }}</span>
+            </div>
+            <div class="bg-green-100 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-green-500 h-1.5 rounded-full" style="width:{{ released_pct|floatformat:0 }}%"></div>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Key Insights -->
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="p-3 md:p-4 border-b border-gray-100 bg-gray-50">
+          <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Key Insights</h3>
+        </div>
+        <div class="p-4 divide-y divide-gray-100">
+          <div class="py-2 flex justify-between items-center gap-2">
+            <span class="text-xs text-gray-400 uppercase font-bold">Avg. Bill Value</span>
+            <span class="font-mono font-black text-gray-800 text-sm">&#2547;{{ avg_bill_value|floatformat:2 }}</span>
+          </div>
+          <div class="py-2 flex justify-between items-center gap-2">
+            <span class="text-xs text-gray-400 uppercase font-bold">Profit Margin</span>
+            <span class="font-mono font-black text-sm {% if profit_margin_pct > 20 %}text-green-600{% elif profit_margin_pct > 10 %}text-yellow-500{% else %}text-red-500{% endif %}">{{ profit_margin_pct|floatformat:1 }}%</span>
+          </div>
+          <div class="py-2 flex justify-between items-center gap-2">
+            <span class="text-xs text-gray-400 uppercase font-bold">VAT Total</span>
+            <span class="font-mono font-black text-orange-500 text-sm">&#2547;{{ total_vat|floatformat:2 }}</span>
+          </div>
+          <div class="py-2 flex justify-between items-center gap-2">
+            <span class="text-xs text-gray-400 uppercase font-bold">Period</span>
+            <span class="text-xs font-bold text-indigo-600 text-right">{% if date_from %}{{ date_from }}&nbsp;&mdash;&nbsp;{% endif %}{{ date_to }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MONTHLY TREND CHART ═══ -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="p-3 md:p-4 border-b border-gray-100 bg-gray-50">
+      <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-chart-bar text-blue-500 mr-2"></i>Monthly Revenue Trend</h3>
+    </div>
+    <div class="p-4 md:p-5">
+      {% if trend_bars %}
+      <div class="flex items-end gap-1 sm:gap-2 h-32 md:h-48 border-b border-l border-gray-200 pb-1 pl-1">
+        {% for bar in trend_bars %}
+        <div class="relative flex-1 flex flex-col justify-end items-center group h-full min-w-0">
+          <div class="w-full bg-indigo-500 rounded-t hover:bg-indigo-600 transition-all relative" style="height:{{ bar.height_pct }}%;">
+            <div class="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded whitespace-nowrap z-10 pointer-events-none transition-opacity">
+              &#2547;{{ bar.value|floatformat:0 }}
+            </div>
+          </div>
+          <div class="text-[8px] md:text-[10px] text-gray-400 mt-1 truncate w-full text-center">{{ bar.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-8 text-center text-gray-400 italic text-sm">No trend data yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ═══ DETAILED ANALYTICS TABLE ═══ -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="p-3 md:p-4 border-b border-gray-100 bg-indigo-50/60 flex flex-wrap justify-between items-center gap-2">
+      <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-file-invoice text-indigo-500 mr-2"></i>Detailed Analytics</h3>
+      <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-xs bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded-full font-semibold">{{ total_bills }} records</span>
+        <button onclick="clearSelection()" class="text-xs text-gray-400 hover:text-red-500 font-bold transition"><i class="fas fa-times-circle mr-1"></i>Clear</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs md:text-sm" style="min-width:700px">
+        <thead class="bg-gray-50 text-gray-400 uppercase text-[10px] font-bold border-b border-gray-100 whitespace-nowrap">
+          <tr>
+            <th class="py-3 px-3 w-8"><input type="checkbox" id="selectAll" class="cursor-pointer" onchange="toggleAll(this)" title="Select All"></th>
+            <th class="py-3 px-3 text-left">
+              <a href="?date_from={{ date_from }}&date_to={{ date_to }}&status={{ current_status }}&sort={% if current_sort == 'created_at' %}-created_at{% else %}created_at{% endif %}" class="hover:text-indigo-600">Date<i class="fas fa-sort ml-1 opacity-50"></i></a>
+            </th>
+            <th class="py-3 px-3 text-left">
+              <a href="?date_from={{ date_from }}&date_to={{ date_to }}&status={{ current_status }}&sort={% if current_sort == 'invoice_number' %}-invoice_number{% else %}invoice_number{% endif %}" class="hover:text-indigo-600">Invoice<i class="fas fa-sort ml-1 opacity-50"></i></a>
+            </th>
+            <th class="py-3 px-3 text-right">Supply</th>
+            <th class="py-3 px-3 text-right">Upscale</th>
+            <th class="py-3 px-3 text-right">VAT</th>
+            <th class="py-3 px-3 text-right">Grand Total</th>
+            <th class="py-3 px-3 text-right text-green-700 bg-green-50/50">Profit</th>
+            <th class="py-3 px-3 text-center">
+              <a href="?date_from={{ date_from }}&date_to={{ date_to }}&status={{ current_status }}&sort={% if current_sort == 'status' %}-status{% else %}status{% endif %}" class="hover:text-indigo-600">Status<i class="fas fa-sort ml-1 opacity-50"></i></a>
+            </th>
+            <th class="py-3 px-3 text-center">View</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100" id="billTableBody">
+          {% for t in detailed_transactions %}
+          <tr class="transition {% if t.is_newly_released %}bg-emerald-50 border-l-4 border-emerald-400 hover:bg-emerald-100{% elif t.status == 'SUBMITTED' %}bg-blue-50/30 hover:bg-blue-50{% else %}hover:bg-gray-50{% endif %}"
+              data-supply="{{ t.original_price }}"
+              data-upscale="{{ t.upscale_price }}"
+              data-vat="{{ t.vat }}"
+              data-grand="{{ t.grand_total }}"
+              data-profit="{{ t.profit }}"
+              data-invoice="{{ t.invoice_number }}">
+            <td class="py-2.5 px-3"><input type="checkbox" class="bill-check cursor-pointer" onchange="recalculate()"></td>
+            <td class="py-2.5 px-3 text-gray-500 whitespace-nowrap">{{ t.date|date:"d M Y" }}</td>
+            <td class="py-2.5 px-3 font-mono font-bold text-indigo-600 whitespace-nowrap">{{ t.invoice_number }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-800">&#2547;{{ t.upscale_price|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.vat|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono font-bold text-gray-900">&#2547;{{ t.grand_total|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono font-black text-green-700 bg-green-50/20">&#2547;{{ t.profit|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-center">
+              {% if request.user.p_edit_bill or request.user.is_superuser %}
+              <form method="post" action="{% url 'transaction_update_status' t.pk %}" class="inline">{% csrf_token %}
+                <select name="status" onchange="this.form.submit()" class="border rounded px-1.5 py-1 text-[10px] md:text-xs bg-white font-bold cursor-pointer {% if t.status == 'APPROVED' %}border-yellow-300 text-yellow-700{% elif t.status == 'SUBMITTED' %}border-blue-300 text-blue-700{% else %}border-emerald-400 text-emerald-700 font-black{% endif %}">
+                  <option value="APPROVED" {% if t.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                  <option value="SUBMITTED" {% if t.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                  <option value="RELEASED" {% if t.status == 'RELEASED' %}selected{% endif %}>Released</option>
+                </select>
+              </form>
+              {% else %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold {% if t.status == 'APPROVED' %}bg-yellow-100 text-yellow-700{% elif t.status == 'SUBMITTED' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">{{ t.status }}</span>
+              {% endif %}
+            </td>
+            <td class="py-2.5 px-3 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <a href="{% if t.status == 'PRICED' or t.status == 'SUBMITTED' %}{% whatsapp_link t.tx_obj 'owner' %}{% else %}{% whatsapp_link t.tx_obj 'accountant' %}{% endif %}" target="_blank" class="text-green-500 hover:text-green-700" title="Notify WhatsApp">
+                  <i class="fab fa-whatsapp text-sm"></i>
+                </a>
+                <a href="{% url 'transaction_approve' t.pk %}" target="_blank" class="text-indigo-400 hover:text-indigo-700">
+                  <i class="fas fa-external-link-alt text-[10px] md:text-xs"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" class="py-12 text-center text-gray-400 italic text-sm">No records found. Adjust your filters.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if detailed_transactions %}
+        <tfoot class="bg-indigo-50 border-t-2 border-indigo-200 text-xs font-bold whitespace-nowrap">
+          <tr>
+            <td class="py-3 px-3"></td>
+            <td colspan="2" class="py-3 px-3 text-indigo-700 uppercase font-black"><i class="fas fa-sigma mr-1"></i>All Totals ({{ total_bills }})</td>
+            <td class="py-3 px-3 text-right font-mono text-gray-600">&#2547;{{ total_original_price|floatformat:2 }}</td>
+            <td class="py-3 px-3 text-right font-mono text-indigo-700">&#2547;{{ total_upscale_revenue|floatformat:2 }}</td>
+            <td class="py-3 px-3 text-right font-mono text-gray-400">&#2547;{{ total_vat|floatformat:2 }}</td>
+            <td class="py-3 px-3 text-right font-mono font-black text-gray-900">&#2547;{{ grand_revenue|floatformat:2 }}</td>
+            <td class="py-3 px-3 text-right font-mono font-black text-green-700 bg-green-100">&#2547;{{ total_gross_profit|floatformat:2 }}&nbsp;<span class="text-green-400 font-normal">({{ profit_margin_pct|floatformat:1 }}%)</span></td>
+            <td class="py-3 px-3 text-center text-gray-300">&mdash;</td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FAB: Selection Badge (bottom-right, never covers table) ═══ -->
+<button id="calcFab" onclick="openCalcModal()"
+  class="hidden fixed bottom-6 right-4 z-50 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-2xl px-4 py-3 flex items-center gap-2 transition-all">
+  <i class="fas fa-calculator text-sm"></i>
+  <span class="text-sm font-black" id="fabCount">0 selected</span>
+</button>
+
+<!-- ═══ Calculator Modal ═══ -->
+<div id="calcModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeCalcModal()">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+  <div class="relative bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg text-white overflow-hidden">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-500 rounded-lg p-2"><i class="fas fa-calculator"></i></div>
+        <div>
+          <p class="text-xs text-gray-400 uppercase font-bold">Bill Selection Calculator</p>
+          <p class="text-sm font-bold" id="modalLabel">No bills selected</p>
+        </div>
+      </div>
+      <button onclick="closeCalcModal()" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+    </div>
+    <!-- Modal Numbers -->
+    <div class="p-5 grid grid-cols-2 gap-3">
+      <div class="bg-gray-800 rounded-xl p-3">
+        <p class="text-xs text-gray-400 mb-1">Supply Cost</p>
+        <p class="font-mono font-black text-white text-lg" id="selSupply">&#2547;0.00</p>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-3">
+        <p class="text-xs text-gray-400 mb-1">Upscale Total</p>
+        <p class="font-mono font-black text-indigo-300 text-lg" id="selUpscale">&#2547;0.00</p>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-3">
+        <p class="text-xs text-gray-400 mb-1">VAT / Tax</p>
+        <p class="font-mono font-black text-orange-300 text-lg" id="selVat">&#2547;0.00</p>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-3">
+        <p class="text-xs text-gray-400 mb-1">Grand Total</p>
+        <p class="font-mono font-black text-yellow-300 text-lg" id="selGrand">&#2547;0.00</p>
+      </div>
+      <div class="col-span-2 bg-green-600 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-green-200 mb-1">Gross Profit</p>
+          <p class="font-mono font-black text-white text-xl" id="selProfit">&#2547;0.00</p>
+        </div>
+        <i class="fas fa-chart-line text-4xl text-green-400 opacity-30"></i>
+      </div>
+    </div>
+    <!-- Modal Footer -->
+    <div class="px-5 pb-4 flex gap-3">
+      <button onclick="clearSelection();closeCalcModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-sm font-bold py-2 rounded-lg transition"><i class="fas fa-times mr-1"></i>Clear Selection</button>
+      <button onclick="closeCalcModal()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-sm font-bold py-2 rounded-lg transition">Continue Selecting</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function fmt(n){return '\u09F3'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function recalculate(){
+  const checks=document.querySelectorAll('.bill-check:checked');
+  const fab=document.getElementById('calcFab');
+  if(!checks.length){ fab.classList.add('hidden'); document.body.style.paddingBottom=''; return; }
+  fab.classList.remove('hidden');
+  document.body.style.paddingBottom='80px';
+  let s=0,u=0,v=0,g=0,p=0,inv=[];
+  checks.forEach(cb=>{
+    const r=cb.closest('tr');
+    s+=parseFloat(r.dataset.supply||0);
+    u+=parseFloat(r.dataset.upscale||0);
+    v+=parseFloat(r.dataset.vat||0);
+    g+=parseFloat(r.dataset.grand||0);
+    p+=parseFloat(r.dataset.profit||0);
+    inv.push(r.dataset.invoice);
+  });
+  const lbl=checks.length+' bill(s): #'+inv.join(', #');
+  document.getElementById('fabCount').textContent=checks.length+' selected';
+  document.getElementById('modalLabel').textContent=lbl;
+  document.getElementById('selSupply').innerHTML=fmt(s);
+  document.getElementById('selUpscale').innerHTML=fmt(u);
+  document.getElementById('selVat').innerHTML=fmt(v);
+  document.getElementById('selGrand').innerHTML=fmt(g);
+  document.getElementById('selProfit').innerHTML=fmt(p);
+}
+function openCalcModal(){ document.getElementById('calcModal').classList.remove('hidden'); }
+function closeCalcModal(){ document.getElementById('calcModal').classList.add('hidden'); }
+function toggleAll(m){
+  document.querySelectorAll('.bill-check').forEach(cb=>{cb.checked=m.checked;});
+  recalculate();
+}
+function clearSelection(){
+  document.querySelectorAll('.bill-check').forEach(cb=>{cb.checked=false;});
+  const sa=document.getElementById('selectAll');if(sa)sa.checked=false;
+  document.getElementById('calcFab').classList.add('hidden');
+  document.body.style.paddingBottom='';
+}
+function toggleCat(id){
+  const sub=document.getElementById(id);
+  const icon=document.getElementById('icon-'+id);
+  sub.classList.toggle('hidden');
+  if(icon)icon.style.transform=sub.classList.contains('hidden')?'rotate(0deg)':'rotate(90deg)';
+}
+</script>
+
+{% endblock %}
