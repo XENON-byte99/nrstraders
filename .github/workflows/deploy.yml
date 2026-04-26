@@ -1,0 +1,39 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Copy files via SSH
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.NRS_SSH_HOST }}
+        username: ${{ secrets.NRS_SSH_USER }}
+        password: ${{ secrets.NRS_SSH_PASSWORD }}
+
+        port: 22
+        source: "*,!.venv,!.git,!.env,!db.sqlite3,!media,!.github,!scratch,!static_root"
+        target: "/var/www/nrs/"
+        overwrite: true
+
+    - name: Run remote SSH commands
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.NRS_SSH_HOST }}
+        username: ${{ secrets.NRS_SSH_USER }}
+        password: ${{ secrets.NRS_SSH_PASSWORD }}
+
+        port: 22
+        script: |
+          cd /var/www/nrs
+          /var/www/nrs/.venv/bin/pip install -r requirements.txt
+          /var/www/nrs/.venv/bin/python manage.py collectstatic --no-input
+          /var/www/nrs/.venv/bin/python manage.py migrate
+          systemctl restart nrs

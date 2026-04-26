@@ -10,3 +10,5 @@ service_account_credentials.json
 .vscode/
 .idea/
 *.log
+scratch/
+
