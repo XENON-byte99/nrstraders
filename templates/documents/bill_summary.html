@@ -14,9 +14,12 @@
         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
         <select name="status" onchange="this.form.submit()" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
           <option value="ALL" {% if current_status == 'ALL' %}selected{% endif %}>All</option>
+          <option value="DRAFT" {% if current_status == 'DRAFT' %}selected{% endif %}>Draft</option>
+          <option value="PRICED" {% if current_status == 'PRICED' %}selected{% endif %}>Priced</option>
           <option value="APPROVED" {% if current_status == 'APPROVED' %}selected{% endif %}>Approved</option>
           <option value="SUBMITTED" {% if current_status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
           <option value="RELEASED" {% if current_status == 'RELEASED' %}selected{% endif %}>Released</option>
+
         </select>
       </div>
       <div>
@@ -53,19 +56,19 @@
     </div>
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 md:p-4">
       <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase mb-1">Grand Revenue</p>
-      <p class="text-base md:text-xl font-black text-gray-800 font-mono leading-tight">&#2547;{{ grand_revenue|floatformat:2 }}</p>
+      <p class="text-base md:text-xl font-black text-gray-800 font-mono leading-tight">&#2547;{{ grand_revenue|floatformat:3 }}</p>
     </div>
     <div class="bg-white rounded-xl border border-orange-100 shadow-sm p-3 md:p-4">
       <p class="text-[10px] md:text-xs font-bold text-orange-400 uppercase mb-1">VAT Collected</p>
-      <p class="text-base md:text-xl font-black text-orange-500 font-mono leading-tight">&#2547;{{ total_vat|floatformat:2 }}</p>
+      <p class="text-base md:text-xl font-black text-orange-500 font-mono leading-tight">&#2547;{{ total_vat|floatformat:3 }}</p>
     </div>
     <div class="bg-white rounded-xl border border-indigo-100 shadow-sm p-3 md:p-4">
       <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase mb-1">Grand Upscale</p>
-      <p class="text-base md:text-xl font-black text-indigo-700 font-mono leading-tight">&#2547;{{ total_upscale_revenue|floatformat:2 }}</p>
+      <p class="text-base md:text-xl font-black text-indigo-700 font-mono leading-tight">&#2547;{{ total_upscale_revenue|floatformat:3 }}</p>
     </div>
     <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-3 md:p-4">
       <p class="text-[10px] md:text-xs font-bold text-green-100 uppercase mb-1"><i class="fas fa-chart-line mr-1"></i>Gross Profit</p>
-      <p class="text-base md:text-xl font-black text-white font-mono leading-tight">&#2547;{{ total_gross_profit|floatformat:2 }}</p>
+      <p class="text-base md:text-xl font-black text-white font-mono leading-tight">&#2547;{{ total_gross_profit|floatformat:3 }}</p>
       <p class="text-[10px] text-green-200 mt-1 font-semibold">{{ profit_margin_pct|floatformat:1 }}% margin</p>
     </div>
   </div>
@@ -97,10 +100,10 @@
               <td class="py-2.5 px-3 text-gray-400 text-[10px]"><i class="fas fa-chevron-right transition-transform" id="icon-cat-{{ forloop.counter }}"></i></td>
               <td class="py-2.5 px-3 font-semibold text-gray-800 whitespace-nowrap">{{ cat.name }}</td>
               <td class="py-2.5 px-2 text-center text-gray-600 font-bold">{{ cat.count }}</td>
-              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.original_price|floatformat:2 }}</td>
-              <td class="py-2.5 px-3 text-right font-mono text-indigo-600 font-semibold">&#2547;{{ cat.subtotal|floatformat:2 }}</td>
-              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.vat|floatformat:2 }}</td>
-              <td class="py-2.5 px-3 text-right font-mono font-bold text-indigo-800">&#2547;{{ cat.grand_total|floatformat:2 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.original_price|floatformat:3 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-indigo-600 font-semibold">&#2547;{{ cat.subtotal|floatformat:3 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono text-gray-400 text-[10px] md:text-xs">&#2547;{{ cat.vat|floatformat:3 }}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-bold text-indigo-800">&#2547;{{ cat.grand_total|floatformat:3 }}</td>
             </tr>
             <tr id="cat-{{ forloop.counter }}" class="hidden">
               <td colspan="7" class="p-0 bg-slate-50">
@@ -123,9 +126,9 @@
                       <tr class="hover:bg-white transition">
                         <td class="py-1 pr-3 text-gray-400 whitespace-nowrap">{{ t.date|date:"d M Y" }}</td>
                         <td class="py-1 pr-3 font-mono text-indigo-600 font-bold whitespace-nowrap">{{ t.invoice_number }}</td>
-                        <td class="py-1 pr-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:2 }}</td>
-                        <td class="py-1 pr-3 text-right font-mono text-indigo-600">&#2547;{{ t.upscale_price|floatformat:2 }}</td>
-                        <td class="py-1 pr-3 text-right font-mono text-green-700 font-bold">&#2547;{{ t.grand_total|floatformat:2 }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:3 }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-indigo-600">&#2547;{{ t.upscale_price|floatformat:3 }}</td>
+                        <td class="py-1 pr-3 text-right font-mono text-green-700 font-bold">&#2547;{{ t.grand_total|floatformat:3 }}</td>
                         <td class="py-1 pr-2 text-center">
                           {% if request.user.p_edit_bill or request.user.is_superuser %}
                           <form method="post" action="{% url 'transaction_update_status' t.pk %}">{% csrf_token %}
@@ -170,7 +173,35 @@
           <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-tasks text-indigo-500 mr-2"></i>Status Overview</h3>
         </div>
         <div class="p-4 space-y-3">
-          {% with approved=status_counts.APPROVED|default:0 submitted=status_counts.SUBMITTED|default:0 released=status_counts.RELEASED|default:0 %}
+          {% with draft=status_counts.DRAFT|default:0 priced=status_counts.PRICED|default:0 approved=status_counts.APPROVED|default:0 submitted=status_counts.SUBMITTED|default:0 released=status_counts.RELEASED|default:0 %}
+          <!-- Draft -->
+          <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-gray-400 shrink-0"></span>
+                <span class="text-sm font-bold text-gray-700">Draft</span>
+                <span class="text-xs bg-gray-100 text-gray-600 font-black px-1.5 py-0.5 rounded-full">{{ draft }}</span>
+              </div>
+              <span class="font-mono font-black text-gray-700 text-sm">&#2547;{{ status_amounts.DRAFT|floatformat:3 }}</span>
+            </div>
+            <div class="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-gray-400 h-1.5 rounded-full" style="width:{{ draft_pct|floatformat:0 }}%"></div>
+            </div>
+          </div>
+          <!-- Priced -->
+          <div class="rounded-lg border border-orange-100 bg-orange-50/50 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-orange-400 shrink-0"></span>
+                <span class="text-sm font-bold text-orange-700">Priced</span>
+                <span class="text-xs bg-orange-100 text-orange-600 font-black px-1.5 py-0.5 rounded-full">{{ priced }}</span>
+              </div>
+              <span class="font-mono font-black text-orange-700 text-sm">&#2547;{{ status_amounts.PRICED|floatformat:3 }}</span>
+            </div>
+            <div class="bg-orange-100 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-orange-400 h-1.5 rounded-full" style="width:{{ priced_pct|floatformat:0 }}%"></div>
+            </div>
+          </div>
           <!-- Approved -->
           <div class="rounded-lg border border-yellow-100 bg-yellow-50/50 p-3">
             <div class="flex items-center justify-between mb-1.5">
@@ -179,7 +210,7 @@
                 <span class="text-sm font-bold text-yellow-700">Approved</span>
                 <span class="text-xs bg-yellow-100 text-yellow-600 font-black px-1.5 py-0.5 rounded-full">{{ approved }}</span>
               </div>
-              <span class="font-mono font-black text-yellow-700 text-sm">&#2547;{{ status_amounts.APPROVED|floatformat:2 }}</span>
+              <span class="font-mono font-black text-yellow-700 text-sm">&#2547;{{ status_amounts.APPROVED|floatformat:3 }}</span>
             </div>
             <div class="bg-yellow-100 rounded-full h-1.5 overflow-hidden">
               <div class="bg-yellow-400 h-1.5 rounded-full" style="width:{{ approved_pct|floatformat:0 }}%"></div>
@@ -193,7 +224,7 @@
                 <span class="text-sm font-bold text-blue-700">Submitted</span>
                 <span class="text-xs bg-blue-100 text-blue-600 font-black px-1.5 py-0.5 rounded-full">{{ submitted }}</span>
               </div>
-              <span class="font-mono font-black text-blue-700 text-sm">&#2547;{{ status_amounts.SUBMITTED|floatformat:2 }}</span>
+              <span class="font-mono font-black text-blue-700 text-sm">&#2547;{{ status_amounts.SUBMITTED|floatformat:3 }}</span>
             </div>
             <div class="bg-blue-100 rounded-full h-1.5 overflow-hidden">
               <div class="bg-blue-400 h-1.5 rounded-full" style="width:{{ submitted_pct|floatformat:0 }}%"></div>
@@ -207,12 +238,13 @@
                 <span class="text-sm font-bold text-green-700">Released</span>
                 <span class="text-xs bg-green-100 text-green-600 font-black px-1.5 py-0.5 rounded-full">{{ released }}</span>
               </div>
-              <span class="font-mono font-black text-green-700 text-sm">&#2547;{{ status_amounts.RELEASED|floatformat:2 }}</span>
+              <span class="font-mono font-black text-green-700 text-sm">&#2547;{{ status_amounts.RELEASED|floatformat:3 }}</span>
             </div>
             <div class="bg-green-100 rounded-full h-1.5 overflow-hidden">
               <div class="bg-green-500 h-1.5 rounded-full" style="width:{{ released_pct|floatformat:0 }}%"></div>
             </div>
           </div>
+
           {% endwith %}
         </div>
       </div>
@@ -225,7 +257,7 @@
         <div class="p-4 divide-y divide-gray-100">
           <div class="py-2 flex justify-between items-center gap-2">
             <span class="text-xs text-gray-400 uppercase font-bold">Avg. Bill Value</span>
-            <span class="font-mono font-black text-gray-800 text-sm">&#2547;{{ avg_bill_value|floatformat:2 }}</span>
+            <span class="font-mono font-black text-gray-800 text-sm">&#2547;{{ avg_bill_value|floatformat:3 }}</span>
           </div>
           <div class="py-2 flex justify-between items-center gap-2">
             <span class="text-xs text-gray-400 uppercase font-bold">Profit Margin</span>
@@ -233,7 +265,7 @@
           </div>
           <div class="py-2 flex justify-between items-center gap-2">
             <span class="text-xs text-gray-400 uppercase font-bold">VAT Total</span>
-            <span class="font-mono font-black text-orange-500 text-sm">&#2547;{{ total_vat|floatformat:2 }}</span>
+            <span class="font-mono font-black text-orange-500 text-sm">&#2547;{{ total_vat|floatformat:3 }}</span>
           </div>
           <div class="py-2 flex justify-between items-center gap-2">
             <span class="text-xs text-gray-400 uppercase font-bold">Period</span>
@@ -312,11 +344,11 @@
             <td class="py-2.5 px-3"><input type="checkbox" class="bill-check cursor-pointer" onchange="recalculate()"></td>
             <td class="py-2.5 px-3 text-gray-500 whitespace-nowrap">{{ t.date|date:"d M Y" }}</td>
             <td class="py-2.5 px-3 font-mono font-bold text-indigo-600 whitespace-nowrap">{{ t.invoice_number }}</td>
-            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:2 }}</td>
-            <td class="py-2.5 px-3 text-right font-mono text-gray-800">&#2547;{{ t.upscale_price|floatformat:2 }}</td>
-            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.vat|floatformat:2 }}</td>
-            <td class="py-2.5 px-3 text-right font-mono font-bold text-gray-900">&#2547;{{ t.grand_total|floatformat:2 }}</td>
-            <td class="py-2.5 px-3 text-right font-mono font-black text-green-700 bg-green-50/20">&#2547;{{ t.profit|floatformat:2 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.original_price|floatformat:3 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-800">&#2547;{{ t.upscale_price|floatformat:3 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-gray-400">&#2547;{{ t.vat|floatformat:3 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono font-bold text-gray-900">&#2547;{{ t.grand_total|floatformat:3 }}</td>
+            <td class="py-2.5 px-3 text-right font-mono font-black text-green-700 bg-green-50/20">&#2547;{{ t.profit|floatformat:3 }}</td>
             <td class="py-2.5 px-3 text-center">
               {% if request.user.p_edit_bill or request.user.is_superuser %}
               <form method="post" action="{% url 'transaction_update_status' t.pk %}" class="inline">{% csrf_token %}
@@ -350,11 +382,11 @@
           <tr>
             <td class="py-3 px-3"></td>
             <td colspan="2" class="py-3 px-3 text-indigo-700 uppercase font-black"><i class="fas fa-sigma mr-1"></i>All Totals ({{ total_bills }})</td>
-            <td class="py-3 px-3 text-right font-mono text-gray-600">&#2547;{{ total_original_price|floatformat:2 }}</td>
-            <td class="py-3 px-3 text-right font-mono text-indigo-700">&#2547;{{ total_upscale_revenue|floatformat:2 }}</td>
-            <td class="py-3 px-3 text-right font-mono text-gray-400">&#2547;{{ total_vat|floatformat:2 }}</td>
-            <td class="py-3 px-3 text-right font-mono font-black text-gray-900">&#2547;{{ grand_revenue|floatformat:2 }}</td>
-            <td class="py-3 px-3 text-right font-mono font-black text-green-700 bg-green-100">&#2547;{{ total_gross_profit|floatformat:2 }}&nbsp;<span class="text-green-400 font-normal">({{ profit_margin_pct|floatformat:1 }}%)</span></td>
+            <td class="py-3 px-3 text-right font-mono text-gray-600">&#2547;{{ total_original_price|floatformat:3 }}</td>
+            <td class="py-3 px-3 text-right font-mono text-indigo-700">&#2547;{{ total_upscale_revenue|floatformat:3 }}</td>
+            <td class="py-3 px-3 text-right font-mono text-gray-400">&#2547;{{ total_vat|floatformat:3 }}</td>
+            <td class="py-3 px-3 text-right font-mono font-black text-gray-900">&#2547;{{ grand_revenue|floatformat:3 }}</td>
+            <td class="py-3 px-3 text-right font-mono font-black text-green-700 bg-green-100">&#2547;{{ total_gross_profit|floatformat:3 }}&nbsp;<span class="text-green-400 font-normal">({{ profit_margin_pct|floatformat:1 }}%)</span></td>
             <td class="py-3 px-3 text-center text-gray-300">&mdash;</td>
             <td></td>
           </tr>

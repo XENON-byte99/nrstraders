@@ -8,12 +8,12 @@
         width: 100%;
         border: 1.5px solid #e5e7eb;
         border-radius: 10px;
-        padding: 10px 12px;
+        padding: 9px 12px;
         font-size: 14px;
         background: #fff;
         box-sizing: border-box;
         -webkit-appearance: none;
-        transition: border-color 0.2s, box-shadow 0.2s;
+        transition: border-color 0.2s, box-shadow 0.2s, background-color 0.4s;
     }
     input:focus, textarea:focus, select:focus {
         outline: none;
@@ -22,12 +22,12 @@
     }
     .form-label {
         font-size: 11px; font-weight: 700; color: #6b7280;
-        text-transform: uppercase; letter-spacing: 0.06em;
+        text-transform: uppercase; letter-spacing: 0.04em;
         display: block; margin-bottom: 5px;
     }
     .section-card {
         background: #f9fafb; border: 1.5px solid #f3f4f6;
-        border-radius: 16px; padding: 18px; margin-bottom: 0;
+        border-radius: 16px; padding: 18px; margin-bottom: 24px;
     }
     .section-title {
         font-size: 12px; font-weight: 800; color: #4f46e5;
@@ -46,21 +46,28 @@
     .items-scroll tbody tr:hover td { background: #f8faff; }
     .items-scroll input, .items-scroll select { margin-bottom: 0; }
     .items-scroll input[name$="-quantity"] {
-        width: 80px !important;
+        width: 140px !important;
         text-align: center;
     }
+
     
     /* ── Product Suggestions ── */
-    #product-suggestions {
+    .autocomplete-container {
+        position: relative;
+    }
+    .suggestions-list {
         position: absolute;
+        top: 100%;
+        left: 0;
         z-index: 1000;
         background: white;
-        border: 1px solid #e2e8f0;
+        border: 1.5px solid #e2e8f0;
         border-radius: 12px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
         max-height: 250px;
         overflow-y: auto;
-        width: 300px;
+        min-width: 250px;
+        width: 100%;
         display: none;
     }
     .suggestion-item {
@@ -165,26 +172,28 @@
         <div class="section-card">
             <div class="section-title"><i class="fas fa-percent text-orange-400"></i> Tax &amp; Identifiers</div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                <div><label class="form-label">{{ form.vat_percentage.label }}</label>{{ form.vat_percentage }}</div>
-                <div><label class="form-label">{{ form.duty_percentage.label }}</label>{{ form.duty_percentage }}</div>
-                <div><label class="form-label">{{ form.tax_percentage.label }}</label>{{ form.tax_percentage }}</div>
-                <div><label class="form-label">{{ form.service_charge_percentage.label }}</label>{{ form.service_charge_percentage }}</div>
+            <!-- Financials Row (Calculated Fields) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-5">
+                <div><label class="form-label">VAT (%)</label>{{ form.vat_percentage }}</div>
+                <div><label class="form-label">Duty (%)</label>{{ form.duty_percentage }}</div>
+                <div><label class="form-label">Tax (%)</label>{{ form.tax_percentage }}</div>
+                <div><label class="form-label">S. Charge %</label>{{ form.service_charge_percentage }}</div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <!-- Identifiers & Margin Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                     <label class="form-label">Category</label>
                     {{ form.transaction_category }}
                 </div>
-                <div><label class="form-label">{{ form.invoice_number.label }}</label>{{ form.invoice_number }}</div>
-                <div><label class="form-label">{{ form.challan_number.label }}</label>{{ form.challan_number }}</div>
+                <div><label class="form-label">Invoice #</label>{{ form.invoice_number }}</div>
+                <div><label class="form-label">Challan #</label>{{ form.challan_number }}</div>
+                <div><label class="form-label">Margin %</label>{{ form.profit_margin }}</div>
             </div>
 
-            <div><label class="form-label">{{ form.profit_margin.label }}</label>{{ form.profit_margin }}</div>
-            <p class="text-xs text-gray-400 mt-2 italic flex items-center gap-1">
-                <i class="fas fa-magic text-indigo-300 text-[10px]"></i>
-                Invoice/challan numbers auto-fill when you pick a category.
+            <p class="text-[10px] text-gray-400 mt-3 italic flex items-center gap-1.5 opacity-80">
+                <i class="fas fa-magic text-indigo-400"></i>
+                Category auto-fills taxes, invoice numbers, and default parties.
             </p>
         </div>
 
@@ -203,13 +212,14 @@
                         <tr>
                             <th class="text-left" style="min-width:180px">Description</th>
                             <th class="text-center" style="width:80px">Unit</th>
-                            <th class="text-center" style="width:90px">Qty</th>
+                            <th class="text-center" style="width:150px">Qty</th>
                             <th class="text-right" style="width:120px">Display Price (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
                         </tr>
                     </thead>
+
                     <tbody id="item-formset">
                         {% for item_form in formset %}
                         <tr class="border-b item-row">
@@ -235,20 +245,33 @@
                 </table>
             </div>
 
+            <!-- Lunch Mode Standard Price Control -->
+            <div id="lunch-price-control" class="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-50/50 flex flex-col sm:flex-row gap-3 items-center {% if not is_lunch %}hidden{% endif %}">
+                <div class="flex-1">
+                    <label class="block text-xs font-black text-indigo-900 uppercase tracking-wider mb-1">Standard Rate (৳)</label>
+                    <p class="text-[10px] text-indigo-400 font-medium">Enter standard price once to apply to all daily entries automatically.</p>
+                </div>
+                <div class="w-full sm:w-48 relative">
+                    <input type="number" id="lunch-standard-price" step="0.001" placeholder="0.000" class="w-full px-3.5 py-2.5 rounded-xl border border-indigo-100 font-black text-right text-indigo-700 bg-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+
             <!-- Lunch Items Table -->
             <div id="lunch-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if not is_lunch %}hidden{% endif %}">
+
                 <table>
                     <thead>
                         <tr>
                             <th class="text-left" style="min-width:120px">📅 Entry Date</th>
                             <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
                             <th class="text-right" style="width:130px">💰 Bill Amount (৳)</th>
-                            <th class="text-center" style="width:65px">🔢 Qty</th>
+                            <th class="text-center" style="width:150px">🔢 Qty</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
                         </tr>
                     </thead>
+
                     <tbody id="lunch-formset">
                         {% if is_lunch %}
                             {% for item_form in formset %}
@@ -310,7 +333,8 @@
                         <td>
                             <input type="number" name="items-__prefix__-base_price"
                                    id="id_items-__prefix__-base_price"
-                                   value="0.00" step="0.01" min="0"
+                                   value="0.000" step="0.001" min="0"
+
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
                         <td>
@@ -335,7 +359,8 @@
             <button type="button" id="add-item"
                 class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
                 <i class="fas fa-plus text-xs"></i>
-                <span id="add-item-label">{% if is_lunch %}Add Lunch Entry{% else %}Add Another Item{% endif %}</span>
+                <span id="add-item-label">{% if is_lunch %}Add Entry{% else %}Add Another Item{% endif %}</span>
+
             </button>
             <p class="text-gray-400 text-xs mt-2 italic">
                 <i class="fas fa-info-circle text-xs mr-0.5"></i>
@@ -368,10 +393,21 @@
     </form>
 </div>
 
-<!-- Suggestion Dropdown -->
-<div id="product-suggestions"></div>
+<!-- Global suggestion dropdown (removed, now per-row) -->
+
 
 <script>
+function highlightField(el) {
+    if (!el) return;
+    el.style.transition = 'background-color 0.4s, border-color 0.4s';
+    el.style.backgroundColor = '#ecfdf5';
+    el.style.borderColor = '#10b981';
+    setTimeout(() => { 
+        el.style.backgroundColor = ''; 
+        el.style.borderColor = '';
+    }, 1000);
+}
+
 const parties = {
     {% for party in parties %}
     "{{ party.id }}": {
@@ -405,9 +441,11 @@ function setLunchMode(on) {
     isLunchMode = on;
     document.getElementById('normal-items-table').classList.toggle('hidden', on);
     document.getElementById('lunch-items-table').classList.toggle('hidden', !on);
-    document.getElementById('add-item-label').textContent = on ? 'Add Lunch Entry' : 'Add Another Item';
+    document.getElementById('lunch-price-control').classList.toggle('hidden', !on);
+    document.getElementById('add-item-label').textContent = on ? 'Add Entry' : 'Add Another Item';
     document.getElementById('items-section-label').textContent = on ? 'Daily Lunch Entries' : 'Items';
 }
+
 
 // ── Add Item Row ──
 document.getElementById('add-item').addEventListener('click', function() {
@@ -425,8 +463,12 @@ document.getElementById('add-item').addEventListener('click', function() {
             else if (input.name.includes('-sort_order')) input.value = count;
             else if (input.type !== 'hidden') {
                 if (input.name.includes('quantity')) input.value = '1';
-                else if (input.name.includes('base_price')) input.value = '0.00';
+                else if (input.name.includes('base_price')) {
+                    const stdPrice = document.getElementById('lunch-standard-price').value;
+                    input.value = stdPrice || '0.000';
+                }
                 else input.value = '';
+
             }
         });
         tbody.appendChild(newRow);
@@ -434,6 +476,7 @@ document.getElementById('add-item').addEventListener('click', function() {
         const dateInput = newRow.querySelector('input[name$="-entry_date"]');
         if (dateInput) dateInput.focus();
     } else {
+
         // Add normal row
         const tbody = document.getElementById('item-formset');
         const template = document.getElementById('empty-form-template').querySelector('tr');
@@ -444,7 +487,7 @@ document.getElementById('add-item').addEventListener('click', function() {
             else if (input.name.includes('-sort_order')) input.value = count;
             else if (input.type !== 'hidden') {
                 if (input.name.includes('quantity')) input.value = '1';
-                else if (input.name.includes('price')) input.value = '0.00';
+                else if (input.name.includes('base_price')) input.value = '0.00';
                 else if (input.name.includes('unit')) input.value = 'Pcs';
                 else input.value = '';
             }
@@ -467,8 +510,24 @@ window.removeRow = function(btn) {
     }
 };
 
+// ── Lunch Standard Price Sync ──
+const stdPriceInput = document.getElementById('lunch-standard-price');
+if (stdPriceInput) {
+    stdPriceInput.addEventListener('input', function() {
+        const val = this.value;
+        const catId = categorySelect ? categorySelect.value : 'default';
+        if (catId) localStorage.setItem('std_price_' + catId, val);
+        
+        document.querySelectorAll('#lunch-formset input[name$="-base_price"]').forEach(inp => {
+            inp.value = val;
+        });
+    });
+}
+
+
 // ── Category Auto-Fill + Lunch Mode Switch ──
 const categorySelect = document.querySelector('[name="transaction_category"]');
+
 const fieldMap = {
     vat:            '[name="vat_percentage"]',
     tax:            '[name="tax_percentage"]',
@@ -484,9 +543,25 @@ if (categorySelect) {
     categorySelect.addEventListener('change', function() {
         const catId = this.value;
         if (!catId) return;
+        
+        const savedPrice = localStorage.getItem('std_price_' + catId);
+        if (savedPrice && stdPriceInput) {
+            stdPriceInput.value = savedPrice;
+            setTimeout(() => {
+                document.querySelectorAll('#lunch-formset input[name$="-base_price"]').forEach(inp => {
+                    if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
+                        inp.value = savedPrice;
+                    }
+                });
+            }, 150);
+        } else if (stdPriceInput) {
+            stdPriceInput.value = '';
+        }
+
+
         // Check if "lunch" in selected option text
         const selectedText = catOptions[catOptions.selectedIndex].text.toLowerCase();
-        setLunchMode(selectedText.includes('lunch'));
+        setLunchMode(selectedText.includes('lunch') || selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar'));
 
         fetch(`/api/category/${catId}/defaults/`)
             .then(r => r.json())
@@ -494,6 +569,7 @@ if (categorySelect) {
                 for (const [key, sel] of Object.entries(fieldMap)) {
                     const el = document.querySelector(sel);
                     if (el && data[key] !== undefined) {
+                        console.log(`Auto-filling ${key}: ${data[key]}`);
                         el.value = data[key];
                         highlightField(el);
                     }
@@ -528,9 +604,24 @@ if (categorySelect) {
         // Trigger if number is missing OR if party details are missing
         if (!inv?.value || !sName?.value || !sBin?.value) {
             setTimeout(() => categorySelect.dispatchEvent(new Event('change')), 100);
+        } else {
+            // Just load standard price
+            const catId = categorySelect.value;
+            const savedPrice = localStorage.getItem('std_price_' + catId);
+            if (savedPrice && stdPriceInput) {
+                stdPriceInput.value = savedPrice;
+                setTimeout(() => {
+                    document.querySelectorAll('#lunch-formset input[name$="-base_price"]').forEach(inp => {
+                        if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
+                            inp.value = savedPrice;
+                        }
+                    });
+                }, 200);
+            }
         }
     }
 }
+
 
 function fillField(selector, value) {
     const el = document.querySelector(selector);
@@ -545,6 +636,16 @@ const suggestionBox = document.getElementById('product-suggestions');
 let currentSuggestionIndex = -1;
 let activeDescInput = null;
 
+function hideSuggestions() {
+    if (activeDescInput) {
+        const row = activeDescInput.closest('tr');
+        const list = row.querySelector('.suggestions-list');
+        if (list) list.style.display = 'none';
+        activeDescInput.classList.remove('new-product-active');
+    }
+    currentSuggestionIndex = -1;
+}
+
 function showSuggestions(input) {
     const query = input.value.trim();
     if (query.length < 1) {
@@ -554,12 +655,14 @@ function showSuggestions(input) {
 
     const categoryId = categorySelect ? categorySelect.value : '';
     activeDescInput = input;
+    const row = input.closest('tr');
+    const list = row.querySelector('.suggestions-list');
 
     fetch(`/api/products/search/?q=${encodeURIComponent(query)}&category_id=${categoryId}`)
         .then(r => r.json())
         .then(data => {
             if (data.results && data.results.length > 0) {
-                renderSuggestions(data.results, input);
+                renderSuggestions(data.results, input, list);
             } else {
                 hideSuggestions();
             }
@@ -567,15 +670,12 @@ function showSuggestions(input) {
         .catch(() => hideSuggestions());
 }
 
-function renderSuggestions(products, input) {
-    const rect = input.getBoundingClientRect();
-    suggestionBox.style.left = `${rect.left + window.scrollX}px`;
-    suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
-    suggestionBox.style.width = `${Math.max(rect.width, 250)}px`;
-    suggestionBox.style.display = 'block';
+function renderSuggestions(products, input, list) {
+    list.style.display = 'block';
+    input.classList.remove('new-product-active');
     
-    suggestionBox.innerHTML = products.map((p, index) => `
-        <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+    list.innerHTML = products.map((p, index) => `
+        <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')}, this)">
             <div>
                 <span class="suggestion-name">${p.name}</span>
                 <span class="suggestion-unit">${p.unit}</span>
@@ -587,17 +687,13 @@ function renderSuggestions(products, input) {
     currentSuggestionIndex = -1;
 }
 
-function selectProduct(product) {
-    if (!activeDescInput) return;
-    
-    // Fill description
-    activeDescInput.value = product.name;
-    
-    // Find unit and price fields in the same row
-    const row = activeDescInput.closest('tr');
+function selectProduct(product, element) {
+    const row = element.closest('tr');
+    const descInput = row.querySelector('input[name$="-description"]');
     const unitField = row.querySelector('input[name$="-unit"]');
     const priceField = row.querySelector('input[name$="-base_price"]');
     
+    if (descInput) descInput.value = product.name;
     if (unitField) {
         unitField.value = product.unit;
         highlightField(unitField);
@@ -610,17 +706,6 @@ function selectProduct(product) {
     hideSuggestions();
 }
 
-function highlightField(el) {
-    el.style.transition = 'background 0.4s';
-    el.style.background = '#d1fae5';
-    setTimeout(() => el.style.background = '', 600);
-}
-
-function hideSuggestions() {
-    suggestionBox.style.display = 'none';
-    currentSuggestionIndex = -1;
-}
-
 function initSuggestionListeners() {
     // Delegation for dynamic rows
     document.addEventListener('input', function(e) {
@@ -630,9 +715,12 @@ function initSuggestionListeners() {
     });
 
     document.addEventListener('keydown', function(e) {
-        if (!suggestionBox.style.display || suggestionBox.style.display === 'none') return;
+        if (!activeDescInput) return;
+        const row = activeDescInput.closest('tr');
+        const list = row.querySelector('.suggestions-list');
+        if (!list || list.style.display === 'none') return;
         
-        const items = suggestionBox.querySelectorAll('.suggestion-item');
+        const items = list.querySelectorAll('.suggestion-item');
         
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -654,8 +742,11 @@ function initSuggestionListeners() {
 
     // Close suggestions when clicking outside
     document.addEventListener('click', function(e) {
-        if (!suggestionBox.contains(e.target) && e.target !== activeDescInput) {
-            hideSuggestions();
+        if (activeDescInput && !activeDescInput.contains(e.target)) {
+            const list = activeDescInput.closest('tr').querySelector('.suggestions-list');
+            if (list && !list.contains(e.target)) {
+                hideSuggestions();
+            }
         }
     });
 }

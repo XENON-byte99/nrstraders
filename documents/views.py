@@ -17,7 +17,10 @@ from django.utils.dateparse import parse_date
 from datetime import date
 
 def _is_lunch_cat(cat):
-    return cat and 'lunch' in cat.name.lower()
+    if not cat:
+        return False
+    name = cat.name.lower()
+    return any(keyword in name for keyword in ['lunch', 'tiffin', 'dinner', 'iftar'])
 
 def _get_next_serial_number(category):
     from django.utils import timezone
@@ -115,10 +118,21 @@ def transaction_create(request):
             # Auto-save products
             _process_auto_product_saving(transaction, items, user=request.user)
 
-            log_audit(request.user, "Created Transaction", f"Created Bill #{transaction.invoice_number}", transaction=transaction)
+            audit_details = f"Created new DRAFT Bill #{transaction.invoice_number} under category {cat_obj.name if cat_obj else 'Uncategorized'}. Initialized with {len(items)} line item(s)."
+            log_audit(request.user, "Created Transaction", audit_details, transaction=transaction)
+
             messages.success(request, 'Transaction created successfully.')
             return redirect('transaction_list')
+        else:
+            for field, errors in form.errors.items():
+                messages.error(request, f"{field.replace('_', ' ').title()}: {', '.join(errors)}")
+            for i, f in enumerate(formset.forms):
+                for field, errors in f.errors.items():
+                    messages.error(request, f"Row {i+1} ({field.replace('_', ' ').title()}): {', '.join(errors)}")
+            if formset.non_form_errors():
+                messages.error(request, f"Formset error: {', '.join(formset.non_form_errors())}")
     else:
+
         form = TransactionForm()
         formset = TransactionItemFormSet()
     
@@ -140,8 +154,8 @@ def transaction_pricing(request, pk):
         return redirect('transaction_list')
 
     cat_name = transaction.transaction_category.name.lower() if transaction.transaction_category else ""
-    is_lunch = 'lunch' in cat_name
-    is_meal = any(meal in cat_name for meal in ['dinner', 'iftar', 'tiffin']) or is_lunch
+    is_lunch = _is_lunch_cat(transaction.transaction_category)
+    is_meal = is_lunch
 
     if is_lunch:
         FormSetClass = LunchItemFormSet
@@ -190,12 +204,14 @@ def transaction_pricing(request, pk):
                 transaction.status = 'DRAFT'
                 msg = 'Draft saved successfully.'
                 audit_action = "Saved Draft"
-                details = f"Supplier saved draft for Bill #{transaction.invoice_number}."
+                details = f"Saved Bill #{transaction.invoice_number} in DRAFT state. Logged {len(formset.forms)} priced entries."
+
             else:
                 transaction.status = 'PRICED'
                 msg = 'Pricing submitted successfully.'
                 audit_action = "Updated Prices"
-                details = f"Supplier submitted locked values for Bill #{transaction.invoice_number}."
+                details = f"Finalized supplier rates for Bill #{transaction.invoice_number}. State updated to PRICED."
+
 
             transaction.save()
             if changes:
@@ -398,9 +414,11 @@ def bill_summary(request):
         tx_query = tx_query.filter(created_at__date__gte=date_from)
     
     if status_filter == 'ALL':
-        tx_query = tx_query.filter(status__in=['APPROVED', 'SUBMITTED', 'RELEASED'])
+        # Include all statuses
+        pass
     else:
         tx_query = tx_query.filter(status=status_filter)
+
 
     # Sorting
     if sort_by in ['status', '-status', 'invoice_number', '-invoice_number', 'created_at', '-created_at']:
@@ -423,8 +441,8 @@ def bill_summary(request):
     profit_margin_pct = (total_gross_profit / total_upscale_revenue * 100) if total_upscale_revenue > 0 else 0
     
     # Status distribution
-    status_counts = {'APPROVED': 0, 'SUBMITTED': 0, 'RELEASED': 0}
-    status_amounts = {'APPROVED': 0, 'SUBMITTED': 0, 'RELEASED': 0}
+    status_counts = {'DRAFT': 0, 'PRICED': 0, 'APPROVED': 0, 'SUBMITTED': 0, 'RELEASED': 0}
+    status_amounts = {'DRAFT': 0, 'PRICED': 0, 'APPROVED': 0, 'SUBMITTED': 0, 'RELEASED': 0}
     for tx in tx_list:
         if tx.status in status_counts:
             status_counts[tx.status] += 1
@@ -434,9 +452,12 @@ def bill_summary(request):
             except (TypeError, ValueError):
                 pass
     # Percentage of each status (for progress bars, 0-100)
+    draft_pct = (status_counts['DRAFT'] / total_bills * 100) if total_bills > 0 else 0
+    priced_pct = (status_counts['PRICED'] / total_bills * 100) if total_bills > 0 else 0
     approved_pct = (status_counts['APPROVED'] / total_bills * 100) if total_bills > 0 else 0
     submitted_pct = (status_counts['SUBMITTED'] / total_bills * 100) if total_bills > 0 else 0
     released_pct = (status_counts['RELEASED'] / total_bills * 100) if total_bills > 0 else 0
+
 
     # Breakdown by Category
     categories_data = {}
@@ -554,9 +575,12 @@ def bill_summary(request):
         'profit_margin_pct': profit_margin_pct,
         'status_counts': status_counts,
         'status_amounts': status_amounts,
+        'draft_pct': draft_pct,
+        'priced_pct': priced_pct,
         'approved_pct': approved_pct,
         'submitted_pct': submitted_pct,
         'released_pct': released_pct,
+
         'category_breakdown': list(categories_data.values()),
         'recent_bills': list(tx_query.order_by('-created_at')[:5]),
         'trend_bars': trend_bars,
@@ -614,7 +638,7 @@ def transaction_update(request, pk):
         return redirect('transaction_list')
 
     cat_name = transaction.transaction_category.name.lower() if transaction.transaction_category else ""
-    is_lunch = 'lunch' in cat_name
+    is_lunch = _is_lunch_cat(transaction.transaction_category)
     FormSetClass = LunchItemFormSet if is_lunch else TransactionItemFormSet
 
     if request.method == 'POST':
@@ -625,10 +649,21 @@ def transaction_update(request, pk):
             for field in form.changed_data:
                 old_val = form.initial.get(field, 'Blank')
                 new_val = form.cleaned_data.get(field, 'Blank')
-                changes.append(f"[{field}] {old_val} -> {new_val}")
+                changes.append(f"Header field [{field}]: '{old_val}' changed to '{new_val}'")
+
+            for item_form in formset.forms:
+                if item_form.has_changed():
+                    if is_lunch:
+                        rest = item_form.cleaned_data.get('restaurant_name', 'Item')
+                        edate = item_form.cleaned_data.get('entry_date', '')
+                        changes.append(f"Modified daily entry for {rest} on {edate}")
+                    else:
+                        desc = item_form.cleaned_data.get('description', 'Item')
+                        changes.append(f"Modified row item details for '{desc}'")
 
             if formset.deleted_forms:
-                changes.append("Removed line items")
+                changes.append(f"Permanently removed {len(formset.deleted_forms)} line item(s)")
+
 
             form.save()
             items = formset.save(commit=False)
@@ -649,7 +684,16 @@ def transaction_update(request, pk):
             log_audit(request.user, "Updated Transaction", details, transaction=transaction)
             messages.success(request, 'Transaction updated successfully.')
             return redirect('transaction_list')
+        else:
+            for field, errors in form.errors.items():
+                messages.error(request, f"{field.replace('_', ' ').title()}: {', '.join(errors)}")
+            for i, f in enumerate(formset.forms):
+                for field, errors in f.errors.items():
+                    messages.error(request, f"Row {i+1} ({field.replace('_', ' ').title()}): {', '.join(errors)}")
+            if formset.non_form_errors():
+                messages.error(request, f"Formset error: {', '.join(formset.non_form_errors())}")
     else:
+
         form = TransactionForm(instance=transaction)
         formset = FormSetClass(instance=transaction)
     parties = BusinessParty.objects.all()
@@ -804,7 +848,8 @@ def gate_entry(request):
         normal_qs = normal_qs.filter(created_at__date__lte=date_to)
 
     # 2. Meal Transactions: Fetch all, filter items by parse in memory
-    meal_qs = Transaction.objects.prefetch_related('items').select_related('transaction_category').exclude(status='DRAFT').filter(meal_q)
+    meal_qs = Transaction.objects.prefetch_related('items').select_related('transaction_category').filter(meal_q)
+
 
     invoices = []
     grand_qty   = 0
@@ -838,13 +883,13 @@ def gate_entry(request):
     for tx in meal_qs:
         tx_date = tx.created_at.date() if tx.created_at else today
         cat_name = tx.transaction_category.name if tx.transaction_category else "Meal"
-        is_lunch_tx = 'lunch' in cat_name.lower()
+        is_lunch_tx = any(kw in cat_name.lower() for kw in ['lunch', 'tiffin', 'dinner', 'iftar'])
 
         items = list(tx.items.all())
         items_by_date = {}
         for it in items:
-            # For Lunch: use entry_date field directly
-            if is_lunch_tx and it.entry_date:
+            # For Lunch & other meals: use entry_date field directly if present
+            if it.entry_date:
                 item_date = it.entry_date
             else:
                 item_date = None
@@ -871,8 +916,8 @@ def gate_entry(request):
 
             item_rows = []
             for it in daily_items:
-                if is_lunch_tx:
-                    label = f"{it.restaurant_name or cat_name} (Lunch)"
+                if it.entry_date:
+                    label = f"{it.restaurant_name or cat_name} ({cat_name.title()})"
                 else:
                     label = f"{cat_name} - {it.description}"
                 item_rows.append({
@@ -1106,7 +1151,16 @@ def requisition_create(request):
             
             messages.success(request, 'Requisition submitted successfully and saved as a Draft Quotation.')
             return redirect('requisition_list')
+        else:
+            for field, errors in form.errors.items():
+                messages.error(request, f"{field.replace('_', ' ').title()}: {', '.join(errors)}")
+            for i, f in enumerate(formset.forms):
+                for field, errors in f.errors.items():
+                    messages.error(request, f"Row {i+1} ({field.replace('_', ' ').title()}): {', '.join(errors)}")
+            if formset.non_form_errors():
+                messages.error(request, f"Formset error: {', '.join(formset.non_form_errors())}")
     else:
+
         # Initial buyer name handled in RequisitionForm.__init__
         form = RequisitionForm()
         formset = RequisitionItemFormSet()
@@ -1150,7 +1204,16 @@ def requisition_update(request, pk):
             _process_auto_product_saving(requisition, items, user=request.user)
             messages.success(request, 'Requisition updated successfully.')
             return redirect('requisition_list')
+        else:
+            for field, errors in form.errors.items():
+                messages.error(request, f"{field.replace('_', ' ').title()}: {', '.join(errors)}")
+            for i, f in enumerate(formset.forms):
+                for field, errors in f.errors.items():
+                    messages.error(request, f"Row {i+1} ({field.replace('_', ' ').title()}): {', '.join(errors)}")
+            if formset.non_form_errors():
+                messages.error(request, f"Formset error: {', '.join(formset.non_form_errors())}")
     else:
+
         form = RequisitionForm(instance=requisition)
         formset = RequisitionItemFormSet(instance=requisition)
         

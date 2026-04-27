@@ -126,12 +126,12 @@
                         <td style="width: 7%; text-align: center;">{{ first_item.unit|default:"Days" }}</td>
                         <td style="width: 7%; text-align: center;">{{ transaction.items.count }}</td>
                         <td class="amount">-</td>
-                        <td class="amount">৳{{ transaction.display_subtotal }}</td>
+                        <td class="amount">৳{{ transaction.display_subtotal|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.duty_percentage }}%</td>
-                        <td class="amount">৳{{ transaction.total_duty }}</td>
+                        <td class="amount">৳{{ transaction.total_duty|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.vat_percentage }}%</td>
-                        <td class="amount" style="width: 11%;">৳{{ transaction.total_vat }}</td>
-                        <td class="amount" style="width: 12%;">৳{{ transaction.grand_total }}</td>
+                        <td class="amount" style="width: 11%;">৳{{ transaction.total_vat|floatformat:3 }}</td>
+                        <td class="amount" style="width: 12%;">৳{{ transaction.grand_total|floatformat:3 }}</td>
                     </tr>
                     {% endwith %}
                     {% else %}
@@ -141,13 +141,13 @@
                         <td style="width: 20%;">{{ item.description }}</td>
                         <td style="width: 7%; text-align: center;">{{ item.unit|default:"Units" }}</td>
                         <td style="width: 7%; text-align: center;">{{ item.quantity }}</td>
-                        <td class="amount">৳{{ item.billed_unit_price|default:"0.00" }}</td>
-                        <td class="amount">৳{{ item.billed_total|default:"0.00" }}</td>
+                        <td class="amount">৳{{ item.billed_unit_price|default:"0.00" |floatformat:3 }}</td>
+                        <td class="amount">৳{{ item.billed_total|default:"0.00" |floatformat:3 }}</td>
                         <td class="amount">{{ transaction.duty_percentage }}%</td>
-                        <td class="amount">৳{{ item.duty_amount }}</td>
+                        <td class="amount">৳{{ item.duty_amount|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.vat_percentage }}%</td>
-                        <td class="amount" style="width: 11%;">৳{{ item.vat_amount }}</td>
-                        <td class="amount" style="width: 12%;">৳{{ item.total_with_tax }}</td>
+                        <td class="amount" style="width: 11%;">৳{{ item.vat_amount|floatformat:3 }}</td>
+                        <td class="amount" style="width: 12%;">৳{{ item.total_with_tax|floatformat:3 }}</td>
                     </tr>
                     {% endfor %}
                     {% endif %}
@@ -159,22 +159,22 @@
                         <td style="width: 8%; text-align: center;">-</td>
                         <td style="width: 8%; text-align: center;">-</td>
                         <td class="amount">-</td>
-                        <td class="amount">৳{{ transaction.total_service_charge }}</td>
+                        <td class="amount">৳{{ transaction.total_service_charge|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.duty_percentage }}%</td>
-                        <td class="amount">৳{{ transaction.service_charge_duty }}</td>
+                        <td class="amount">৳{{ transaction.service_charge_duty|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.vat_percentage }}%</td>
-                        <td class="amount">৳{{ transaction.service_charge_vat }}</td>
-                        <td class="amount">৳{{ transaction.service_charge_total_with_tax }}</td>
+                        <td class="amount">৳{{ transaction.service_charge_vat|floatformat:3 }}</td>
+                        <td class="amount">৳{{ transaction.service_charge_total_with_tax|floatformat:3 }}</td>
                     </tr>
                     {% endif %}
                     <tr style="background:#f0f0f0; font-weight:bold;">
                         <td colspan="5" style="text-align:right; padding-right:8px;">Grand Total:</td>
-                        <td class="amount">৳{{ transaction.grand_subtotal }}</td>
+                        <td class="amount">৳{{ transaction.grand_subtotal|floatformat:3 }}</td>
                         <td class="amount">-</td>
-                        <td class="amount">৳{{ transaction.total_duty }}</td>
+                        <td class="amount">৳{{ transaction.total_duty|floatformat:3 }}</td>
                         <td class="amount">-</td>
-                        <td class="amount">৳{{ transaction.total_vat }}</td>
-                        <td class="amount">৳{{ transaction.grand_total }}</td>
+                        <td class="amount">৳{{ transaction.total_vat|floatformat:3 }}</td>
+                        <td class="amount">৳{{ transaction.grand_total|floatformat:3 }}</td>
                     </tr>
                 </tbody>
             </table>

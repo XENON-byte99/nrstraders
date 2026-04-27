@@ -110,12 +110,12 @@
                                 <td style="text-align:center;">{{ item.quantity }}</td>
                                 {% if not is_pdf %}
                                     {% if forloop.first %}
-                                    <td style="text-align:right; vertical-align:middle; background:#f8fafc;" rowspan="{{ transaction.items.count }}">৳{{ item.billed_unit_price }}</td>
+                                    <td style="text-align:right; vertical-align:middle; background:#f8fafc;" rowspan="{{ transaction.items.count }}">৳{{ item.billed_unit_price|floatformat:3 }}</td>
                                     {% endif %}
                                 {% else %}
-                                    <td style="text-align:right;">৳{{ item.billed_unit_price }}</td>
+                                    <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
                                 {% endif %}
-                                <td style="text-align:right;">৳{{ item.billed_total }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
                             {% endfor %}
                         {% elif 'lunch' in cat_name %}
@@ -125,8 +125,8 @@
                                 <td style="text-align:left;">{{ item.description }}</td>
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_unit_price }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_total }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
                             {% endfor %}
                         {% else %}
@@ -136,8 +136,8 @@
                                 <td style="text-align:left;">{{ item.description }}</td>
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_unit_price }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_total }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
+                                <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
                             {% endfor %}
                         {% endif %}
@@ -152,35 +152,35 @@
                     <div>
                         <div class="amount-row">
                             <span class="amount-label">Subtotal</span>
-                            <span class="amount-value mono">৳{{ transaction.display_subtotal }}</span>
+                            <span class="amount-value mono">৳{{ transaction.display_subtotal|floatformat:3 }}</span>
                         </div>
                         {% if transaction.total_service_charge > 0 %}
                         <div class="amount-row">
                             <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_service_charge }}</span>
+                            <span class="amount-value mono">৳{{ transaction.total_service_charge|floatformat:3 }}</span>
                         </div>
                         {% endif %}
                         {% if transaction.total_duty > 0 %}
                         <div class="amount-row">
                             <span class="amount-label">Duty ({{ transaction.duty_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_duty }}</span>
+                            <span class="amount-value mono">৳{{ transaction.total_duty|floatformat:3 }}</span>
                         </div>
                         {% endif %}
                         {% if transaction.total_vat > 0 %}
                         <div class="amount-row">
                             <span class="amount-label">VAT ({{ transaction.vat_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_vat }}</span>
+                            <span class="amount-value mono">৳{{ transaction.total_vat|floatformat:3 }}</span>
                         </div>
                         {% endif %}
                         {% if transaction.total_tax > 0 %}
                         <div class="amount-row">
                             <span class="amount-label">Tax Total ({{ transaction.tax_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_tax }}</span>
+                            <span class="amount-value mono">৳{{ transaction.total_tax|floatformat:3 }}</span>
                         </div>
                         {% endif %}
                         <div class="amount-row total">
                             <span class="amount-label">Grand Total</span>
-                            <span class="amount-value mono">৳{{ transaction.grand_total }}</span>
+                            <span class="amount-value mono">৳{{ transaction.grand_total|floatformat:3 }}</span>
                         </div>
                     </div>
                 </div>

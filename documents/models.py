@@ -68,34 +68,36 @@ class Transaction(models.Model):
     
     @property
     def display_subtotal(self):
+
         return sum(item.billed_total for item in self.items.all())
 
     @property
     def total_service_charge(self):
+
         import decimal
-        return round(self.display_subtotal * (self.service_charge_percentage / decimal.Decimal('100.0')), 2)
+        return round(self.display_subtotal * (self.service_charge_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def total_duty(self):
         import decimal
         base = self.display_subtotal + self.total_service_charge
-        return round(base * (self.duty_percentage / decimal.Decimal('100.0')), 2)
+        return round(base * (self.duty_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def total_tax(self):
         import decimal
         tax_pct = self.tax_percentage
         if tax_pct == 0:
-            return decimal.Decimal('0.00')
+            return decimal.Decimal('0.000')
         base = self.display_subtotal + self.total_service_charge
         gross = (base * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
-        return round(gross - base, 2)
+        return round(gross - base, 3)
 
     @property
     def total_vat(self):
         import decimal
         base = self.display_subtotal + self.total_service_charge
-        return round((base + self.total_duty + self.total_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 2)
+        return round((base + self.total_duty + self.total_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def grand_subtotal(self):
@@ -104,23 +106,25 @@ class Transaction(models.Model):
     @property
     def service_charge_duty(self):
         import decimal
-        return round(self.total_service_charge * (self.duty_percentage / decimal.Decimal('100.0')), 2)
+        return round(self.total_service_charge * (self.duty_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def service_charge_tax(self):
         import decimal
         tax_pct = self.tax_percentage
         if tax_pct == 0:
-            return decimal.Decimal('0.00')
+            return decimal.Decimal('0.000')
         base = self.total_service_charge
         gross = (base * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
-        return round(gross - base, 2)
+        return round(gross - base, 3)
 
     @property
     def service_charge_vat(self):
         import decimal
         base = self.total_service_charge
-        return round((base + self.service_charge_duty + self.service_charge_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 2)
+        return round((base + self.service_charge_duty + self.service_charge_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 3)
+
+
 
     @property
     def service_charge_total_with_tax(self):
@@ -264,8 +268,9 @@ class TransactionItem(models.Model):
     description = models.CharField(max_length=255, blank=True)
     unit = models.CharField(max_length=50, default='Pcs')
     quantity = models.IntegerField(default=1)
-    base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    unit_price_uplifted = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Owner set price before taxes. If blank, global profit margin applies.")
+    base_price = models.DecimalField(max_digits=10, decimal_places=3, default=0.000)
+    unit_price_uplifted = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, help_text="Owner set price before taxes. If blank, global profit margin applies.")
+
     sort_order = models.IntegerField(default=0)
     # Lunch Supply fields
     entry_date = models.DateField(null=True, blank=True)
@@ -273,16 +278,15 @@ class TransactionItem(models.Model):
     
     class Meta:
         ordering = ['sort_order', 'id']
-    
+
     @property
     def billed_unit_price(self):
+
         import decimal
-        # Layer 1 & 2: Start with Manual Uplift if set, otherwise Supplier Base
         price_basis = self.unit_price_uplifted if self.unit_price_uplifted is not None else self.base_price
-        # Layer 3: Apply Global Profit Margin on top
         profit_pct = self.transaction.profit_margin / decimal.Decimal('100.0')
         val = price_basis * (1 + profit_pct)
-        return round(val, 2)
+        return round(val, 3)
 
     @property
     def unit_profit_amount(self):
@@ -290,18 +294,15 @@ class TransactionItem(models.Model):
 
     @property
     def unit_uplifted_price(self):
-        # User defined Uplifted Price is the price before VAT/Duty/Tax
         return self.billed_unit_price
 
     @property
     def unit_billed_total(self):
-        # Final unit price charged to buyer (including everything)
         import decimal
         if self.quantity == 0: return self.total_with_tax
         return self.total_with_tax / decimal.Decimal(str(self.quantity))
 
     def get_master_product(self):
-        """Helper to find the master catalog product for this item."""
         if not self.description or not self.transaction.transaction_category:
             return None
         return Product.objects.filter(
@@ -311,13 +312,11 @@ class TransactionItem(models.Model):
 
     @property
     def master_base_price(self):
-        """Standard supplier cost from the master product list."""
         prod = self.get_master_product()
         return prod.base_price if prod else None
 
     @property
     def master_upscale_value(self):
-        """Owner's targeted base price from the master product list."""
         prod = self.get_master_product()
         return prod.upscale_value if prod else None
 
@@ -328,21 +327,23 @@ class TransactionItem(models.Model):
     @property
     def duty_amount(self):
         import decimal
-        return round(self.billed_total * (self.transaction.duty_percentage / decimal.Decimal('100.0')), 2)
+        return round(self.billed_total * (self.transaction.duty_percentage / decimal.Decimal('100.0')), 3)
         
     @property
     def tax_amount(self):
         import decimal
         tax_pct = self.transaction.tax_percentage
         if tax_pct == 0:
-            return decimal.Decimal('0.00')
+            return decimal.Decimal('0.000')
         gross = (self.billed_total * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
-        return round(gross - self.billed_total, 2)
+        return round(gross - self.billed_total, 3)
 
     @property
     def vat_amount(self):
         import decimal
-        return round((self.billed_total + self.duty_amount + self.tax_amount) * (self.transaction.vat_percentage / decimal.Decimal('100.0')), 2)
+        return round((self.billed_total + self.duty_amount + self.tax_amount) * (self.transaction.vat_percentage / decimal.Decimal('100.0')), 3)
+
+
 
     @property
     def total_with_tax(self):
@@ -369,8 +370,9 @@ class BusinessParty(models.Model):
 class Product(models.Model):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(TransactionCategory, on_delete=models.CASCADE, related_name='products')
-    base_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    upscale_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    base_price = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
+    upscale_value = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
+
     unit = models.CharField(max_length=50, default='Pcs')
     added_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     is_approved = models.BooleanField(default=False)

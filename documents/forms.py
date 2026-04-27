@@ -39,6 +39,10 @@ class TransactionItemForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
         fields = ['description', 'unit', 'quantity', 'base_price', 'sort_order']
+        widgets = {
+            'base_price': forms.NumberInput(attrs={'step': '0.001'}),
+        }
+
 
 TransactionItemFormSet = inlineformset_factory(
     Transaction, 
@@ -52,6 +56,10 @@ class SupplierPricingForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
         fields = ['base_price']
+        widgets = {
+            'base_price': forms.NumberInput(attrs={'step': '0.001'}),
+        }
+
 
 class SupplierPricingFormSet(inlineformset_factory(
     Transaction, 
@@ -66,6 +74,11 @@ class ApprovalPricingForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
         fields = ['base_price', 'unit_price_uplifted']
+        widgets = {
+            'base_price': forms.NumberInput(attrs={'step': '0.001'}),
+            'unit_price_uplifted': forms.NumberInput(attrs={'step': '0.001'}),
+        }
+
 
 class ApprovalPricingFormSet(inlineformset_factory(
     Transaction,
@@ -92,8 +105,10 @@ class LunchItemForm(forms.ModelForm):
         widget=forms.DateInput(attrs={'type': 'date'}),
         required=True,
     )
-    restaurant_name = forms.CharField(max_length=255, required=True)
-    base_price = forms.DecimalField(max_digits=10, decimal_places=2, initial=0)
+    restaurant_name = forms.CharField(max_length=255, required=False)
+
+    base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
+
 
     class Meta:
         model = TransactionItem
@@ -115,6 +130,10 @@ class LunchSupplierPricingForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
         fields = ['base_price']
+        widgets = {
+            'base_price': forms.NumberInput(attrs={'step': '0.001'}),
+        }
+
 
 class LunchSupplierPricingFormSet(inlineformset_factory(
     Transaction,
@@ -132,8 +151,9 @@ class ProductForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Product Name'}),
             'category': forms.Select(attrs={'class': 'w-full p-2 border rounded-lg'}),
-            'base_price': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Actual Supplier Cost'}),
-            'upscale_value': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Owner Base Price (Upscale)'}),
+            'base_price': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Actual Supplier Cost', 'step': '0.001'}),
+            'upscale_value': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Owner Base Price (Upscale)', 'step': '0.001'}),
+
             'unit': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Pcs'}),
             'is_approved': forms.CheckboxInput(attrs={'class': 'rounded text-indigo-600 focus:ring-indigo-500'}),
         }
