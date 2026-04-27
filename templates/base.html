@@ -74,14 +74,16 @@
         .status-APPROVED { background: #d1fae5 !important; color: #065f46 !important; }
     </style>
 </head>
-<body class="bg-gray-50 flex h-screen overflow-hidden text-gray-800">
+<body class="bg-gray-50 flex h-screen h-dvh overflow-hidden text-gray-800">
+
 
     {% if user.is_authenticated %}
     <!-- Mobile Overlay -->
     <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
     <!-- ═══ SIDEBAR ═══ -->
-    <aside id="sidebar" class="w-64 bg-gradient-to-b from-indigo-950 to-indigo-900 text-white flex flex-col h-screen shrink-0 shadow-2xl">
+    <aside id="sidebar" class="w-64 bg-gradient-to-b from-indigo-950 to-indigo-900 text-white flex flex-col h-screen h-dvh shrink-0 shadow-2xl">
+
         <!-- Logo -->
         <div class="p-5 flex items-center justify-between border-b border-indigo-800/60">
             <div class="flex items-center gap-3">
@@ -268,7 +270,8 @@
     </aside>
 
     <!-- ═══ MAIN CONTENT ═══ -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 min-w-0">
+    <main class="flex-1 flex flex-col h-screen h-dvh overflow-hidden bg-gray-50 min-w-0">
+
 
         <!-- Top Header -->
         <header class="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex justify-between items-center z-10 gap-3 shrink-0">
