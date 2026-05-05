@@ -203,6 +203,10 @@
                 <i class="fas fa-list text-green-500"></i>
                 <span id="items-section-label">{% if is_lunch %}Daily Lunch Entries{% else %}Items{% endif %}</span>
             </div>
+            
+            <!-- Global Suggestions Container -->
+            <div id="product-suggestions" class="suggestions-list"></div>
+
             {{ formset.management_form }}
 
             <!-- Normal Items Table (hidden for lunch) -->
@@ -224,10 +228,7 @@
                         {% for item_form in formset %}
                         <tr class="border-b item-row">
                             <td>
-                                <div class="autocomplete-container">
-                                    {{ item_form.description }}
-                                    <div class="suggestions-list"></div>
-                                </div>
+                                {{ item_form.description }}
                             </td>
                             <td>{{ item_form.unit }}</td>
                             <td>{{ item_form.quantity }}</td>
@@ -299,10 +300,7 @@
                 <tbody id="empty-form-template">
                     <tr class="border-b item-row">
                         <td>
-                            <div class="autocomplete-container">
-                                {{ formset.empty_form.description }}
-                                <div class="suggestions-list"></div>
-                            </div>
+                            {{ formset.empty_form.description }}
                         </td>
                         <td>{{ formset.empty_form.unit }}</td>
                         <td>{{ formset.empty_form.quantity }}</td>
@@ -637,12 +635,7 @@ let currentSuggestionIndex = -1;
 let activeDescInput = null;
 
 function hideSuggestions() {
-    if (activeDescInput) {
-        const row = activeDescInput.closest('tr');
-        const list = row.querySelector('.suggestions-list');
-        if (list) list.style.display = 'none';
-        activeDescInput.classList.remove('new-product-active');
-    }
+    if (suggestionBox) suggestionBox.style.display = 'none';
     currentSuggestionIndex = -1;
 }
 
@@ -655,14 +648,12 @@ function showSuggestions(input) {
 
     const categoryId = categorySelect ? categorySelect.value : '';
     activeDescInput = input;
-    const row = input.closest('tr');
-    const list = row.querySelector('.suggestions-list');
 
     fetch(`/api/products/search/?q=${encodeURIComponent(query)}&category_id=${categoryId}`)
         .then(r => r.json())
         .then(data => {
             if (data.results && data.results.length > 0) {
-                renderSuggestions(data.results, input, list);
+                renderSuggestions(data.results, input);
             } else {
                 hideSuggestions();
             }
@@ -670,12 +661,15 @@ function showSuggestions(input) {
         .catch(() => hideSuggestions());
 }
 
-function renderSuggestions(products, input, list) {
-    list.style.display = 'block';
-    input.classList.remove('new-product-active');
+function renderSuggestions(products, input) {
+    const rect = input.getBoundingClientRect();
+    suggestionBox.style.left = `${rect.left + window.scrollX}px`;
+    suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    suggestionBox.style.width = `${Math.max(rect.width, 300)}px`;
+    suggestionBox.style.display = 'block';
     
-    list.innerHTML = products.map((p, index) => `
-        <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')}, this)">
+    suggestionBox.innerHTML = products.map((p, index) => `
+        <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">
             <div>
                 <span class="suggestion-name">${p.name}</span>
                 <span class="suggestion-unit">${p.unit}</span>
@@ -687,13 +681,19 @@ function renderSuggestions(products, input, list) {
     currentSuggestionIndex = -1;
 }
 
-function selectProduct(product, element) {
-    const row = element.closest('tr');
+function selectProduct(product) {
+    if (!activeDescInput) return;
+    const row = activeDescInput.closest('tr');
+    if (!row) return;
+
     const descInput = row.querySelector('input[name$="-description"]');
     const unitField = row.querySelector('input[name$="-unit"]');
     const priceField = row.querySelector('input[name$="-base_price"]');
     
-    if (descInput) descInput.value = product.name;
+    if (descInput) {
+        descInput.value = product.name;
+        highlightField(descInput);
+    }
     if (unitField) {
         unitField.value = product.unit;
         highlightField(unitField);
@@ -716,11 +716,9 @@ function initSuggestionListeners() {
 
     document.addEventListener('keydown', function(e) {
         if (!activeDescInput) return;
-        const row = activeDescInput.closest('tr');
-        const list = row.querySelector('.suggestions-list');
-        if (!list || list.style.display === 'none') return;
+        if (!suggestionBox || suggestionBox.style.display === 'none') return;
         
-        const items = list.querySelectorAll('.suggestion-item');
+        const items = suggestionBox.querySelectorAll('.suggestion-item');
         
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -743,8 +741,7 @@ function initSuggestionListeners() {
     // Close suggestions when clicking outside
     document.addEventListener('click', function(e) {
         if (activeDescInput && !activeDescInput.contains(e.target)) {
-            const list = activeDescInput.closest('tr').querySelector('.suggestions-list');
-            if (list && !list.contains(e.target)) {
+            if (suggestionBox && !suggestionBox.contains(e.target)) {
                 hideSuggestions();
             }
         }

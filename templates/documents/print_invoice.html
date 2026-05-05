@@ -95,7 +95,9 @@
                             <th>Description</th>
                             <th style="width:12%;text-align:center;">Unit</th>
                             <th style="width:12%;text-align:center;">Qty</th>
+                            {% if 'lunch' not in transaction.transaction_category.name|lower %}
                             <th style="width:16%;text-align:right;">Rate</th>
+                            {% endif %}
                             <th style="width:16%;text-align:right;">Amount</th>
                         </tr>
                     </thead>
@@ -110,10 +112,16 @@
                                 <td style="text-align:center;">{{ item.quantity }}</td>
                                 {% if not is_pdf %}
                                     {% if forloop.first %}
-                                    <td style="text-align:right; vertical-align:middle; background:#f8fafc;" rowspan="{{ transaction.items.count }}">৳{{ item.billed_unit_price|floatformat:3 }}</td>
+                                    <td style="text-align:right; vertical-align:middle; background:#f8fafc;" rowspan="{{ transaction.items.count }}">
+                                        ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(incl. VAT/Tax)</span>
+                                        <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                    </td>
                                     {% endif %}
                                 {% else %}
-                                    <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
+                                    <td style="text-align:right;">
+                                        ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(incl. VAT/Tax)</span>
+                                        <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                    </td>
                                 {% endif %}
                                 <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
@@ -125,7 +133,6 @@
                                 <td style="text-align:left;">{{ item.description }}</td>
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
                                 <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
                             {% endfor %}
@@ -136,7 +143,14 @@
                                 <td style="text-align:left;">{{ item.description }}</td>
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_unit_price|floatformat:3 }}</td>
+                                <td style="text-align:right;">
+                                    {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
+                                        ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(incl. VAT/Tax)</span>
+                                        <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                    {% else %}
+                                        ৳{{ item.billed_unit_price|floatformat:3 }}
+                                    {% endif %}
+                                </td>
                                 <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
                             </tr>
                             {% endfor %}

@@ -197,7 +197,14 @@
                         </td>
                         <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
                         <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_unit_price }}</td>
+                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">
+                            {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
+                                ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                            {% else %}
+                                ৳{{ item.billed_unit_price }}
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                     {% elif single_item %}
@@ -224,7 +231,14 @@
                         </td>
                         <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
                         <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_unit_price }}</td>
+                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">
+                            {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
+                                ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                            {% else %}
+                                ৳{{ item.billed_unit_price }}
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                     {% endif %}

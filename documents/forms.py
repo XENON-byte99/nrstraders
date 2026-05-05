@@ -207,9 +207,10 @@ class RequisitionForm(forms.ModelForm):
 class RequisitionItemForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['description', 'quantity', 'sort_order']
+        fields = ['description', 'unit', 'base_price', 'quantity', 'sort_order']
         widgets = {
             'quantity': forms.NumberInput(attrs={'min': 1}),
+            'base_price': forms.NumberInput(attrs={'step': '0.001'}),
         }
 
 RequisitionItemFormSet = inlineformset_factory(

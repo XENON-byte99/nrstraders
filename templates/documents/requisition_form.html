@@ -83,11 +83,19 @@
             <div id="item-formset" class="space-y-4">
                 {% for item_form in formset %}
                 <div class="item-row grid grid-cols-12 gap-3 items-end p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <div class="col-span-7">
+                    <div class="col-span-12 md:col-span-4">
                         <label class="form-label">Item Description</label>
                         {{ item_form.description }}
                     </div>
-                    <div class="col-span-4">
+                    <div class="col-span-4 md:col-span-2">
+                        <label class="form-label">Unit</label>
+                        {{ item_form.unit }}
+                    </div>
+                    <div class="col-span-4 md:col-span-3">
+                        <label class="form-label">Est. Price (৳)</label>
+                        {{ item_form.base_price }}
+                    </div>
+                    <div class="col-span-3 md:col-span-2">
                         <label class="form-label">Qty</label>
                         {{ item_form.quantity }}
                     </div>
@@ -121,11 +129,19 @@
 <!-- Hidden Template -->
 <div id="empty-form-template" class="hidden">
     <div class="item-row grid grid-cols-12 gap-3 items-end p-4 bg-gray-50 rounded-2xl border border-gray-100">
-        <div class="col-span-7">
+        <div class="col-span-12 md:col-span-4">
             <label class="form-label">Item Description</label>
             {{ formset.empty_form.description }}
         </div>
-        <div class="col-span-4">
+        <div class="col-span-4 md:col-span-2">
+            <label class="form-label">Unit</label>
+            {{ formset.empty_form.unit }}
+        </div>
+        <div class="col-span-4 md:col-span-3">
+            <label class="form-label">Est. Price (৳)</label>
+            {{ formset.empty_form.base_price }}
+        </div>
+        <div class="col-span-3 md:col-span-2">
             <label class="form-label">Qty</label>
             {{ formset.empty_form.quantity }}
         </div>
@@ -197,7 +213,7 @@ function renderSuggestions(products, input) {
     const rect = input.getBoundingClientRect();
     suggestionBox.style.left = `${rect.left + window.scrollX}px`;
     suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
-    suggestionBox.style.width = `${Math.max(rect.width, 250)}px`;
+    suggestionBox.style.width = `${Math.max(rect.width, 300)}px`;
     suggestionBox.style.display = 'block';
     
     suggestionBox.innerHTML = products.map((p, index) => `
@@ -206,14 +222,41 @@ function renderSuggestions(products, input) {
                 <span class="suggestion-name">${p.name}</span>
                 <span class="suggestion-unit">${p.unit}</span>
             </div>
+            <span class="suggestion-price">৳${p.base_price}</span>
         </div>
     `).join('');
 }
 
 function selectProduct(product) {
     if (!activeDescInput) return;
+    const row = activeDescInput.closest('.item-row');
     activeDescInput.value = product.name;
+    
+    const unitField = row.querySelector('input[name$="-unit"]');
+    const priceField = row.querySelector('input[name$="-base_price"]');
+    
+    if (unitField) {
+        unitField.value = product.unit;
+        highlightField(unitField);
+    }
+    if (priceField) {
+        priceField.value = product.base_price;
+        highlightField(priceField);
+    }
+    highlightField(activeDescInput);
+    
     hideSuggestions();
+}
+
+function highlightField(el) {
+    if (!el) return;
+    el.style.transition = 'background-color 0.4s, border-color 0.4s';
+    el.style.backgroundColor = '#ecfdf5';
+    el.style.borderColor = '#10b981';
+    setTimeout(() => { 
+        el.style.backgroundColor = ''; 
+        el.style.borderColor = '';
+    }, 1000);
 }
 
 function hideSuggestions() { suggestionBox.style.display = 'none'; }

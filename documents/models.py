@@ -135,6 +135,10 @@ class Transaction(models.Model):
         return self.display_subtotal + self.total_service_charge + self.total_duty + self.total_vat + self.total_tax
 
     @property
+    def total_quantity(self):
+        return sum(item.quantity for item in self.items.all())
+
+    @property
     def total_base_cost(self):
         return sum(item.base_price * item.quantity for item in self.items.all())
 

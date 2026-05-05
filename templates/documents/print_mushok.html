@@ -124,8 +124,8 @@
                             {% if 'lunch' in cat_name %}Lunch Supply{% else %}{{ transaction.transaction_category.name|title }}{% endif %}
                         </td>
                         <td style="width: 7%; text-align: center;">{{ first_item.unit|default:"Days" }}</td>
-                        <td style="width: 7%; text-align: center;">{{ transaction.items.count }}</td>
-                        <td class="amount">-</td>
+                        <td style="width: 7%; text-align: center;">{% if 'lunch' in cat_name %}-{% else %}{{ transaction.total_quantity }}{% endif %}</td>
+                        <td class="amount">{% if 'lunch' in cat_name %}-{% else %}৳{{ first_item.billed_unit_price|floatformat:3 }}{% endif %}</td>
                         <td class="amount">৳{{ transaction.display_subtotal|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.duty_percentage }}%</td>
                         <td class="amount">৳{{ transaction.total_duty|floatformat:3 }}</td>
@@ -155,7 +155,7 @@
                     {% if transaction.total_service_charge > 0 %}
                     <tr>
                         <td class="number"></td>
-                        <td style="width: 25%; font-weight: bold;">Service Charge ({{ transaction.service_charge_percentage }}%)</td>
+                        <td style="width: 25%; font-weight: bold;">Service Charge</td>
                         <td style="width: 8%; text-align: center;">-</td>
                         <td style="width: 8%; text-align: center;">-</td>
                         <td class="amount">-</td>
