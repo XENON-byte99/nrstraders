@@ -19,7 +19,7 @@ jobs:
         password: ${{ secrets.NRS_SSH_PASSWORD }}
 
         port: 22
-        source: "*,!.venv,!.git,!.env,!db.sqlite3,!media,!.github,!scratch,!static_root"
+        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root"
         target: "/var/www/nrs/"
         overwrite: true
 
