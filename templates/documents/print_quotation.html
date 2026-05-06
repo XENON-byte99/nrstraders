@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en" class="h-full">
 <head>
@@ -39,14 +40,19 @@
         .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #059669; margin-bottom: 4px; }
         .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border: none; }
         .invoice-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 12px; border-top: 1px dashed #cbd5e1; margin-top: auto; }
-        .signature-box { text-align: center; padding: 8px; }
-        .signature-line { height: 30px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; }
+        .signature-box { text-align: center; padding: 8px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 80px; }
+        .official-signature { height: 50px; position: absolute; bottom: 20px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
+        .signature-line { height: 30px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
+        .signature-label { font-size: 8px; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body class="h-full">
     <div class="a4-container">
-        <button onclick="window.print()" class="no-print" style="position:absolute; top:20px; right:20px; padding:10px; background:blue; color:white; border-radius:4px; font-weight:bold; cursor:pointer;">Print</button>
-        <div class="a4-invoice">
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
+            <button onclick="window.print()" style="padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print</button>
+            <button onclick="downloadPDF()" style="padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        </div>
+        <div class="a4-invoice" id="quotationContent">
             <div class="invoice-header">
                 <div>
                     <h1 class="invoice-title">QUOTATION</h1>
@@ -73,8 +79,8 @@
                 <div class="divider"></div>
                 <div class="invoice-details">
                     <div class="detail-item">
-                        <div class="detail-label">Quote Ref.</div>
-                        <div class="detail-value">Q-{{ transaction.id|stringformat:"04d" }} <br><span style="font-size:8px;color:#cbd5e1;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                        <div class="detail-label">Quotation No.</div>
+                        <div class="detail-value">{{ transaction.invoice_number|default:"Draft" }} <br><span style="font-size:8px;color:#cbd5e1;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Issue Date</div>
@@ -157,6 +163,7 @@
                 </div>
                 <div class="invoice-footer">
                     <div class="signature-box">
+                        <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
                         <div class="signature-line"></div>
                         <div class="signature-label">Company Authorized</div>
                     </div>
@@ -172,5 +179,35 @@
             </div>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        function downloadPDF() {
+            const element = document.getElementById('quotationContent');
+            if (!element) return;
+            
+            const invoiceNo = "{{ transaction.invoice_number|default:'Quotation' }}";
+            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            const filename = `Quotation_${invoiceNo}_${buyerName}.pdf`;
+
+            const opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Temporarily remove shadow for clean PDF
+            const oldShadow = element.style.boxShadow;
+            element.style.boxShadow = 'none';
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.boxShadow = oldShadow || '0 10px 40px rgba(0, 0, 0, 0.1)';
+            }).catch(err => {
+                console.error('PDF Generation Error:', err);
+                element.style.boxShadow = oldShadow || '0 10px 40px rgba(0, 0, 0, 0.1)';
+            });
+        }
+    </script>
 </body>
 </html>

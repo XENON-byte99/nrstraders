@@ -40,8 +40,11 @@
 </head>
 <body>
     <div class="wrapper">
-        <button onclick="window.print()" class="no-print" style="padding: 10px; margin-bottom: 20px; background: #1e293b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Print Challan Copies</button>
-        <div class="copies-container">
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
+            <button onclick="window.print()" style="padding: 10px 15px; background: #1e293b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Challan Copies</button>
+            <button onclick="downloadPDF()" style="padding: 10px 15px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        </div>
+        <div class="copies-container" id="challanContent">
         <!-- Original Copy -->
         <div class="challan-copy flex flex-col" style="--border-color:#059669;--accent-color:#064e3b;--light-bg:#f0fdf4;background:#f0fdf4;">
             <div class="watermark" style="color:#059669;">ORIGINAL</div>
@@ -384,5 +387,26 @@
             </div>
         </div> <!-- End of copies container -->
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        function downloadPDF() {
+            const element = document.getElementById('challanContent');
+            if (!element) return;
+            
+            const challanNo = "{{ transaction.challan_number|default:'Challan' }}";
+            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            const filename = `Challan_${challanNo}_${buyerName}.pdf`;
+
+            const opt = {
+                margin: 0.1,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 1.5, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+    </script>
 </body>
 </html>

@@ -3,7 +3,8 @@
 <html lang="bn" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <title>Bangladesh Tax Invoice - NBR Form (Mushok 6.3)</title>
+    <title>Mushok 6.3 - Tax Invoice</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -58,14 +59,17 @@
 </head>
 <body class="h-full">
     <div class="container-wrapper">
-        <button onclick="window.print()" class="no-print" style="position:absolute; top:20px; right:20px; padding:10px; background:green; color:white; border-radius:4px; font-weight:bold; cursor:pointer;">Print Mushok</button>
-        <div class="mushok-form">
-            <div class="mushok-label">Mushok 6.3</div>
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
+            <button onclick="window.print()" style="padding:10px 15px; background:green; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Mushok</button>
+            <button onclick="downloadPDF()" style="padding:10px 15px; background:red; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        </div>
+        <div class="mushok-form" id="mushokContent">
+            <div class="mushok-label">MUSHOK 6.3</div>
             <!-- ... existing header ... -->
             <div class="govt-header">
                 <div>Government of the People's Republic of Bangladesh</div>
                 <div>National Board of Revenue (NBR)</div>
-                <div style="margin-top: 2px;">Tax Invoice</div>
+                <div style="margin-top: 2px;">TAX INVOICE</div>
             </div>
             <div style="font-size: 8px; text-align: center; margin-bottom: 4px;">[See Clauses (C) and (f) of Sub-Rule (1) of Rule 40]</div>
 
@@ -200,5 +204,27 @@
             <!-- Signature information -->
         </div>
     </div>
+    <script>
+        function downloadPDF() {
+            const element = document.getElementById('mushokContent');
+            const invoiceNo = "{{ transaction.invoice_number|default:'Mushok' }}";
+            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            const filename = `Mushok_6.3_${invoiceNo}_${buyerName}.pdf`;
+
+            const opt = {
+                margin: 0.2,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Temporarily remove shadow for clean PDF
+            element.style.boxShadow = 'none';
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12)';
+            });
+        }
+    </script>
 </body>
 </html>

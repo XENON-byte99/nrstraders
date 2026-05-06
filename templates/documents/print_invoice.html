@@ -48,8 +48,11 @@
 </head>
 <body class="h-full">
     <div class="a4-container">
-        <button onclick="window.print()" class="no-print" style="position:absolute; top:20px; right:20px; padding:10px; background:blue; color:white; border-radius:4px; font-weight:bold; cursor:pointer;">Print</button>
-        <div class="a4-invoice">
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
+            <button onclick="window.print()" style="padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print</button>
+            <button onclick="downloadPDF()" style="padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        </div>
+        <div class="a4-invoice" id="invoiceContent">
             <!-- ... -->
             <div class="invoice-header">
                 <div>
@@ -216,5 +219,35 @@
             </div>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        function downloadPDF() {
+            const element = document.getElementById('invoiceContent');
+            if (!element) return;
+
+            const invoiceNo = "{{ transaction.invoice_number|default:'Invoice' }}";
+            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            const filename = `Invoice_${invoiceNo}_${buyerName}.pdf`;
+
+            const opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Temporarily remove shadow for clean PDF
+            const oldShadow = element.style.boxShadow;
+            element.style.boxShadow = 'none';
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.boxShadow = oldShadow || '0 10px 40px rgba(0, 0, 0, 0.1)';
+            }).catch(err => {
+                console.error('PDF Generation Error:', err);
+                element.style.boxShadow = oldShadow || '0 10px 40px rgba(0, 0, 0, 0.1)';
+            });
+        }
+    </script>
 </body>
 </html>
