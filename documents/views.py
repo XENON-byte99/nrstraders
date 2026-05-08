@@ -19,8 +19,7 @@ from datetime import date
 def _is_lunch_cat(cat):
     if not cat:
         return False
-    name = cat.name.lower()
-    return any(keyword in name for keyword in ['lunch', 'tiffin', 'dinner', 'iftar'])
+    return cat.is_lunch
 
 def _get_next_serial_number(category):
     from django.utils import timezone
@@ -48,15 +47,23 @@ def _get_next_serial_number(category):
     return max_seq + 1
 
 def _process_auto_product_saving(transaction, items, user=None):
-    if not transaction.transaction_category or _is_lunch_cat(transaction.transaction_category):
-        return
-    
     for item in items:
-        if not item.description: continue
+        # Determine the logical product name for lookup (same logic as in models.py)
+        product_name = item.description
+        if _is_lunch_cat(transaction.transaction_category):
+            if item.restaurant_name:
+                product_name = item.restaurant_name
+            else:
+                import re
+                if re.match(r'\d{4}-\d{2}-\d{2}', str(item.description)):
+                    product_name = transaction.transaction_category.name
+
+        if not product_name or str(product_name).strip() == "":
+            continue
         
         # Try to find matching product in this category
         product = Product.objects.filter(
-            name=item.description,
+            name=product_name,
             category=transaction.transaction_category
         ).first()
         
@@ -71,7 +78,7 @@ def _process_auto_product_saving(transaction, items, user=None):
             # If it's a new item WITH a price (from a full bill), create it as a new Product
             if item.base_price > 0:
                 Product.objects.create(
-                    name=item.description,
+                    name=product_name,
                     category=transaction.transaction_category,
                     base_price=item.base_price,    # Initial actual cost
                     upscale_value=item.base_price, # Initial upscale value (owner can edit later)
@@ -236,15 +243,19 @@ def transaction_pricing(request, pk):
 @login_required
 @permission_required('p_approve_bill')
 def transaction_approve(request, pk):
-    from .forms import ApprovalPricingFormSet
+    from .forms import ApprovalPricingFormSet, TransactionHeaderForm
     transaction = get_object_or_404(Transaction, pk=pk)
     
     # Immutability Check: Approved bills can only be viewed, not edited
-    is_locked = transaction.status == 'APPROVED'
+    # Owners and Superusers can bypass this lock to make corrections
+    is_owner = request.user.role == 'OWNER' or request.user.is_superuser
+    is_locked = transaction.status in ['APPROVED', 'SUBMITTED', 'RELEASED'] and not is_owner
     
     if request.method == 'POST' and not is_locked:
         formset = ApprovalPricingFormSet(request.POST, instance=transaction)
-        if formset.is_valid():
+        header_form = TransactionHeaderForm(request.POST, instance=transaction)
+        if formset.is_valid() and header_form.is_valid():
+            header_form.save()
             # Track changes for audit log
             changes = []
             for form in formset.forms:
@@ -257,8 +268,9 @@ def transaction_approve(request, pk):
             
             formset.save()
             
-            # Now set to APPROVED
-            transaction.status = 'APPROVED'
+            # Now set to APPROVED if it wasn't already approved or further
+            if transaction.status not in ['APPROVED', 'SUBMITTED', 'RELEASED']:
+                transaction.status = 'APPROVED'
             transaction.save()
             
             # Update Product Upscale & Base Values based on approved pricing
@@ -296,10 +308,12 @@ def transaction_approve(request, pk):
                     item.save(update_fields=['base_price', 'unit_price_uplifted'])
         
         formset = ApprovalPricingFormSet(instance=transaction)
+        header_form = TransactionHeaderForm(instance=transaction)
         
     return render(request, 'documents/transaction_approve.html', {
         'transaction': transaction,
         'formset': formset,
+        'header_form': header_form,
         'is_locked': is_locked
     })
 

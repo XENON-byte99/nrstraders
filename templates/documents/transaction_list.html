@@ -65,7 +65,13 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                             </a>
                         {% endif %}
                         {% if item.status == 'DRAFT' %}{% if user.p_price_bill or user.is_superuser %}<a href="{% url 'transaction_pricing' item.pk %}" class="text-blue-600 hover:text-blue-900">Enter Prices</a>{% endif %}{% endif %}
-                        {% if item.status == 'PRICED' or item.status == 'DRAFT' %}{% if user.p_approve_bill or user.is_superuser %}<a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 hover:text-indigo-900">Review &amp; Approve</a>{% endif %}{% endif %}
+                        {% if user.p_approve_bill or user.is_superuser %}
+                            {% if item.status == 'PRICED' or item.status == 'DRAFT' or user.role == 'OWNER' or user.is_superuser %}
+                                <a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 hover:text-indigo-900">
+                                    {% if item.status == 'APPROVED' or item.status == 'SUBMITTED' or item.status == 'RELEASED' %}Edit Pricing{% else %}Review &amp; Approve{% endif %}
+                                </a>
+                            {% endif %}
+                        {% endif %}
                         {% if item.status == 'APPROVED' %}
                             <a href="{% url 'print_invoice' item.pk %}" target="_blank" class="text-green-600 hover:text-green-900">Invoice</a>
                             <a href="{% url 'print_quotation' item.pk %}" target="_blank" class="text-purple-600 hover:text-purple-900">Quotation</a>
@@ -131,7 +137,13 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                 </a>
             {% endif %}
             {% if item.status == 'DRAFT' %}{% if user.p_price_bill or user.is_superuser %}<a href="{% url 'transaction_pricing' item.pk %}" class="text-blue-600 font-medium"><i class="fas fa-dollar-sign mr-1"></i>Prices</a>{% endif %}{% endif %}
-            {% if item.status == 'PRICED' or item.status == 'DRAFT' %}{% if user.p_approve_bill or user.is_superuser %}<a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 font-medium"><i class="fas fa-check-circle mr-1"></i>Review</a>{% endif %}{% endif %}
+            {% if user.p_approve_bill or user.is_superuser %}
+                {% if item.status == 'PRICED' or item.status == 'DRAFT' or user.role == 'OWNER' or user.is_superuser %}
+                    <a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 font-medium">
+                        <i class="fas fa-check-circle mr-1"></i>{% if item.status == 'APPROVED' or item.status == 'SUBMITTED' or item.status == 'RELEASED' %}Edit Pricing{% else %}Review{% endif %}
+                    </a>
+                {% endif %}
+            {% endif %}
             {% if item.status == 'APPROVED' %}
             <a href="{% url 'print_invoice' item.pk %}" target="_blank" class="text-green-600 font-medium"><i class="fas fa-file-invoice mr-1"></i>Invoice</a>
             <a href="{% url 'print_quotation' item.pk %}" target="_blank" class="text-purple-600 font-medium"><i class="fas fa-file-alt mr-1"></i>Quote</a>

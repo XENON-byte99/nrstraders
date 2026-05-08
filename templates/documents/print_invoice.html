@@ -44,6 +44,19 @@
         .official-signature { height: 80px; position: absolute; bottom: 25px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
         .signature-line { height: 30px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
         .signature-label { font-size: 8px; font-weight: bold; text-align: center; }
+        .category-badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 800;
+            text-transform: uppercase;
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            margin-top: 3px;
+            letter-spacing: 0.02em;
+        }
     </style>
 </head>
 <body class="h-full">
@@ -83,7 +96,7 @@
                 <div class="invoice-details">
                     <div class="detail-item">
                         <div class="detail-label">Invoice No.</div>
-                        <div class="detail-value">{{ transaction.invoice_number }} <br><span style="font-size:9px;color:#cbd5e1;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                        <div class="detail-value">{{ transaction.invoice_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Issue Date</div>

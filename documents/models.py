@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class TransactionCategory(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -28,6 +29,11 @@ class TransactionCategory(models.Model):
     
     def __str__(self):
         return self.name
+
+    @property
+    def is_lunch(self):
+        name = self.name.lower()
+        return any(keyword in name for keyword in ['lunch', 'tiffin', 'dinner', 'iftar'])
 
 class Transaction(models.Model):
     STATUS_CHOICES = (
@@ -62,7 +68,7 @@ class Transaction(models.Model):
     
     creator = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     status_updated_at = models.DateTimeField(null=True, blank=True)
     
@@ -307,10 +313,29 @@ class TransactionItem(models.Model):
         return self.total_with_tax / decimal.Decimal(str(self.quantity))
 
     def get_master_product(self):
-        if not self.description or not self.transaction.transaction_category:
+        if not self.transaction.transaction_category:
             return None
+            
+        # Determine the logical product name for lookup
+        product_name = self.description
+        
+        # For lunch/tiffin, restaurant_name is a better identifier than the date-description
+        if self.transaction.transaction_category.is_lunch:
+            if self.restaurant_name:
+                product_name = self.restaurant_name
+            else:
+                # Fallback: if no restaurant is named, treat this as a generic meal for the category
+                # This prevents "date" strings from becoming product names
+                import re
+                # Check if description looks like a date (e.g. 2026-05-09)
+                if re.match(r'\d{4}-\d{2}-\d{2}', str(self.description)):
+                    product_name = self.transaction.transaction_category.name
+        
+        if not product_name or str(product_name).strip() == "":
+            return None
+
         return Product.objects.filter(
-            name=self.description,
+            name=product_name,
             category=self.transaction.transaction_category
         ).first()
 

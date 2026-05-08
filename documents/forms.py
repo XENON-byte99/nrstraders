@@ -12,28 +12,46 @@ class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
         fields = [
-            'transaction_category', 'invoice_number', 'challan_number',
+            'transaction_category', 'invoice_number', 'challan_number', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
             'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin'
         ]
+        widgets = {
+            'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
+        }
+
+class TransactionHeaderForm(forms.ModelForm):
+    class Meta:
+        model = Transaction
+        fields = [
+            'invoice_number', 'challan_number', 'created_at',
+            'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
+            'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact'
+        ]
+        widgets = {
+            'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
+            'supplier_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'buyer_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Determine if we should apply defaults (if field is currently empty)
-        # We check both the instance value and the initial dictionary
-        if not self.initial.get('supplier_name') and not getattr(self.instance, 'supplier_name', None):
-            self.fields['supplier_name'].initial = "NRS Traders"
-            self.fields['supplier_bin'].initial = "007212741-0305"
-            self.fields['supplier_address'].initial = "Kadomtoli Adamjee Nagar, Siddhirganj , Narayanganj"
-            self.fields['supplier_contact'].initial = "01XXXXXXXXX"
+        # Safely set initials for supplier/buyer if they are empty
+        if 'supplier_name' in self.fields:
+            if not self.initial.get('supplier_name') and not getattr(self.instance, 'supplier_name', None):
+                self.fields['supplier_name'].initial = "NRS Traders"
+                self.fields['supplier_bin'].initial = "007212741-0305"
+                self.fields['supplier_address'].initial = "Kadomtoli Adamjee Nagar, Siddhirganj , Narayanganj"
+                self.fields['supplier_contact'].initial = "01XXXXXXXXX"
 
-        if not self.initial.get('buyer_name') and not getattr(self.instance, 'buyer_name', None):
-            self.fields['buyer_name'].initial = "Lintas Bangladesh Co. LTD"
-            self.fields['buyer_bin'].initial = "000150053-0305"
-            self.fields['buyer_address'].initial = "Adamjee EPZ, Siddhirganj, Narayanganj, Dhaka"
-            self.fields['buyer_contact'].initial = "01XXXXXXXXX"
+        if 'buyer_name' in self.fields:
+            if not self.initial.get('buyer_name') and not getattr(self.instance, 'buyer_name', None):
+                self.fields['buyer_name'].initial = "Lintas Bangladesh Co. LTD"
+                self.fields['buyer_bin'].initial = "000150053-0305"
+                self.fields['buyer_address'].initial = "Adamjee EPZ, Siddhirganj, Narayanganj, Dhaka"
+                self.fields['buyer_contact'].initial = "01XXXXXXXXX"
 
 class TransactionItemForm(forms.ModelForm):
     class Meta:
