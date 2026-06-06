@@ -1430,3 +1430,34 @@ def api_get_party_details(request, party_id):
         'name': party.name,
         'address': party.address
     })
+
+import os
+from django.contrib import messages
+from django.shortcuts import redirect
+from documents.sync import run_synchronization
+
+@login_required
+def sync_db_view(request):
+    """View to trigger full synchronization with Supabase."""
+    result = run_synchronization()
+    if result["status"] == "success":
+        messages.success(request, result["message"])
+    else:
+        messages.error(request, result["message"])
+    return redirect(request.META.get('HTTP_REFERER', 'transaction_list'))
+
+@login_required
+def sync_status_api(request):
+    """API endpoint to get sync status (count of unsynced items)."""
+    from documents.models import (
+        TransactionCategory, BusinessParty, Product, 
+        Transaction, TransactionItem, VisualRequisition, CheckAuthorization
+    )
+    models = [TransactionCategory, BusinessParty, Product, Transaction, TransactionItem, VisualRequisition, CheckAuthorization]
+    unsynced_count = sum(m.objects.filter(is_dirty=True).count() for m in models)
+    has_supabase = bool(os.environ.get('SUPABASE_DATABASE_URL'))
+    
+    return JsonResponse({
+        'unsynced_count': unsynced_count,
+        'has_supabase': has_supabase
+    })

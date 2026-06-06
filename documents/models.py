@@ -1,7 +1,23 @@
+import uuid
 from django.db import models
 from django.utils import timezone
 
-class TransactionCategory(models.Model):
+class SyncableModel(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, null=True, blank=True, db_index=True)
+    is_dirty = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        skip_dirty = kwargs.pop('skip_dirty', False)
+        if not skip_dirty:
+            self.is_dirty = True
+        super().save(*args, **kwargs)
+
+class TransactionCategory(SyncableModel):
     name = models.CharField(max_length=100, unique=True)
     default_vat = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     default_tax = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
@@ -35,7 +51,7 @@ class TransactionCategory(models.Model):
         name = self.name.lower()
         return any(keyword in name for keyword in ['lunch', 'tiffin', 'dinner', 'iftar'])
 
-class Transaction(models.Model):
+class Transaction(SyncableModel):
     STATUS_CHOICES = (
         ('DRAFT', 'Draft'),
         ('PRICED', 'Priced'),
@@ -69,7 +85,6 @@ class Transaction(models.Model):
     creator = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
     status_updated_at = models.DateTimeField(null=True, blank=True)
     
     @property
@@ -273,7 +288,7 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.invoice_number or 'Trans'} - {self.status}"
 
-class TransactionItem(models.Model):
+class TransactionItem(SyncableModel):
     transaction = models.ForeignKey(Transaction, related_name='items', on_delete=models.CASCADE)
     description = models.CharField(max_length=255, blank=True)
     unit = models.CharField(max_length=50, default='Pcs')
@@ -381,7 +396,7 @@ class TransactionItem(models.Model):
     def __str__(self):
         return self.description
 
-class BusinessParty(models.Model):
+class BusinessParty(SyncableModel):
     PARTY_TYPES = [
         ('SUPPLIER', 'Supplier'),
         ('BUYER', 'Buyer'),
@@ -396,7 +411,7 @@ class BusinessParty(models.Model):
     def __str__(self):
         return self.name
 
-class Product(models.Model):
+class Product(SyncableModel):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(TransactionCategory, on_delete=models.CASCADE, related_name='products')
     base_price = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
@@ -406,7 +421,6 @@ class Product(models.Model):
     added_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('name', 'category')
@@ -420,7 +434,7 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} ({self.category.name})"
 
-class VisualRequisition(models.Model):
+class VisualRequisition(SyncableModel):
     uploader = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='uploaded_requisitions')
     image = models.ImageField(upload_to='requisitions/%Y/%m/')
     description = models.TextField(blank=True)
@@ -430,7 +444,7 @@ class VisualRequisition(models.Model):
     def __str__(self):
         return f"Requisition by {self.uploader.username} - {self.created_at.strftime('%Y-%m-%d')}"
 
-class CheckAuthorization(models.Model):
+class CheckAuthorization(SyncableModel):
     reference_number = models.CharField(max_length=50, unique=True)
     issuer_name = models.CharField(max_length=255)
     issuer_address = models.TextField()
