@@ -11,4 +11,6 @@ service_account_credentials.json
 .idea/
 *.log
 scratch/
+db.sqlite3
+.gemini/
 

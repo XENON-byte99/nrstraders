@@ -2,9 +2,12 @@ services:
   - type: web
     name: nrs-software
     env: python
+    plan: free
     buildCommand: ./build.sh
     startCommand: gunicorn nrs_project.wsgi:application
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.12"
       - key: DATABASE_URL
         fromDatabase:
           name: nrs-db
@@ -14,7 +17,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: ALLOWED_HOSTS
-        value: "*" # Update this with your actual domain later
+        value: "*"
 
 databases:
   - name: nrs-db
