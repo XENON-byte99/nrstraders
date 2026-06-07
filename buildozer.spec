@@ -13,14 +13,14 @@ package.domain = org.nrs
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,jpeg,html,css,js,sqlite3,json,yaml
+source.include_exts = py,png,jpg,jpeg,html,css,js,sqlite3,json,yaml,env
 
 # (list) List of exclusions using pattern matching
 # source.exclude_patterns = license,images/*/*.jpg
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,django,django-widget-tweaks,python-decouple,dj-database-url,whitenoise,pillow,asgiref,sqlparse
+requirements = python3,django,django-widget-tweaks,python-decouple,dj-database-url,whitenoise,pillow,asgiref,sqlparse,pg8000,django-pg8000
 
 # (str) Custom source folders for requirements
 # It may be useful when requirements are not available on pypi
@@ -313,7 +313,7 @@ android.archs = arm64-v8a
 #android.add_src =
 
 # (str) Android logcat filters to use
-android.logcat_filters = *:S python:D
+#android.logcat_filters = *:S python:D
 
 # (str) Android additional printer to use
 #android.printer =
@@ -322,7 +322,7 @@ android.logcat_filters = *:S python:D
 #android.copy_libs = 1
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
-android.archs = arm64-v8a
+#android.archs = arm64-v8a
 
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
@@ -532,7 +532,7 @@ android.archs = arm64-v8a
 #android.add_src =
 
 # (str) Android logcat filters to use
-android.logcat_filters = *:S python:D
+#android.logcat_filters = *:S python:D
 
 # (str) Android additional printer to use
 #android.printer =
@@ -541,7 +541,7 @@ android.logcat_filters = *:S python:D
 #android.copy_libs = 1
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
-android.archs = arm64-v8a
+#android.archs = arm64-v8a
 
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =

@@ -98,7 +98,12 @@ DATABASES = {
 
 SUPABASE_DATABASE_URL = config('SUPABASE_DATABASE_URL', default=None)
 if SUPABASE_DATABASE_URL:
-    DATABASES['supabase'] = dj_database_url.parse(SUPABASE_DATABASE_URL)
+    db_config = dj_database_url.parse(SUPABASE_DATABASE_URL)
+    try:
+        import psycopg2
+    except ImportError:
+        db_config['ENGINE'] = 'django_pg8000'
+    DATABASES['supabase'] = db_config
 
 
 # Password validation
