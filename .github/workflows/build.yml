@@ -79,6 +79,18 @@ jobs:
         which buildozer || echo "buildozer not in PATH"
         ls -la ~/.local/bin/buildozer || echo "buildozer not found in ~/.local/bin"
 
+    - name: Pre-download FreeType to bypass Savannah GNU hang
+      run: |
+        mkdir -p ~/.buildozer/android/packages/freetype
+        mkdir -p .buildozer/android/packages/freetype
+        mkdir -p ~/.local/share/python-for-android/packages/freetype
+        curl -L "https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz" -o ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz
+        cp ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz .buildozer/android/packages/freetype/freetype-2.14.1.tar.gz || true
+        cp ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz ~/.local/share/python-for-android/packages/freetype/freetype-2.14.1.tar.gz || true
+        echo "FreeType package pre-downloaded successfully:"
+        ls -l ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz
+      shell: bash
+
     - name: Build with Buildozer
       run: |
         set -o pipefail
