@@ -1,5 +1,11 @@
 [app]
 
+# (str) Application version method (one of legacy or regex)
+version.method = legacy
+
+# (str) Application version (if method is legacy)
+version = 1.0.0
+
 # (str) Title of your application
 title = NRS Software
 
