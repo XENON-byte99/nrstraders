@@ -70,9 +70,16 @@ jobs:
       run: |
         pip3 install --user --upgrade Cython==0.29.33 buildozer
 
+    - name: Verify buildozer installation
+      run: |
+        python3 -c "import buildozer; print('Buildozer is installed successfully! Version:', buildozer.__version__)"
+        echo "PATH is: $PATH"
+        which buildozer || echo "buildozer not in PATH"
+        ls -la ~/.local/bin/buildozer || echo "buildozer not found in ~/.local/bin"
+
     - name: Build with Buildozer
       run: |
-        yes | ~/.local/bin/buildozer android debug
+        yes | python3 -m buildozer android debug
       env:
         BUILDOZER_WARN_ON_ROOT: 0
 
