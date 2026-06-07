@@ -93,8 +93,11 @@ jobs:
 
     - name: Build with Buildozer
       run: |
-        set -o pipefail
+        set +o pipefail
         yes | python3 -m buildozer android debug 2>&1 | tee buildozer.log
+        BUILD_CODE=${PIPESTATUS[1]}
+        echo "Buildozer exited with code $BUILD_CODE"
+        exit $BUILD_CODE
       env:
         BUILDOZER_WARN_ON_ROOT: 0
 
