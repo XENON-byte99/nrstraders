@@ -104,6 +104,6 @@ jobs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add buildozer.log || echo "No buildozer.log to add"
+        git add -f buildozer.log || echo "No buildozer.log to add"
         git commit -m "Upload Buildozer log for run $GITHUB_RUN_ID [skip ci]" || echo "Nothing to commit"
         git push origin HEAD:build-logs --force
