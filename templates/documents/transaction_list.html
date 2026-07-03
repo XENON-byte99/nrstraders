@@ -45,9 +45,21 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                     </td>
                     <td class="px-6 py-4 text-sm">{{ item.buyer_name }}</td>
                     <td class="px-6 py-4">
+                        {% if user.p_edit_bill or user.is_superuser or user.role == 'OWNER' %}
+                        <form method="post" action="{% url 'transaction_update_status' item.pk %}">{% csrf_token %}
+                          <select name="status" onchange="this.form.submit()" class="border rounded px-2 py-1 text-xs bg-white font-bold {% if item.status == 'APPROVED' %}text-yellow-600{% elif item.status == 'SUBMITTED' %}text-blue-600{% else %}text-green-600{% endif %}">
+                            <option value="DRAFT" {% if item.status == 'DRAFT' %}selected{% endif %}>Draft</option>
+                            <option value="PRICED" {% if item.status == 'PRICED' %}selected{% endif %}>Priced</option>
+                            <option value="APPROVED" {% if item.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                            <option value="SUBMITTED" {% if item.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                            <option value="RELEASED" {% if item.status == 'RELEASED' %}selected{% endif %}>Released</option>
+                          </select>
+                        </form>
+                        {% else %}
                         <span class="status-badge status-{{ item.status }}">
                             {{ item.status }}
                         </span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500">{{ item.created_at|date:"M d, Y" }}</td>
                     <td class="px-6 py-4 text-sm font-medium flex flex-wrap gap-2">
@@ -115,9 +127,21 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                         <i class="fas fa-tag mr-1"></i>{{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
                     </div>
                 </div>
+                {% if user.p_edit_bill or user.is_superuser or user.role == 'OWNER' %}
+                <form method="post" action="{% url 'transaction_update_status' item.pk %}" class="flex-shrink-0">{% csrf_token %}
+                  <select name="status" onchange="this.form.submit()" class="border rounded px-1.5 py-0.5 text-xs bg-white font-bold {% if item.status == 'APPROVED' %}text-yellow-600{% elif item.status == 'SUBMITTED' %}text-blue-600{% else %}text-green-600{% endif %}">
+                    <option value="DRAFT" {% if item.status == 'DRAFT' %}selected{% endif %}>Draft</option>
+                    <option value="PRICED" {% if item.status == 'PRICED' %}selected{% endif %}>Priced</option>
+                    <option value="APPROVED" {% if item.status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                    <option value="SUBMITTED" {% if item.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                    <option value="RELEASED" {% if item.status == 'RELEASED' %}selected{% endif %}>Released</option>
+                  </select>
+                </form>
+                {% else %}
                 <span class="status-badge status-{{ item.status }} flex-shrink-0">
                     {{ item.status }}
                 </span>
+                {% endif %}
             </div>
             <div class="text-sm text-gray-700"><span class="font-semibold">Buyer:</span> {{ item.buyer_name }}</div>
             <div class="text-xs text-gray-500 mt-0.5">{{ item.created_at|date:"M d, Y" }}</div>

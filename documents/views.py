@@ -514,6 +514,33 @@ def print_mushok(request, pk):
     return render(request, 'documents/print_mushok.html', {'transaction': transaction})
 
 @login_required
+def print_multiple(request, doc_type):
+    # Security Check
+    if not (request.user.is_superuser or request.user.p_view_bills):
+        messages.error(request, "Access Denied: You do not have permission to print documents.")
+        return redirect('home')
+
+    ids = request.GET.get('ids', '')
+    if not ids:
+        messages.error(request, "No documents selected for printing.")
+        return redirect('bill_summary')
+        
+    id_list = [int(i) for i in ids.split(',') if i.strip().isdigit()]
+    transactions = Transaction.objects.filter(pk__in=id_list, status__in=['APPROVED', 'SUBMITTED', 'RELEASED'])
+    
+    if not transactions.exists():
+        messages.error(request, "Selected documents are either not found or not approved.")
+        return redirect('bill_summary')
+        
+    log_audit(request.user, "Printed Multiple Documents", f"Printed {doc_type} for {transactions.count()} bills")
+    
+    # Render the combined template
+    return render(request, 'documents/print_multiple.html', {
+        'transactions': transactions,
+        'doc_type': doc_type
+    })
+
+@login_required
 @permission_required('p_view_bill_summary')
 def bill_summary(request):
     date_to_str = request.GET.get('date_to')
@@ -663,10 +690,18 @@ def bill_summary(request):
             tx.status_updated_at is not None and
             tx.status_updated_at >= seven_days_ago
         )
+        desc = "-"
+        first_item = tx.items.first()
+        if first_item:
+            desc = first_item.description
+            if len(desc) > 40:
+                desc = desc[:37] + "..."
+        
         detailed_transactions.append({
             'tx_obj': tx,
             'date': tx.created_at,
             'invoice_number': tx.invoice_number,
+            'description': desc,
             'original_price': original_price,
             'upscale_price': tx.display_subtotal,
             'vat': tx.total_vat,

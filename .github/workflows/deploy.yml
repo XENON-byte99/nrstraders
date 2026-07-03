@@ -20,7 +20,7 @@ jobs:
 
         port: 22
         source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root"
-        target: "/var/www/nrs/"
+        target: "/var/www/nrs-software/"
         overwrite: true
 
     - name: Run remote SSH commands
@@ -32,12 +32,11 @@ jobs:
 
         port: 22
         script: |
-          cd /var/www/nrs
-          if [ -f "db_upload.sqlite3" ]; then
-            mv -f db_upload.sqlite3 db.sqlite3
+          cd /var/www/nrs-software
+          if [ -f "db.sqlite3" ]; then
             chmod 666 db.sqlite3
           fi
-          /var/www/nrs/.venv/bin/pip install -r requirements.txt
-          /var/www/nrs/.venv/bin/python manage.py collectstatic --no-input
-          /var/www/nrs/.venv/bin/python manage.py migrate
-          systemctl restart nrs
+          /var/www/nrs-software/venv/bin/pip install -r requirements.txt
+          /var/www/nrs-software/venv/bin/python manage.py collectstatic --no-input
+          /var/www/nrs-software/venv/bin/python manage.py migrate
+          systemctl restart nrs-software

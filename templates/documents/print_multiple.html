@@ -1,0 +1,183 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Joint Download - {{ doc_type|title }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+        #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .spinner { border: 4px solid rgba(0,0,0,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #4f46e5; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .page-break { page-break-before: always; margin-top: 40px; }
+        @media print {
+            body { background: white; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .page-break { margin-top: 0; }
+            @page { margin: 0; }
+        }
+        #controls { position: fixed; top: 20px; right: 20px; z-index: 9999; display: none; gap: 10px; flex-direction: column; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <h2 style="color: #4f46e5;">Generating Joint {{ doc_type|title }}s...</h2>
+        <p id="progressText">0 / {{ transactions.count }}</p>
+    </div>
+
+    <div id="controls" class="no-print">
+        <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="amount_toggle" value="base" checked onchange="toggleAmountDisplay(this.value)"> 
+                Show Base Amount
+            </label>
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="amount_toggle" value="target" onchange="toggleAmountDisplay(this.value)"> 
+                Show Target Amount (Incl. VAT/Tax)
+            </label>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print All</button>
+            <button onclick="downloadJointPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download Joint PDF</button>
+        </div>
+    </div>
+
+    <div id="multiPrintContainer" style="display: none; align-items: center; flex-direction: column; gap: 40px; padding-bottom: 40px;"></div>
+
+    <script>
+        const txIds = [{% for tx in transactions %}{{ tx.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
+        const docType = "{{ doc_type }}";
+        const container = document.getElementById('multiPrintContainer');
+        const loading = document.getElementById('loading');
+        const controls = document.getElementById('controls');
+        const progressText = document.getElementById('progressText');
+        
+        // Ensure amount toggles work for multiple docs
+        function toggleAmountDisplay(mode) {
+            const els = document.querySelectorAll('#multiPrintContainer > div > div');
+            els.forEach(container => {
+                if (mode === 'target') {
+                    container.classList.remove('mode-base');
+                    container.classList.add('mode-target');
+                } else {
+                    container.classList.remove('mode-target');
+                    container.classList.add('mode-base');
+                }
+            });
+        }
+
+        async function loadDocuments() {
+            let styleInjected = false;
+            
+            for (let i = 0; i < txIds.length; i++) {
+                progressText.innerText = `${i + 1} / ${txIds.length}`;
+                
+                try {
+                    const response = await fetch(`/bills/${txIds[i]}/print/${docType}/`);
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    if (!styleInjected) {
+                        const styles = doc.querySelectorAll('style');
+                        styles.forEach(s => {
+                            if (!s.innerText.includes('spinner')) { // avoid conflicts
+                                document.head.appendChild(s.cloneNode(true));
+                            }
+                        });
+                        styleInjected = true;
+                    }
+                    
+                    let content = doc.getElementById('invoiceContent') || 
+                                  doc.getElementById('quotationContent') || 
+                                  doc.getElementById('challanContent') || 
+                                  doc.querySelector('.mushok-form');
+                                  
+                    if (content) {
+                        // Create a wrapper for page break
+                        const wrapper = document.createElement('div');
+                        if (i > 0) {
+                            wrapper.className = 'page-break html2pdf__page-break';
+                        }
+                        
+                        // For challan we need to preserve copies-container grid layout
+                        if (content.id === 'challanContent') {
+                            const copiesWrapper = document.createElement('div');
+                            copiesWrapper.className = 'copies-container';
+                            copiesWrapper.innerHTML = content.innerHTML;
+                            wrapper.appendChild(copiesWrapper);
+                        } else {
+                            wrapper.appendChild(content.cloneNode(true));
+                        }
+                        
+                        container.appendChild(wrapper);
+                    }
+                } catch (e) {
+                    console.error("Error loading document:", e);
+                }
+            }
+            
+            loading.style.display = 'none';
+            container.style.display = 'flex';
+            controls.style.display = 'flex';
+            
+            // Hide amount toggles if it's a challan or mushok which don't use them
+            if (docType === 'challan' || docType === 'mushok') {
+                controls.children[0].style.display = 'none';
+            }
+        }
+
+        function downloadJointPDF() {
+            const element = document.getElementById('multiPrintContainer');
+            if (!element) return;
+
+            const filename = `Joint_${docType.toUpperCase()}s.pdf`;
+            
+            // Remove gap/padding temporarily for clean PDF
+            const oldGap = element.style.gap;
+            const oldPadding = element.style.paddingBottom;
+            element.style.gap = '0';
+            element.style.paddingBottom = '0';
+            
+            // Also remove shadows from all inner items
+            const shadowItems = element.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy');
+            const oldShadows = [];
+            shadowItems.forEach((item, i) => {
+                oldShadows[i] = item.style.boxShadow;
+                item.style.boxShadow = 'none';
+                item.style.margin = '0';
+            });
+
+            // Adjust settings for Challan (Landscape A3) vs Others (Portrait A4)
+            let opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 1.5, useCORS: true, letterRendering: true, windowWidth: 1200 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            if (docType === 'challan') {
+                opt.html2canvas.scale = 1.2;
+                opt.jsPDF = { unit: 'in', format: 'a3', orientation: 'landscape' };
+                // Ensure layout doesn't break in canvas
+                element.style.width = '100%';
+            }
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Restore styles
+                element.style.gap = oldGap;
+                element.style.paddingBottom = oldPadding;
+                shadowItems.forEach((item, i) => {
+                    item.style.boxShadow = oldShadows[i];
+                });
+            });
+        }
+
+        window.onload = loadDocuments;
+    </script>
+</body>
+</html>

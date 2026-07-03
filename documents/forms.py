@@ -100,8 +100,8 @@ class ApprovalPricingForm(forms.ModelForm):
         model = TransactionItem
         fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'unit_price_uplifted', 'sort_order', 'is_secondary']
         widgets = {
-            'entry_date': forms.DateInput(attrs={'type': 'date'}),
-            'checkout_date': forms.DateInput(attrs={'type': 'date'}),
+            'entry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'checkout_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
             'unit_price_uplifted': forms.NumberInput(attrs={'step': '0.001'}),
         }
@@ -129,7 +129,7 @@ class TransactionCategoryForm(forms.ModelForm):
 # ── Lunch Supply Forms ─────────────────────────────────────────
 class LunchItemForm(forms.ModelForm):
     entry_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         required=True,
     )
     restaurant_name = forms.CharField(max_length=255, required=False)
@@ -154,12 +154,12 @@ LunchItemFormSet = inlineformset_factory(
 # ── Room Reservation Forms ─────────────────────────────────────────
 class RoomItemForm(forms.ModelForm):
     entry_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         required=True,
         label="From Date"
     )
     checkout_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         required=True,
         label="To Date"
     )

@@ -31,6 +31,7 @@ urlpatterns = [
     path('bills/<int:pk>/print/challan/<int:item_pk>/', doc_views.print_single_challan, name='print_single_challan'),
     path('bills/<int:pk>/print/lunch-challan/<str:date_str>/', doc_views.print_lunch_daily_challan, name='print_lunch_daily_challan'),
     path('bills/<int:pk>/print/mushok/', doc_views.print_mushok, name='print_mushok'),
+    path('bills/print-multiple/<str:doc_type>/', doc_views.print_multiple, name='print_multiple'),
     
     path('bills/<int:pk>/edit/', doc_views.transaction_update, name='transaction_update'),
     path('bills/<int:pk>/delete/', doc_views.transaction_delete, name='transaction_delete'),
