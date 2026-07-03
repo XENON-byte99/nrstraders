@@ -3,7 +3,7 @@
 <html lang="bn" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <title>Mushok 6.3 - Tax Invoice</title>
+    <title>Mushok 6.3 - {{ transaction.invoice_number|default:'Draft' }}</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -72,9 +72,17 @@
 </head>
 <body class="h-full">
     <div class="container-wrapper">
-        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
-            <button onclick="window.print()" style="padding:10px 15px; background:green; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Mushok</button>
-            <button onclick="downloadPDF()" style="padding:10px 15px; background:red; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999;">
+            <div style="background: white; padding: 10px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">
+                <label style="font-size: 11px; font-weight: 700; color: #000; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                    Enable Edit & Live Calculation
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:green; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Mushok</button>
+                <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:red; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+            </div>
         </div>
         <div class="mushok-form" id="mushokContent">
             <div class="mushok-label">MUSHOK 6.3</div>
@@ -98,7 +106,7 @@
                     <div class="header-right-field"><div class="header-right-label">Challan No:</div><div class="header-right-value">{{ transaction.challan_number }}</div></div>
                     <div class="header-right-field"><div class="header-right-label">Date of issue:</div><div class="header-right-value">{{ transaction.created_at|date:"M d, Y" }}</div></div>
                     <div class="header-right-field"><div class="header-right-label">Time of issue:</div><div class="header-right-value">{{ transaction.created_at|date:"H:i A" }}</div></div>
-                    <div class="header-right-field"><div class="header-right-label">Invoice No:</div><div class="header-right-value">{{ transaction.invoice_number }} <span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div></div>
+                    <div class="header-right-field"><div class="header-right-label">Invoice No:</div><div class="header-right-value">{{ transaction.invoice_number }}</div></div>
                 </div>
             </div>
 
@@ -133,16 +141,16 @@
                 </thead>
                 <tbody>
                     {% with cat_name=transaction.transaction_category.name|lower %}
-                    {% if cat_name == 'dinner' or cat_name == 'iftar' or cat_name == 'tiffin' or 'lunch' in cat_name %}
+                    {% if transaction.transaction_category.is_lunch %}
                     {% with first_item=transaction.items.first %}
                     <tr>
                         <td class="number">1</td>
                         <td style="width: 20%; font-weight: bold;">
-                            {% if 'lunch' in cat_name %}Lunch Supply{% else %}{{ transaction.transaction_category.name|title }}{% endif %}
+                            {{ transaction.transaction_category.name|title }}
                         </td>
                         <td style="width: 7%; text-align: center;">{{ first_item.unit|default:"Days" }}</td>
-                        <td style="width: 7%; text-align: center;">{% if 'lunch' in cat_name %}-{% else %}{{ transaction.total_quantity }}{% endif %}</td>
-                        <td class="amount">{% if 'lunch' in cat_name %}-{% else %}৳{{ first_item.billed_unit_price|floatformat:3 }}{% endif %}</td>
+                        <td style="width: 7%; text-align: center;">-</td>
+                        <td class="amount">-</td>
                         <td class="amount">৳{{ transaction.display_subtotal|floatformat:3 }}</td>
                         <td class="amount">{{ transaction.duty_percentage }}%</td>
                         <td class="amount">৳{{ transaction.total_duty|floatformat:3 }}</td>
@@ -160,9 +168,9 @@
                         <td style="width: 7%; text-align: center;">{{ item.quantity }}</td>
                         <td class="amount">৳{{ item.billed_unit_price|default:"0.00" |floatformat:3 }}</td>
                         <td class="amount">৳{{ item.billed_total|default:"0.00" |floatformat:3 }}</td>
-                        <td class="amount">{{ transaction.duty_percentage }}%</td>
+                        <td class="amount">{% if item.is_secondary %}{{ transaction.secondary_duty_percentage }}{% else %}{{ transaction.duty_percentage }}{% endif %}%</td>
                         <td class="amount">৳{{ item.duty_amount|floatformat:3 }}</td>
-                        <td class="amount">{{ transaction.vat_percentage }}%</td>
+                        <td class="amount">{% if item.is_secondary %}{{ transaction.secondary_vat_percentage }}{% else %}{{ transaction.vat_percentage }}{% endif %}%</td>
                         <td class="amount" style="width: 11%;">৳{{ item.vat_amount|floatformat:3 }}</td>
                         <td class="amount" style="width: 12%;">৳{{ item.total_with_tax|floatformat:3 }}</td>
                     </tr>
@@ -177,9 +185,9 @@
                         <td style="width: 8%; text-align: center;">-</td>
                         <td class="amount">-</td>
                         <td class="amount">৳{{ transaction.total_service_charge|floatformat:3 }}</td>
-                        <td class="amount">{{ transaction.duty_percentage }}%</td>
+                        <td class="amount">{% if transaction.service_charge_percentage > 0 and transaction.secondary_service_charge_percentage > 0 %}{% if transaction.duty_percentage == transaction.secondary_duty_percentage %}{{ transaction.duty_percentage }}%{% else %}{{ transaction.duty_percentage }}% &amp; {{ transaction.secondary_duty_percentage }}%{% endif %}{% elif transaction.service_charge_percentage > 0 %}{{ transaction.duty_percentage }}%{% elif transaction.secondary_service_charge_percentage > 0 %}{{ transaction.secondary_duty_percentage }}%{% else %}0%{% endif %}</td>
                         <td class="amount">৳{{ transaction.service_charge_duty|floatformat:3 }}</td>
-                        <td class="amount">{{ transaction.vat_percentage }}%</td>
+                        <td class="amount">{% if transaction.service_charge_percentage > 0 and transaction.secondary_service_charge_percentage > 0 %}{% if transaction.vat_percentage == transaction.secondary_vat_percentage %}{{ transaction.vat_percentage }}%{% else %}{{ transaction.vat_percentage }}% &amp; {{ transaction.secondary_vat_percentage }}%{% endif %}{% elif transaction.service_charge_percentage > 0 %}{{ transaction.vat_percentage }}%{% elif transaction.secondary_service_charge_percentage > 0 %}{{ transaction.secondary_vat_percentage }}%{% else %}0%{% endif %}</td>
                         <td class="amount">৳{{ transaction.service_charge_vat|floatformat:3 }}</td>
                         <td class="amount">৳{{ transaction.service_charge_total_with_tax|floatformat:3 }}</td>
                     </tr>
@@ -198,8 +206,8 @@
 
             <div class="footer-container">
                 <div class="footer-left">
-                    <div class="footer-field"><div class="footer-label">Name of person In-Charge:</div><div class="footer-value">Md. Nahidur Rahman Sakib</div></div>
-                    <div class="footer-field"><div class="footer-label">Designation:</div><div class="footer-value">Proprietor & CEO</div></div>
+                    <div class="footer-field"><div class="footer-label">Name of person In-Charge:</div><div class="footer-value" contenteditable="true">MD NAHIDUR RAHMAN SAKIB</div></div>
+                    <div class="footer-field"><div class="footer-label">Designation:</div><div class="footer-value" contenteditable="true">CEO</div></div>
                     <div class="signature-section">
                         <div class="signature-area">
                             <img src="{% static 'images/signature.png' %}" alt="Signature" class="official-signature">
@@ -236,6 +244,95 @@
             element.style.boxShadow = 'none';
             html2pdf().set(opt).from(element).save().then(() => {
                 element.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12)';
+            });
+        }
+
+        // --- Live Edit and Calculation Script ---
+        function toggleEditMode(enabled) {
+            const container = document.getElementById('mushokContent');
+            if (container) {
+                container.contentEditable = enabled ? "true" : "false";
+            }
+
+            if (enabled && !window.liveCalcBound) {
+                window.liveCalcBound = true;
+                bindLiveCalculations();
+            }
+        }
+
+        function extractNum(text) {
+            if (!text) return 0;
+            const match = text.replace(/,/g, '').match(/[\d\.]+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function bindLiveCalculations() {
+            const container = document.getElementById('mushokContent');
+            if (!container) return;
+            
+            container.addEventListener('input', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+                
+                const tr = td.closest('tr');
+                const tds = Array.from(tr.children);
+                
+                if (tds.length === 11 && !tr.querySelector('td[colspan]')) {
+                    const cellIdx = tds.indexOf(td);
+                    if ([3, 4, 5, 6, 8].includes(cellIdx)) {
+                        let qty = extractNum(tds[3].innerText);
+                        let rate = extractNum(tds[4].innerText);
+                        let totalPrice = qty * rate;
+                        
+                        if (cellIdx === 5) {
+                            totalPrice = extractNum(tds[5].innerText);
+                        } else {
+                            tds[5].innerText = '৳' + totalPrice.toFixed(3);
+                        }
+
+                        let dutyRate = extractNum(tds[6].innerText);
+                        let dutyAmt = totalPrice * (dutyRate / 100);
+                        tds[7].innerText = '৳' + dutyAmt.toFixed(3);
+
+                        let vatRate = extractNum(tds[8].innerText);
+                        let vatAmt = totalPrice * (vatRate / 100); 
+                        tds[9].innerText = '৳' + vatAmt.toFixed(3);
+
+                        let rowTotal = totalPrice + dutyAmt + vatAmt;
+                        tds[10].innerText = '৳' + rowTotal.toFixed(3);
+                        
+                        recalculateMushokTotals();
+                    }
+                }
+            });
+        }
+
+        function recalculateMushokTotals() {
+            let subtotal = 0;
+            let totalDuty = 0;
+            let totalVat = 0;
+            let grandTotal = 0;
+
+            document.querySelectorAll('.items-table tbody tr').forEach(tr => {
+                const tds = Array.from(tr.children);
+                
+                if (tds.length === 11 && !tr.querySelector('td[colspan]')) {
+                    subtotal += extractNum(tds[5].innerText);
+                    totalDuty += extractNum(tds[7].innerText);
+                    totalVat += extractNum(tds[9].innerText);
+                    grandTotal += extractNum(tds[10].innerText);
+                }
+                
+                if (tr.querySelector('td[colspan]')) {
+                    if (tr.innerText.toLowerCase().includes('grand total')) {
+                        if (tds.length === 7) {
+                            tds[1].innerText = '৳' + subtotal.toFixed(3);
+                            tds[3].innerText = '৳' + totalDuty.toFixed(3);
+                            tds[5].innerText = '৳' + totalVat.toFixed(3);
+                            tds[6].innerText = '৳' + grandTotal.toFixed(3);
+                        }
+                    }
+                }
             });
         }
     </script>

@@ -14,7 +14,7 @@
                 <h2 class="text-xl md:text-2xl font-black text-gray-800">
                     <i class="fas fa-file-check text-indigo-500 mr-2"></i>Review &amp; Approve
                 </h2>
-                <p class="text-sm text-gray-500 mt-1">Verify all calculations. Changes here will update product upscale values upon approval.</p>
+                <p class="text-sm text-gray-500 mt-1">Verify all calculations. Changes here will update product selling prices upon approval.</p>
             </div>
             <div class="flex items-start gap-3">
                 <div class="text-right">
@@ -45,7 +45,7 @@
                         {% endif %}
                     {% endif %}
                     <div class="mt-3 inline-block text-xs font-bold text-gray-600 uppercase bg-gray-100 rounded-lg px-2.5 py-1">
-                        {{ transaction.transaction_category.name|default:"General" }}
+                        {{ transaction.transaction_category.name|default:"General" }}{% if transaction.secondary_category %} &amp; {{ transaction.secondary_category.name }}{% endif %}
                     </div>
                 </div>
                 {% if is_locked %}
@@ -156,7 +156,12 @@
                  data-tax="{{ transaction.tax_percentage }}" 
                  data-duty="{{ transaction.duty_percentage }}" 
                  data-sc="{{ transaction.service_charge_percentage }}"
-                 data-margin="{{ transaction.profit_margin }}">
+                 data-margin="{{ transaction.profit_margin }}"
+                 data-sec-vat="{{ transaction.secondary_vat_percentage }}" 
+                 data-sec-tax="{{ transaction.secondary_tax_percentage }}" 
+                 data-sec-duty="{{ transaction.secondary_duty_percentage }}" 
+                 data-sec-sc="{{ transaction.secondary_service_charge_percentage }}"
+                 data-sec-margin="{{ transaction.secondary_profit_margin }}">
             </div>
 
             {% if header_form.non_field_errors %}
@@ -178,36 +183,120 @@
                 <table class="min-w-full text-sm" id="items-table">
                     <thead class="bg-gray-800 text-[10px] font-bold text-gray-100 uppercase">
                         <tr>
+                            <th class="py-3 px-2 text-center w-8"></th>
                             <th class="py-3 px-4 text-left">Description</th>
-                            <th class="py-3 px-4 text-center w-12">Qty</th>
+                            {% if not is_room %}
+                            <th class="py-3 px-4 text-center w-16">Qty</th>
+                            {% endif %}
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
-                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Owner<br>Uplift</th>
+                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
                             <th class="py-3 px-4 text-right w-24 bg-indigo-900/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
                             <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
-                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT<br>{{ transaction.vat_percentage }}%</th>
-                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">Tax<br>{{ transaction.tax_percentage }}%</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">Tax</th>
                             <th class="py-3 px-4 text-right w-28 border-l border-gray-700" title="Final price the buyer pays per unit">Full<br>Price</th>
                             <th class="py-3 px-4 text-right w-30 bg-gray-700">Line Total</th>
+                            <th class="py-3 px-2 text-center w-10"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody class="divide-y divide-gray-50" id="item-formset">
                         {% for form in formset %}
+                        {% if not form.instance.is_secondary and not form.is_secondary.value %}
                         <tr class="item-row hover:bg-white transition-colors border-b border-gray-100" 
-                            data-qty="{{ form.instance.quantity }}"
+                            data-qty="{{ form.instance.quantity|default:form.quantity.value|default:1 }}"
+                            data-is-secondary="false"
                             data-master-base="{{ form.instance.master_base_price|default:0 }}"
-                            data-master-upscale="{{ form.instance.master_upscale_value|default:0 }}">
-                            <td class="py-2 px-4 whitespace-nowrap">
-                                <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
-                                <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
-                                {{ form.id }}
+                            data-master-upscale="{{ form.instance.master_upscale_value|default:0 }}"
+                            draggable="true">
+                            <td class="text-center align-middle cursor-move drag-handle text-gray-300 py-2 px-1">
+                                {% if not is_locked %}
+                                    <i class="fas fa-grip-vertical"></i>
+                                {% endif %}
                             </td>
-                            <td class="py-1 px-4 text-center font-mono font-bold bg-gray-50/30">{{ form.instance.quantity }}</td>
+                            <td class="py-2 px-4">
+                                {% if not is_locked %}
+                                    {% if is_room %}
+                                    <div class="flex flex-wrap gap-2 mb-1">
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                            <input type="date" name="{{ form.entry_date.html_name }}" 
+                                                   value="{% if form.entry_date.value %}{{ form.entry_date.value|date:'Y-m-d'|default:form.entry_date.value }}{% endif %}"
+                                                   class="date-input text-[10px] text-gray-500 w-28"
+                                                   required>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
+                                            <input type="date" name="{{ form.checkout_date.html_name }}" 
+                                                   value="{% if form.checkout_date.value %}{{ form.checkout_date.value|date:'Y-m-d'|default:form.checkout_date.value }}{% endif %}"
+                                                   class="date-input text-[10px] text-gray-500 w-28"
+                                                   required>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" name="{{ form.description.html_name }}" 
+                                               value="{{ form.description.value|default_if_none:'' }}"
+                                               placeholder="Description..."
+                                               class="desc-input font-bold text-gray-800">
+                                        {% if form.instance.is_secondary or form.is_secondary.value %}
+                                            <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge">Sec</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if not is_room %}
+                                    <div class="mt-1 flex items-center gap-1">
+                                        <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
+                                        <input type="text" name="{{ form.unit.html_name }}" 
+                                               value="{{ form.unit.value|default_if_none:'' }}"
+                                               placeholder="Unit..."
+                                               class="unit-input text-[10px] text-gray-500 w-16"
+                                               required>
+                                    </div>
+                                    {% else %}
+                                    <input type="hidden" name="{{ form.unit.html_name }}" value="Pcs" class="unit-input">
+                                    {% endif %}
+                                {% else %}
+                                    {% if is_room %}
+                                    <div class="text-[10px] text-indigo-600 font-bold mb-1">
+                                        📅 {{ form.instance.entry_date|date:'d M Y' }} → {{ form.instance.checkout_date|date:'d M Y' }}
+                                    </div>
+                                    {% endif %}
+                                    <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
+                                    {% if form.instance.is_secondary or form.is_secondary.value %}
+                                        <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded ml-1 border border-purple-200">Sec</span>
+                                    {% endif %}
+                                    {% if not is_room %}
+                                    <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
+                                    {% endif %}
+                                {% endif %}
+                                {{ form.id }}
+                                <input type="hidden" name="{{ form.sort_order.html_name }}" value="{{ form.sort_order.value|default:forloop.counter0 }}" class="sort-order-input">
+                                <div class="hidden">{{ form.is_secondary }}</div>
+                            </td>
+                            {% if not is_room %}
+                            <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
+                                {% if not is_locked %}
+                                    <input type="number" step="any" name="{{ form.quantity.html_name }}" 
+                                           value="{{ form.quantity.value|default_if_none:'' }}"
+                                           class="qty-input w-full text-center font-mono text-[11px] font-bold"
+                                           required>
+                                    {% if form.quantity.errors %}
+                                        <div class="text-[9px] text-red-500 font-bold text-center mt-1">{{ form.quantity.errors.0 }}</div>
+                                    {% endif %}
+                                {% else %}
+                                    {{ form.instance.quantity }}
+                                {% endif %}
+                            </td>
+                            {% else %}
+                            <td class="hidden">
+                                <input type="hidden" name="{{ form.quantity.html_name }}" value="1" class="qty-input">
+                            </td>
+                            {% endif %}
                             
                             <!-- Supplier Cost -->
                             <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
                                 <div class="relative group/price">
                                     <input type="number" step="0.001" name="{{ form.base_price.html_name }}" 
-                                           value="{{ form.base_price.value|default:'' }}"
+                                           value="{{ form.base_price.value|default_if_none:'' }}"
                                            class="base-cost-input w-full px-1 py-1 text-right font-mono text-[11px] bg-white border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
                                            {% if is_locked %}disabled{% endif %}>
                                     
@@ -227,7 +316,7 @@
                             <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30">
                                 <div class="relative">
                                     <input type="number" step="0.001" name="{{ form.unit_price_uplifted.html_name }}" 
-                                           value="{{ form.unit_price_uplifted.value|default:'' }}"
+                                           value="{{ form.unit_price_uplifted.value|default_if_none:'' }}"
                                            class="uplifted-price-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none
                                            {% if user.role == 'ACCOUNTANT' and not user.is_superuser %}bg-gray-50 cursor-not-allowed text-gray-400{% endif %}"
                                            {% if is_locked or user.role == 'ACCOUNTANT' and not user.is_superuser %}readonly{% endif %}>
@@ -266,10 +355,355 @@
                             <td class="py-2 px-4 text-right font-mono font-black text-gray-900 bg-gray-100/50 border-l border-gray-100">
                                 <span class="line-total">৳0.00</span>
                             </td>
+                            
+                            <!-- Delete Row -->
+                            <td class="py-2 px-2 text-center w-10">
+                                {% if not is_locked %}
+                                    <div class="hidden">{{ form.DELETE }}</div>
+                                    <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded delete-row-btn" onclick="removeApproveRow(this)">
+                                         <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
                         </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+
+            {% if transaction.secondary_category and transaction.secondary_items.exists %}
+            <h3 class="font-bold text-sm text-purple-700 uppercase tracking-wider mb-3 mt-6 flex items-center gap-2">
+                <i class="fas fa-calculator text-purple-500"></i> Secondary Category Line Item Adjustments ({{ transaction.secondary_category.name }})
+            </h3>
+            
+            <div class="overflow-x-auto rounded-xl border border-gray-100 mb-7 shadow-sm">
+                <table class="min-w-full text-sm" id="secondary-items-table">
+                    <thead class="bg-purple-900 text-[10px] font-bold text-gray-100 uppercase">
+                        <tr>
+                            <th class="py-3 px-2 text-center w-8"></th>
+                            <th class="py-3 px-4 text-left">Description</th>
+                            {% if not is_room %}
+                            <th class="py-3 px-4 text-center w-16">Qty</th>
+                            {% endif %}
+                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
+                            <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
+                            <th class="py-3 px-4 text-right w-24 bg-purple-950/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
+                            <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
+                            <th class="py-3 px-2 text-right w-20 border-l border-gray-700">Tax</th>
+                            <th class="py-3 px-4 text-right w-28 border-l border-gray-700" title="Final price the buyer pays per unit">Full<br>Price</th>
+                            <th class="py-3 px-4 text-right w-30 bg-gray-700">Line Total</th>
+                            <th class="py-3 px-2 text-center w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50" id="secondary-item-formset">
+                        {% for form in formset %}
+                        {% if form.instance.is_secondary or form.is_secondary.value %}
+                        <tr class="item-row hover:bg-white transition-colors border-b border-gray-100" 
+                            data-qty="{{ form.instance.quantity|default:form.quantity.value|default:1 }}"
+                            data-is-secondary="true"
+                            data-master-base="{{ form.instance.master_base_price|default:0 }}"
+                            data-master-upscale="{{ form.instance.master_upscale_value|default:0 }}"
+                            draggable="true">
+                            <td class="text-center align-middle cursor-move drag-handle text-gray-300 py-2 px-1">
+                                {% if not is_locked %}
+                                    <i class="fas fa-grip-vertical"></i>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 px-4">
+                                {% if not is_locked %}
+                                    {% if is_room %}
+                                    <div class="flex flex-wrap gap-2 mb-1">
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                            <input type="date" name="{{ form.entry_date.html_name }}" 
+                                                   value="{% if form.entry_date.value %}{{ form.entry_date.value|date:'Y-m-d'|default:form.entry_date.value }}{% endif %}"
+                                                   class="date-input text-[10px] text-gray-500 w-28"
+                                                   required>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
+                                            <input type="date" name="{{ form.checkout_date.html_name }}" 
+                                                   value="{% if form.checkout_date.value %}{{ form.checkout_date.value|date:'Y-m-d'|default:form.checkout_date.value }}{% endif %}"
+                                                   class="date-input text-[10px] text-gray-500 w-28"
+                                                   required>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" name="{{ form.description.html_name }}" 
+                                               value="{{ form.description.value|default_if_none:'' }}"
+                                               placeholder="Description..."
+                                               class="desc-input font-bold text-gray-800">
+                                        <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge">Sec</span>
+                                    </div>
+                                    {% if not is_room %}
+                                    <div class="mt-1 flex items-center gap-1">
+                                        <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
+                                        <input type="text" name="{{ form.unit.html_name }}" 
+                                               value="{{ form.unit.value|default_if_none:'' }}"
+                                               placeholder="Unit..."
+                                               class="unit-input text-[10px] text-gray-500 w-16"
+                                               required>
+                                    </div>
+                                    {% else %}
+                                    <input type="hidden" name="{{ form.unit.html_name }}" value="Pcs" class="unit-input">
+                                    {% endif %}
+                                {% else %}
+                                    {% if is_room %}
+                                    <div class="text-[10px] text-indigo-600 font-bold mb-1">
+                                        📅 {{ form.instance.entry_date|date:'d M Y' }} → {{ form.instance.checkout_date|date:'d M Y' }}
+                                    </div>
+                                    {% endif %}
+                                    <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
+                                    <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded ml-1 border border-purple-200">Sec</span>
+                                    {% if not is_room %}
+                                    <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
+                                    {% endif %}
+                                {% endif %}
+                                {{ form.id }}
+                                <input type="hidden" name="{{ form.sort_order.html_name }}" value="{{ form.sort_order.value|default:forloop.counter0 }}" class="sort-order-input">
+                                <div class="hidden">{{ form.is_secondary }}</div>
+                            </td>
+                            {% if not is_room %}
+                            <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
+                                {% if not is_locked %}
+                                    <input type="number" step="any" name="{{ form.quantity.html_name }}" 
+                                           value="{{ form.quantity.value|default_if_none:'' }}"
+                                           class="qty-input w-full text-center font-mono text-[11px] font-bold"
+                                           required>
+                                    {% if form.quantity.errors %}
+                                        <div class="text-[9px] text-red-500 font-bold text-center mt-1">{{ form.quantity.errors.0 }}</div>
+                                    {% endif %}
+                                {% else %}
+                                    {{ form.instance.quantity }}
+                                {% endif %}
+                            </td>
+                            {% else %}
+                            <td class="hidden">
+                                <input type="hidden" name="{{ form.quantity.html_name }}" value="1" class="qty-input">
+                            </td>
+                            {% endif %}
+                            
+                            <!-- Supplier Cost -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
+                                <div class="relative group/price">
+                                    <input type="number" step="0.001" name="{{ form.base_price.html_name }}" 
+                                           value="{{ form.base_price.value|default_if_none:'' }}"
+                                           class="base-cost-input w-full px-1 py-1 text-right font-mono text-[11px] bg-white border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                                           {% if is_locked %}disabled{% endif %}>
+                                    
+                                    {% if form.base_price.errors %}
+                                        <div class="text-[9px] text-red-500 font-bold text-right mt-1">{{ form.base_price.errors.0 }}</div>
+                                    {% endif %}
+                                    
+                                    {% if form.instance.master_base_price %}
+                                    <div class="master-price-hint text-[9px] text-gray-400 text-right mt-0.5 px-1 font-bold">
+                                        Inv: ৳{{ form.instance.master_base_price }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Owner Uplift (Manual) -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30">
+                                <div class="relative">
+                                    <input type="number" step="0.001" name="{{ form.unit_price_uplifted.html_name }}" 
+                                           value="{{ form.unit_price_uplifted.value|default_if_none:'' }}"
+                                           class="uplifted-price-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none
+                                           {% if user.role == 'ACCOUNTANT' and not user.is_superuser %}bg-gray-50 cursor-not-allowed text-gray-400{% endif %}"
+                                           {% if is_locked or user.role == 'ACCOUNTANT' and not user.is_superuser %}readonly{% endif %}>
+                                    {% if form.unit_price_uplifted.errors %}
+                                        <div class="text-[9px] text-red-500 font-bold text-right mt-1">{{ form.unit_price_uplifted.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Billed Price -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-blue-50/30 border-l border-gray-100">
+                                <span class="billed-price">৳0.00</span>
+                            </td>
+
+                            <!-- Markup Gain -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-emerald-600 bg-emerald-50/30 border-l border-gray-100">
+                                <span class="markup-profit">৳0.00</span>
+                            </td>
+
+                            <!-- VAT -->
+                            <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                                <span class="row-vat">৳0.00</span>
+                            </td>
+
+                            <!-- Tax -->
+                            <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                                <span class="row-tax">৳0.00</span>
+                            </td>
+
+                            <!-- Full Price -->
+                            <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-cyan-50/20 border-l border-gray-100">
+                                <span class="unit-total">৳0.00</span>
+                            </td>
+
+                            <!-- Line Total -->
+                            <td class="py-2 px-4 text-right font-mono font-black text-gray-900 bg-gray-100/50 border-l border-gray-100">
+                                <span class="line-total">৳0.00</span>
+                            </td>
+                            
+                            <!-- Delete Row -->
+                            <td class="py-2 px-2 text-center w-10">
+                                {% if not is_locked %}
+                                    <div class="hidden">{{ form.DELETE }}</div>
+                                    <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded delete-row-btn" onclick="removeApproveRow(this)">
+                                         <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Add Row Actions -->
+            {% if not is_locked %}
+            <div class="flex flex-col sm:flex-row gap-3 mb-7">
+                <button type="button" id="add-item"
+                    class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span>Add Another Item</span>
+                </button>
+                {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                <button type="button" id="add-secondary-item"
+                    class="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-100 transition w-full sm:w-auto justify-center">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span>Add Secondary Category Item</span>
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Hidden empty form template -->
+            <table class="hidden">
+                <tbody id="empty-form-template">
+                    <tr class="item-row hover:bg-white transition-colors border-b border-gray-100" 
+                        data-qty="1"
+                        data-is-secondary="false"
+                        data-master-base="0"
+                        data-master-upscale="0"
+                        draggable="true">
+                        <td class="text-center align-middle cursor-move drag-handle text-gray-300 py-2 px-1">
+                            <i class="fas fa-grip-vertical"></i>
+                        </td>
+                        <td class="py-2 px-4">
+                            {% if is_room %}
+                            <div class="flex flex-wrap gap-2 mb-1">
+                                <div class="flex items-center gap-1">
+                                    <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                    <input type="date" name="items-__prefix__-entry_date" id="id_items-__prefix__-entry_date"
+                                           class="date-input text-[10px] text-gray-500 w-28"
+                                           required disabled>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
+                                    <input type="date" name="items-__prefix__-checkout_date" id="id_items-__prefix__-checkout_date"
+                                           class="date-input text-[10px] text-gray-500 w-28"
+                                           required disabled>
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="flex items-center gap-2">
+                                <input type="text" name="items-__prefix__-description" id="id_items-__prefix__-description"
+                                       placeholder="Description..."
+                                       class="desc-input font-bold text-gray-800" disabled>
+                                <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge hidden">Sec</span>
+                            </div>
+                            {% if not is_room %}
+                            <div class="mt-1 flex items-center gap-1">
+                                <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
+                                <input type="text" name="items-__prefix__-unit" id="id_items-__prefix__-unit"
+                                       value="Pcs" placeholder="Unit..."
+                                       class="unit-input text-[10px] text-gray-500 w-16"
+                                       required disabled>
+                            </div>
+                            {% else %}
+                            <input type="hidden" name="items-__prefix__-unit" id="id_items-__prefix__-unit" value="Pcs" class="unit-input" disabled>
+                            {% endif %}
+                            <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" disabled>
+                            <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" class="sort-order-input" disabled>
+                            <div class="hidden">
+                                <input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary" class="is-secondary-checkbox" disabled>
+                            </div>
+                        </td>
+                        {% if not is_room %}
+                        <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
+                            <input type="number" step="any" name="items-__prefix__-quantity" id="id_items-__prefix__-quantity"
+                                   value="1"
+                                   class="qty-input w-full text-center font-mono text-[11px] font-bold"
+                                   required disabled>
+                        </td>
+                        {% else %}
+                        <td class="hidden">
+                            <input type="hidden" name="items-__prefix__-quantity" id="id_items-__prefix__-quantity" value="1" class="qty-input" disabled>
+                        </td>
+                        {% endif %}
+                        <!-- Supplier Cost -->
+                        <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
+                            <input type="number" step="0.001" name="items-__prefix__-base_price" id="id_items-__prefix__-base_price"
+                                   value="0.000"
+                                   class="base-cost-input w-full px-1 py-1 text-right font-mono text-[11px] bg-white border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" disabled>
+                            <div class="master-price-hint text-[9px] text-gray-400 text-right mt-0.5 px-1 font-bold hidden">
+                                Inv: ৳0.00
+                            </div>
+                        </td>
+                        <!-- Owner Uplift -->
+                        <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30">
+                            <input type="number" step="0.001" name="items-__prefix__-unit_price_uplifted" id="id_items-__prefix__-unit_price_uplifted"
+                                   value="0.000"
+                                   class="uplifted-price-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" disabled>
+                        </td>
+                        <!-- Billed Price -->
+                        <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-blue-50/30 border-l border-gray-100">
+                            <span class="billed-price">৳0.00</span>
+                        </td>
+                        <!-- Markup Gain -->
+                        <td class="py-2 px-4 text-right font-mono font-bold text-emerald-600 bg-emerald-50/30 border-l border-gray-100">
+                            <span class="markup-profit">৳0.00</span>
+                        </td>
+                        <!-- VAT -->
+                        <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                            <span class="row-vat">৳0.00</span>
+                        </td>
+                        <!-- Tax -->
+                        <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                            <span class="row-tax">৳0.00</span>
+                        </td>
+                        <!-- Full Price -->
+                        <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-cyan-50/20 border-l border-gray-100">
+                            <span class="unit-total">৳0.00</span>
+                        </td>
+                        <!-- Line Total -->
+                        <td class="py-2 px-4 text-right font-mono font-black text-gray-900 bg-gray-100/50 border-l border-gray-100">
+                            <span class="line-total">৳0.00</span>
+                        </td>
+                        <!-- Delete column -->
+                        <td class="py-2 px-2 text-center w-10">
+                            <div class="hidden">
+                                <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE" class="hidden">
+                            </div>
+                            <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded delete-row-btn" onclick="removeApproveRow(this)">
+                                 <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Autocomplete Suggestions List Container -->
+            <div id="product-suggestions" class="suggestions-list"></div>
+
              <!-- Calculation Legend -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-7 text-[10px] uppercase font-bold tracking-wider">
                 <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center gap-2" title="Price after your manual uplift and global margin">
@@ -426,17 +860,97 @@
         outline: none;
         box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
     }
+    
+    /* Elegant compact input styling for line items */
+    .item-row input[type="text"], .item-row input[type="number"] {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 11px;
+        background: #fff;
+        transition: all 0.15s;
+    }
+    .item-row input:focus {
+        border-color: #6366f1;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.1);
+    }
+    .item-row .desc-input {
+        width: 100%;
+        min-width: 180px;
+    }
+    .item-row .unit-input {
+        width: 70px;
+    }
+    .item-row .qty-input {
+        width: 60px;
+        text-align: center;
+    }
+    .item-row .base-cost-input, .item-row .uplifted-price-input {
+        width: 85px;
+    }
+    
+    /* Autocomplete Product Suggestions Dropdown */
+    .autocomplete-container {
+        position: relative;
+    }
+    .suggestions-list {
+        position: absolute;
+        z-index: 1000;
+        background: white;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        max-height: 250px;
+        overflow-y: auto;
+        min-width: 250px;
+        display: none;
+    }
+    .suggestion-item {
+        padding: 10px 14px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.15s;
+    }
+    .suggestion-item:hover, .suggestion-item.active {
+        background: #f1f5f9;
+        color: #4f46e5;
+    }
+    .suggestion-name { font-weight: 600; font-size: 13px; }
+    .suggestion-price { font-weight: 700; font-size: 11px; color: #10b981; }
+    .suggestion-unit { font-size: 10px; color: #94a3b8; margin-left: 4px; }
+    
+    .opacity-40 { opacity: 0.4; }
 </style>
 
 <script>
+function highlightField(el) {
+    if (!el) return;
+    el.style.transition = 'background-color 0.4s, border-color 0.4s';
+    el.style.backgroundColor = '#ecfdf5';
+    el.style.borderColor = '#10b981';
+    setTimeout(() => { 
+        el.style.backgroundColor = ''; 
+        el.style.borderColor = '';
+    }, 1000);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    const isSamePriceCat = {{ is_lunch|yesno:"true,false" }} || {{ is_room|yesno:"true,false" }};
     const config = document.getElementById('tax-config').dataset;
     const vatPct = parseFloat(config.vat) || 0;
     const taxPct = parseFloat(config.tax) || 0;
     const dutyPct = parseFloat(config.duty) || 0;
+    const scPct = parseFloat(config.sc) || 0;
     const marginPct = parseFloat(config.margin) || 0;
-    
-    const rows = document.querySelectorAll('.item-row');
+
+    const secVatPct = parseFloat(config.secVat) || 0;
+    const secTaxPct = parseFloat(config.secTax) || 0;
+    const secDutyPct = parseFloat(config.secDuty) || 0;
+    const secScPct = parseFloat(config.secSc) || 0;
+    const secMarginPct = parseFloat(config.secMargin) || 0;
 
     function calculate() {
         let grandBase = 0;
@@ -447,23 +961,48 @@ document.addEventListener('DOMContentLoaded', function() {
         let grandFinal = 0;
         let grandMarkup = 0;
 
+        let primaryBilledAmt = 0;
+        let secondaryBilledAmt = 0;
+
+        const rows = document.querySelectorAll('.item-row');
+
         rows.forEach(row => {
-            const qty = parseFloat(row.dataset.qty) || 0;
+            // Check if row is deleted or belongs to template table
+            if (row.classList.contains('deleted-row') || row.style.display === 'none' || row.closest('#empty-form-template') || row.closest('.hidden')) {
+                return;
+            }
+
+            const qtyInput = row.querySelector('.qty-input');
+            const qty = qtyInput ? (parseFloat(qtyInput.value) || 0) : 0;
+            
+            const isSecondary = row.dataset.isSecondary === 'true';
             const baseInput = row.querySelector('.base-cost-input');
             const upliftedInput = row.querySelector('.uplifted-price-input');
             
-            let base = parseFloat(baseInput.value) || 0;
-            let manualUplift = parseFloat(upliftedInput.value) || 0;
+            let base = baseInput ? (parseFloat(baseInput.value) || 0) : 0;
+            let manualUplift = (upliftedInput && upliftedInput.value !== '') ? (parseFloat(upliftedInput.value) || 0) : base;
 
-            // Layer 3: Apply Global Margin on the manual uplift
-            const billedPrice = manualUplift * (1 + marginPct / 100);
+            if (isSamePriceCat) {
+                if (upliftedInput && baseInput && upliftedInput.value !== baseInput.value) {
+                    upliftedInput.value = baseInput.value;
+                }
+                manualUplift = base;
+            }
+
+            const rowVatPct = isSecondary ? secVatPct : vatPct;
+            const rowTaxPct = isSecondary ? secTaxPct : taxPct;
+            const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
+            const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+
+            // Layer 3: Apply margin on the manual uplift
+            const billedPrice = manualUplift * (1 + rowMarginPct / 100);
 
             // Layer 4: Government Taxes (Duty + Tax + VAT)
-            const duty = billedPrice * (dutyPct / 100);
+            const duty = billedPrice * (rowDutyPct / 100);
             const baseForTax = billedPrice + duty;
-            const grossBeforeVat = (taxPct > 0) ? (baseForTax * 100) / (100 - taxPct) : baseForTax;
+            const grossBeforeVat = (rowTaxPct > 0) ? (baseForTax * 100) / (100 - rowTaxPct) : baseForTax;
             const taxAmount = grossBeforeVat - baseForTax;
-            const vat = grossBeforeVat * (vatPct / 100);
+            const vat = grossBeforeVat * (rowVatPct / 100);
             const unitTotal = grossBeforeVat + vat;
             
             // Gains
@@ -472,18 +1011,31 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const lineTotal = unitTotal * qty;
 
+            if (isSecondary) {
+                secondaryBilledAmt += billedPrice * qty;
+            } else {
+                primaryBilledAmt += billedPrice * qty;
+            }
+
             // Displays
-            row.querySelector('.billed-price').textContent = `৳${billedPrice.toFixed(2)}`;
-            row.querySelector('.markup-profit').textContent = `৳${markupPerUnit.toFixed(2)}`;
-            row.querySelector('.row-vat').textContent = `৳${vat.toFixed(2)}`;
-            row.querySelector('.row-tax').textContent = `৳${taxAmount.toFixed(2)}`;
-            row.querySelector('.unit-total').textContent = `৳${unitTotal.toFixed(2)}`;
-            row.querySelector('.line-total').textContent = `৳${lineTotal.toFixed(2)}`;
+            const billedPriceEl = row.querySelector('.billed-price');
+            const markupProfitEl = row.querySelector('.markup-profit');
+            const rowVatEl = row.querySelector('.row-vat');
+            const rowTaxEl = row.querySelector('.row-tax');
+            const unitTotalEl = row.querySelector('.unit-total');
+            const lineTotalEl = row.querySelector('.line-total');
+
+            if (billedPriceEl) billedPriceEl.textContent = `৳${billedPrice.toFixed(2)}`;
+            if (markupProfitEl) markupProfitEl.textContent = `৳${markupPerUnit.toFixed(2)}`;
+            if (rowVatEl) rowVatEl.textContent = `৳${vat.toFixed(2)}`;
+            if (rowTaxEl) rowTaxEl.textContent = `৳${taxAmount.toFixed(2)}`;
+            if (unitTotalEl) unitTotalEl.textContent = `৳${unitTotal.toFixed(2)}`;
+            if (lineTotalEl) lineTotalEl.textContent = `৳${lineTotal.toFixed(2)}`;
 
             // Highlight deviations from master price
             const masterBase = parseFloat(row.dataset.masterBase) || 0;
             const hint = row.querySelector('.master-price-hint');
-            if (hint && masterBase > 0) {
+            if (hint && masterBase > 0 && baseInput) {
                 if (Math.abs(base - masterBase) > 0.01) {
                     hint.classList.remove('text-gray-400');
                     hint.classList.add('text-red-500');
@@ -495,23 +1047,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Show breakdown subtext for clarity
-            let breakdown = [];
-            if (vatPct > 0) breakdown.push(`${vatPct}% VAT`);
-            if (taxPct > 0) breakdown.push(`${taxPct}% Tax`);
-            if (dutyPct > 0) breakdown.push(`${dutyPct}% Duty`);
-            
-            const breakdownEl = row.querySelector('.tax-breakdown');
-            if (breakdownEl) {
-                breakdownEl.textContent = breakdown.join(' + ') || 'No Taxes';
-            }
-            
-            // Display Rule: Show if there is ANY profit
-            const hasProfit = (marginPct > 0) || (markupPerUnit > 0.01);
-            if (!hasProfit) {
-                row.querySelector('.markup-profit').style.visibility = 'hidden';
-            } else {
-                row.querySelector('.markup-profit').style.visibility = 'visible';
+            // Display Rule: Show markup profit if there is ANY profit
+            const hasProfit = (rowMarginPct > 0) || (markupPerUnit > 0.01);
+            if (markupProfitEl) {
+                if (!hasProfit) {
+                    markupProfitEl.style.visibility = 'hidden';
+                } else {
+                    markupProfitEl.style.visibility = 'visible';
+                }
             }
 
             // Accumulate Grands
@@ -524,33 +1067,352 @@ document.addEventListener('DOMContentLoaded', function() {
             grandMarkup += markupTotal;
         });
 
+        // Add service charges logic:
+        const primarySc = primaryBilledAmt * (scPct / 100);
+        const secondarySc = secondaryBilledAmt * (secScPct / 100);
+        const totalSc = primarySc + secondarySc;
+
+        const primaryScDuty = primarySc * (dutyPct / 100);
+        const secondaryScDuty = secondarySc * (secDutyPct / 100);
+        const totalScDuty = primaryScDuty + secondaryScDuty;
+
+        let primaryScTax = 0;
+        if (taxPct > 0) {
+            const gross = (primarySc * 100) / (100 - taxPct);
+            primaryScTax = gross - primarySc;
+        }
+        let secondaryScTax = 0;
+        if (secTaxPct > 0) {
+            const gross = (secondarySc * 100) / (100 - secTaxPct);
+            secondaryScTax = gross - secondarySc;
+        }
+        const totalScTax = primaryScTax + secondaryScTax;
+
+        const primaryScVat = (primarySc + primaryScDuty + primaryScTax) * (vatPct / 100);
+        const secondaryScVat = (secondarySc + secondaryScDuty + secondaryScTax) * (secVatPct / 100);
+        const totalScVat = primaryScVat + secondaryScVat;
+
+        grandVat += totalScVat;
+        grandTax += totalScTax;
+        grandDuty += totalScDuty;
+        grandFinal += totalSc + totalScDuty + totalScTax + totalScVat;
+
         // Update Overall Summary
-        document.getElementById('grand-base-total').textContent = `৳${grandBase.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        document.getElementById('grand-billed-total').textContent = `৳${grandBilled.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        const baseTotalEl = document.getElementById('grand-base-total');
+        const billedTotalEl = document.getElementById('grand-billed-total');
+        const vatTotalEl = document.getElementById('grand-vat-total');
+        const taxTotalEl = document.getElementById('grand-tax-total');
+        const markupTotalEl = document.getElementById('grand-markup-total');
+        const finalTotalEl = document.getElementById('grand-final-total');
+
+        if (baseTotalEl) baseTotalEl.textContent = `৳${grandBase.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        if (billedTotalEl) billedTotalEl.textContent = `৳${(grandBilled + totalSc).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        if (vatTotalEl) vatTotalEl.textContent = `৳${grandVat.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        if (taxTotalEl) taxTotalEl.textContent = `৳${grandTax.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
         
-        document.getElementById('grand-vat-total').textContent = `৳${grandVat.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        document.getElementById('grand-tax-total').textContent = `৳${grandTax.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        
-        if (grandDuty > 0) {
-            document.getElementById('duty-row').style.display = 'flex';
-            document.getElementById('grand-duty-total').textContent = `৳${grandDuty.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        } else {
-            document.getElementById('duty-row').style.display = 'none';
+        const dutyRow = document.getElementById('duty-row');
+        const dutyTotalEl = document.getElementById('grand-duty-total');
+        if (dutyRow && dutyTotalEl) {
+            if (grandDuty > 0) {
+                dutyRow.style.display = 'flex';
+                dutyTotalEl.textContent = `৳${grandDuty.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            } else {
+                dutyRow.style.display = 'none';
+            }
         }
 
-        document.getElementById('grand-markup-total').textContent = `৳${grandMarkup.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        document.getElementById('grand-final-total').textContent = `৳${grandFinal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        if (markupTotalEl) markupTotalEl.textContent = `৳${grandMarkup.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        if (finalTotalEl) finalTotalEl.textContent = `৳${grandFinal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
     }
 
-    // Event Listeners
-    rows.forEach(row => {
-        const inputs = row.querySelectorAll('input');
-        inputs.forEach(input => {
-            input.addEventListener('input', calculate);
-        });
+    // Bind event listeners using delegation
+    document.addEventListener('input', function(e) {
+        if (e.target.closest('.item-row')) {
+            calculate();
+        }
     });
 
-    // Initial run
+    // ── Row Deletion Handler ──
+    window.removeApproveRow = function(btn) {
+        const row = btn.closest('tr');
+        const idInput = row.querySelector('input[name$="-id"]');
+        const delCb = row.querySelector('input[name$="-DELETE"]');
+        
+        if (idInput && idInput.value) {
+            if (delCb) delCb.checked = true;
+            row.style.display = 'none';
+            row.classList.add('deleted-row');
+        } else {
+            row.remove();
+        }
+        updateSortOrders();
+        calculate();
+    };
+
+    // ── Row Addition Handler ──
+    function addNewItemRow(isSecondary) {
+        const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+        const count = parseInt(totalForms.value);
+        const tbodyId = isSecondary ? 'secondary-item-formset' : 'item-formset';
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+
+        const template = document.getElementById('empty-form-template').querySelector('tr');
+        const newRow = template.cloneNode(true);
+        
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+        newRow.querySelectorAll('input').forEach(el => el.removeAttribute('disabled'));
+        
+        if (isSecondary) {
+            newRow.dataset.isSecondary = "true";
+            const secBadge = newRow.querySelector('.sec-badge');
+            if (secBadge) secBadge.classList.remove('hidden');
+            const checkbox = newRow.querySelector('.is-secondary-checkbox');
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.value = 'on';
+            }
+        } else {
+            newRow.dataset.isSecondary = "false";
+        }
+
+        tbody.appendChild(newRow);
+        totalForms.value = count + 1;
+
+        const descInput = newRow.querySelector('.desc-input');
+        if (descInput) {
+            descInput.focus();
+        }
+        
+        updateSortOrders();
+        calculate();
+    }
+
+    const addItemBtn = document.getElementById('add-item');
+    if (addItemBtn) {
+        addItemBtn.addEventListener('click', function() {
+            addNewItemRow(false);
+        });
+    }
+
+    const addSecondaryItemBtn = document.getElementById('add-secondary-item');
+    if (addSecondaryItemBtn) {
+        addSecondaryItemBtn.addEventListener('click', function() {
+            addNewItemRow(true);
+        });
+    }
+
+    // ── Drag & Drop Reordering ──
+    function makeTableSortable(tbodyId, onReorder) {
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+
+        let dragEl = null;
+
+        tbody.addEventListener('dragstart', function(e) {
+            if ({{ is_locked|yesno:"true,false" }}) {
+                e.preventDefault();
+                return;
+            }
+            const row = e.target.closest('tr.item-row');
+            if (!row) {
+                e.preventDefault();
+                return;
+            }
+            dragEl = row;
+            dragEl.classList.add('opacity-40');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        });
+
+        tbody.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const row = e.target.closest('tr.item-row');
+            if (row && row !== dragEl && row.parentNode === tbody) {
+                const rect = row.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                tbody.insertBefore(dragEl, next ? row.nextSibling : row);
+            }
+        });
+
+        tbody.addEventListener('dragend', function(e) {
+            if (dragEl) {
+                dragEl.classList.remove('opacity-40');
+                dragEl = null;
+            }
+            if (onReorder) onReorder();
+        });
+        
+        tbody.addEventListener('drop', function(e) {
+            e.preventDefault();
+        });
+    }
+
+    function updateSortOrders() {
+        let index = 0;
+        const primaryRows = document.querySelectorAll('#item-formset tr.item-row');
+        primaryRows.forEach(row => {
+            const sortInput = row.querySelector('.sort-order-input');
+            if (sortInput) {
+                sortInput.value = index++;
+            }
+        });
+        const secondaryRows = document.querySelectorAll('#secondary-item-formset tr.item-row');
+        secondaryRows.forEach(row => {
+            const sortInput = row.querySelector('.sort-order-input');
+            if (sortInput) {
+                sortInput.value = index++;
+            }
+        });
+    }
+
+    // ── Product Autocomplete Suggestions ──
+    const suggestionBox = document.getElementById('product-suggestions');
+    let currentSuggestionIndex = -1;
+    let activeDescInput = null;
+
+    function hideSuggestions() {
+        if (suggestionBox) suggestionBox.style.display = 'none';
+        currentSuggestionIndex = -1;
+    }
+
+    function showSuggestions(input) {
+        const query = input.value.trim();
+        if (query.length < 1) {
+            hideSuggestions();
+            return;
+        }
+
+        activeDescInput = input;
+        const categoryId = "{{ transaction.transaction_category.id }}";
+
+        fetch(`/api/products/search/?q=${encodeURIComponent(query)}&category_id=${categoryId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.results && data.results.length > 0) {
+                    renderSuggestions(data.results, input);
+                } else {
+                    hideSuggestions();
+                }
+            })
+            .catch(() => hideSuggestions());
+    }
+
+    function renderSuggestions(products, input) {
+        const rect = input.getBoundingClientRect();
+        suggestionBox.style.left = `${rect.left + window.scrollX}px`;
+        suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        suggestionBox.style.width = `${Math.max(rect.width, 300)}px`;
+        suggestionBox.style.display = 'block';
+        
+        suggestionBox.innerHTML = products.map((p, index) => `
+            <div class="suggestion-item" data-index="${index}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+                <div>
+                    <span class="suggestion-name">${p.name}</span>
+                    <span class="suggestion-unit">${p.unit}</span>
+                </div>
+                <span class="suggestion-price">৳${p.base_price}</span>
+            </div>
+        `).join('');
+        
+        currentSuggestionIndex = -1;
+    }
+
+    window.selectProduct = function(product) {
+        if (!activeDescInput) return;
+        const row = activeDescInput.closest('tr');
+        if (!row) return;
+
+        const descInput = row.querySelector('.desc-input');
+        const unitField = row.querySelector('.unit-input');
+        const priceField = row.querySelector('.base-cost-input');
+        const upliftField = row.querySelector('.uplifted-price-input');
+        
+        if (descInput) {
+            descInput.value = product.name;
+            highlightField(descInput);
+        }
+        if (unitField) {
+            unitField.value = product.unit;
+            highlightField(unitField);
+        }
+        if (priceField) {
+            priceField.value = product.base_price;
+            highlightField(priceField);
+        }
+        if (upliftField) {
+            upliftField.value = product.upscale_value || product.base_price;
+            highlightField(upliftField);
+        }
+        
+        row.dataset.masterBase = product.base_price;
+        row.dataset.masterUpscale = product.upscale_value || product.base_price;
+        
+        hideSuggestions();
+        calculate();
+    };
+
+    function initSuggestionListeners() {
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('desc-input')) {
+                showSuggestions(e.target);
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (!activeDescInput) return;
+            if (!suggestionBox || suggestionBox.style.display === 'none') return;
+            
+            const items = suggestionBox.querySelectorAll('.suggestion-item');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentSuggestionIndex = (currentSuggestionIndex + 1) % items.length;
+                updateActiveSuggestion(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentSuggestionIndex = (currentSuggestionIndex - 1 + items.length) % items.length;
+                updateActiveSuggestion(items);
+            } else if (e.key === 'Enter') {
+                if (currentSuggestionIndex >= 0) {
+                    e.preventDefault();
+                    items[currentSuggestionIndex].click();
+                }
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (activeDescInput && !activeDescInput.contains(e.target)) {
+                if (suggestionBox && !suggestionBox.contains(e.target)) {
+                    hideSuggestions();
+                }
+            }
+        });
+    }
+
+    function updateActiveSuggestion(items) {
+        items.forEach((item, idx) => {
+            item.classList.toggle('active', idx === currentSuggestionIndex);
+            if (idx === currentSuggestionIndex) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    }
+
+    initSuggestionListeners();
+
+    // Make tables sortable
+    makeTableSortable('item-formset', updateSortOrders);
+    const secTbody = document.getElementById('secondary-item-formset');
+    if (secTbody) {
+        makeTableSortable('secondary-item-formset', updateSortOrders);
+    }
+
+    // Initial calculation run
     calculate();
 });
 </script>

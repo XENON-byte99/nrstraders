@@ -61,12 +61,19 @@
         {% csrf_token %}
 
         <div class="section-card">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <label class="form-label">Category</label>
                     {{ form.transaction_category }}
                     {% if form.transaction_category.errors %}
                         <p class="text-red-500 text-[10px] mt-1">{{ form.transaction_category.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="form-label">Secondary Category</label>
+                    {{ form.secondary_category }}
+                    {% if form.secondary_category.errors %}
+                        <p class="text-red-500 text-[10px] mt-1">{{ form.secondary_category.errors.0 }}</p>
                     {% endif %}
                 </div>
                 <div>
@@ -100,7 +107,7 @@
                         {{ item_form.quantity }}
                     </div>
                     <div class="col-span-1 flex justify-center pb-2">
-                        <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                        <div class="hidden">{{ item_form.DELETE }}</div>
                         <button type="button" class="text-red-300 hover:text-red-600 transition" onclick="removeRow(this)">
                             <i class="fas fa-times-circle"></i>
                         </button>
@@ -150,7 +157,7 @@
                 <i class="fas fa-times-circle"></i>
             </button>
         </div>
-        <div class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }}</div>
+        <div class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }} {{ formset.empty_form.DELETE }}</div>
     </div>
 </div>
 
@@ -181,10 +188,6 @@ function removeRow(btn) {
     if (delCb) {
         delCb.checked = true;
         row.style.display = 'none';
-    } else {
-        row.remove();
-        const totalForms = document.getElementById('id_items-TOTAL_FORMS');
-        totalForms.value = parseInt(totalForms.value) - 1;
     }
 }
 

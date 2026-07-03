@@ -50,7 +50,6 @@
         text-align: center;
     }
 
-    
     /* ── Product Suggestions ── */
     .autocomplete-container {
         position: relative;
@@ -85,6 +84,8 @@
     .suggestion-name { font-weight: 600; font-size: 13px; }
     .suggestion-price { font-weight: 700; font-size: 11px; color: #10b981; }
     .suggestion-unit { font-size: 10px; color: #94a3b8; margin-left: 4px; }
+    
+    .opacity-40 { opacity: 0.4; }
 </style>
 
 <div class="max-w-3xl mx-auto">
@@ -180,11 +181,24 @@
                 <div><label class="form-label">S. Charge %</label>{{ form.service_charge_percentage }}</div>
             </div>
 
+            <!-- Secondary Financials Row (only shown/active if secondary category is selected) -->
+            <div id="secondary-financials-row" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5 hidden">
+                <div><label class="form-label">Sec. VAT (%)</label>{{ form.secondary_vat_percentage }}</div>
+                <div><label class="form-label">Sec. Duty (%)</label>{{ form.secondary_duty_percentage }}</div>
+                <div><label class="form-label">Sec. Tax (%)</label>{{ form.secondary_tax_percentage }}</div>
+                <div><label class="form-label">Sec. S. Charge %</label>{{ form.secondary_service_charge_percentage }}</div>
+                <div><label class="form-label">Sec. Margin %</label>{{ form.secondary_profit_margin }}</div>
+            </div>
+
             <!-- Identifiers & Margin Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
                     <label class="form-label">Category</label>
                     {{ form.transaction_category }}
+                </div>
+                <div>
+                    <label class="form-label">Secondary Category</label>
+                    {{ form.secondary_category }}
                 </div>
                 <div><label class="form-label">Invoice Date</label>{{ form.created_at }}</div>
                 <div><label class="form-label">Margin %</label>{{ form.profit_margin }}</div>
@@ -192,6 +206,22 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label class="form-label">Invoice #</label>{{ form.invoice_number }}</div>
                 <div><label class="form-label">Challan #</label>{{ form.challan_number }}</div>
+            </div>
+
+            <!-- Calculation Mode -->
+            <div class="mt-5 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <label class="form-label text-indigo-800">Calculation Mode <i class="fas fa-calculator ml-1"></i></label>
+                <div class="flex gap-4 mt-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="calculation_mode" value="forward" checked class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-semibold text-gray-700">Forward (Base &rarr; Total)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="calculation_mode" value="reverse" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Total &rarr; Base)</span>
+                    </label>
+                </div>
+                <p class="text-[10px] text-indigo-500 mt-2 font-medium" id="calc-mode-hint">Enter base price. Taxes and margins will be added on top to reach final total.</p>
             </div>
 
             <p class="text-[10px] text-gray-400 mt-3 italic flex items-center gap-1.5 opacity-80">
@@ -212,15 +242,17 @@
 
             {{ formset.management_form }}
 
-            <!-- Normal Items Table (hidden for lunch) -->
-            <div id="normal-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if is_lunch %}hidden{% endif %}">
+            <!-- Normal Items Table (hidden for lunch/room) -->
+            <div id="normal-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if is_lunch or is_room %}hidden{% endif %}">
                 <table>
                     <thead>
                         <tr>
+                            <th class="w-10"></th>
                             <th class="text-left" style="min-width:180px">Description</th>
                             <th class="text-center" style="width:80px">Unit</th>
                             <th class="text-center" style="width:150px">Qty</th>
-                            <th class="text-right" style="width:120px">Display Price (৳)</th>
+                            <th class="text-right" style="width:120px"><span class="price-header-label">Display Price (৳)</span></th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
@@ -228,23 +260,31 @@
                     </thead>
 
                     <tbody id="item-formset">
+                        {% if not is_lunch %}
                         {% for item_form in formset %}
-                        <tr class="border-b item-row">
+                        <tr class="border-b item-row" draggable="true">
+                            <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                                <i class="fas fa-grip-vertical"></i>
+                            </td>
                             <td>
                                 {{ item_form.description }}
                             </td>
                             <td>{{ item_form.unit }}</td>
                             <td>{{ item_form.quantity }}</td>
-                            <td>{{ item_form.base_price }}</td>
+                            <td class="base-price-cell">{{ item_form.base_price }}</td>
+                            <td class="target-col hidden">
+                                <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                            </td>
                             <td class="text-center">
                                 <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
                                 <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
-                                    <i class="fas fa-trash text-xs"></i>
+                                     <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </td>
-                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                         </tr>
                         {% endfor %}
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
@@ -262,13 +302,14 @@
 
             <!-- Lunch Items Table -->
             <div id="lunch-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if not is_lunch %}hidden{% endif %}">
-
                 <table>
                     <thead>
                         <tr>
+                            <th class="w-10"></th>
                             <th class="text-left" style="min-width:120px">📅 Entry Date</th>
                             <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
-                            <th class="text-right" style="width:130px">💰 Bill Amount (৳)</th>
+                            <th class="text-right" style="width:130px"><span class="price-header-label">💰 Bill Amount (৳)</span></th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
                             <th class="text-center" style="width:150px">🔢 Qty</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
@@ -279,15 +320,66 @@
                     <tbody id="lunch-formset">
                         {% if is_lunch %}
                             {% for item_form in formset %}
-                            <tr class="border-b item-row">
+                            <tr class="border-b item-row" draggable="true">
+                                <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </td>
                                 <td>{{ item_form.entry_date }}</td>
                                 <td>{{ item_form.restaurant_name }}</td>
-                                <td>{{ item_form.base_price }}</td>
+                                <td class="base-price-cell">{{ item_form.base_price }}</td>
+                                <td class="target-col hidden">
+                                    <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                                </td>
                                 <td>{{ item_form.quantity }}</td>
                                 <td class="text-center">
                                     <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
                                     <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
-                                        <i class="fas fa-trash text-xs"></i>
+                                         <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </td>
+                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Room Items Table -->
+            <div id="room-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if not is_room %}hidden{% endif %}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-10"></th>
+                            <th class="text-left" style="min-width:120px">📅 From Date</th>
+                            <th class="text-left" style="min-width:120px">📅 To Date</th>
+                            <th class="text-left" style="min-width:180px">🏷 Description</th>
+                            <th class="text-right" style="width:130px"><span class="price-header-label">💰 Cost (৳)</span></th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                                <i class="fas fa-trash text-xs"></i>
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="room-formset">
+                        {% if is_room %}
+                            {% for item_form in formset %}
+                            <tr class="border-b item-row" draggable="true">
+                                <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </td>
+                                <td>{{ item_form.entry_date }}</td>
+                                <td>{{ item_form.checkout_date }}</td>
+                                <td>{{ item_form.description }}</td>
+                                <td class="base-price-cell">{{ item_form.base_price }}</td>
+                                <td class="target-col hidden">
+                                    <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                                </td>
+                                <td class="text-center">
+                                    <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
+                                    <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                         <i class="fas fa-trash text-xs"></i>
                                     </button>
                                 </td>
                                 <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
@@ -300,26 +392,79 @@
 
             <!-- Hidden empty form templates -->
             <table class="hidden">
-                <tbody id="empty-form-template">
-                    <tr class="border-b item-row">
-                        <td>
-                            {{ formset.empty_form.description }}
+                <tbody id="empty-room-template">
+                    <tr class="border-b item-row" draggable="true">
+                        <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                            <i class="fas fa-grip-vertical"></i>
                         </td>
-                        <td>{{ formset.empty_form.unit }}</td>
-                        <td>{{ formset.empty_form.quantity }}</td>
-                        <td>{{ formset.empty_form.base_price }}</td>
+                        <td>
+                            <input type="date" name="items-__prefix__-entry_date"
+                                   id="id_items-__prefix__-entry_date"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="date" name="items-__prefix__-checkout_date"
+                                   id="id_items-__prefix__-checkout_date"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="text" name="items-__prefix__-description"
+                                   id="id_items-__prefix__-description"
+                                   placeholder="Description..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td class="base-price-cell">
+                            <input type="number" name="items-__prefix__-base_price"
+                                   id="id_items-__prefix__-base_price"
+                                   value="0.000" step="0.001" min="0"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        <td class="target-col hidden">
+                            <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
                         <td class="text-center">
                             <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
                                 <i class="fas fa-trash text-xs"></i>
                             </button>
                         </td>
-                        <td class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }}</td>
+                        <td class="hidden">
+                            <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
+                            <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
+                            <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE" class="hidden">
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="hidden">
+                <tbody id="empty-form-template">
+                    <tr class="border-b item-row" draggable="true">
+                        <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                            <i class="fas fa-grip-vertical"></i>
+                        </td>
+                        <td>
+                            {{ formset.empty_form.description }}
+                        </td>
+                        <td>{{ formset.empty_form.unit }}</td>
+                        <td>{{ formset.empty_form.quantity }}</td>
+                        <td class="base-price-cell">{{ formset.empty_form.base_price }}</td>
+                        <td class="target-col hidden">
+                            <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="hidden">{{ formset.empty_form.id }} {{ formset.empty_form.sort_order }} {{ formset.empty_form.DELETE }}<div class="hidden">{{ formset.empty_form.is_secondary }}</div></td>
                     </tr>
                 </tbody>
             </table>
             <table class="hidden">
                 <tbody id="empty-lunch-template">
-                    <tr class="border-b item-row">
+                    <tr class="border-b item-row" draggable="true">
+                        <td class="text-center align-middle cursor-move drag-handle text-gray-300">
+                            <i class="fas fa-grip-vertical"></i>
+                        </td>
                         <td>
                             <input type="date" name="items-__prefix__-entry_date"
                                    id="id_items-__prefix__-entry_date"
@@ -331,12 +476,14 @@
                                    placeholder="Restaurant name..."
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
                         </td>
-                        <td>
+                        <td class="base-price-cell">
                             <input type="number" name="items-__prefix__-base_price"
                                    id="id_items-__prefix__-base_price"
                                    value="0.000" step="0.001" min="0"
-
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        <td class="target-col hidden">
+                            <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
                         <td>
                             <input type="number" name="items-__prefix__-quantity"
@@ -352,17 +499,62 @@
                         <td class="hidden">
                             <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
                             <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
+                            <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE" class="hidden">
                         </td>
                     </tr>
                 </tbody>
             </table>
 
-            <button type="button" id="add-item"
-                class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
-                <i class="fas fa-plus text-xs"></i>
-                <span id="add-item-label">{% if is_lunch %}Add Entry{% else %}Add Another Item{% endif %}</span>
+            <!-- Secondary Category Items Section -->
+            <div id="secondary-items-section-header" class="section-title mt-6 hidden">
+                <i class="fas fa-list text-purple-500"></i>
+                <span>Secondary Category Items</span>
+            </div>
+            
+            <div id="secondary-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 hidden">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-10"></th>
+                            <th class="text-left" style="min-width:180px">Description</th>
+                            <th class="text-center" style="width:80px">Unit</th>
+                            <th class="text-center" style="width:150px">Qty</th>
+                            <th class="text-right" style="width:120px"><span class="price-header-label">Display Price (৳)</span></th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                                <i class="fas fa-trash text-xs"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="secondary-item-formset">
+                        <!-- Javascript moves secondary items here on load -->
+                    </tbody>
+                </table>
+            </div>
 
-            </button>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" id="add-item"
+                    class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span id="add-item-label">{% if is_lunch %}Add Entry{% else %}Add Another Item{% endif %}</span>
+                </button>
+                <button type="button" id="add-secondary-item"
+                    class="inline-flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-100 transition w-full sm:w-auto justify-center hidden">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span>Add Secondary Category Item</span>
+                </button>
+                <button type="button" id="import-excel-btn"
+                    class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-100 transition w-full sm:w-auto justify-center">
+                    <i class="fas fa-file-excel text-xs"></i>
+                    <span>Import Excel</span>
+                </button>
+                <input type="file" id="excel-upload-input" accept=".xlsx, .xls, .csv" class="hidden">
+                <button type="button" id="download-template-btn"
+                    class="inline-flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-100 transition w-full sm:w-auto justify-center" title="Download sample template">
+                    <i class="fas fa-download"></i>
+                    <span>Template</span>
+                </button>
+            </div>
             <p class="text-gray-400 text-xs mt-2 italic">
                 <i class="fas fa-info-circle text-xs mr-0.5"></i>
                 {% if is_lunch %}Each row = one day's restaurant bill. Final invoice is generated after approval.{% else %}Prices can be left at 0 — suppliers can fill them later.{% endif %}
@@ -436,15 +628,55 @@ fillParty('supplier_select', 'supplier');
 fillParty('buyer_select', 'buyer');
 
 // ── Lunch mode detection ──
+// ── Lunch and Room mode detection ──
 let isLunchMode = {{ is_lunch|yesno:"true,false" }};
+let isRoomMode = {{ is_room|yesno:"true,false" }};
 
 function setLunchMode(on) {
     isLunchMode = on;
-    document.getElementById('normal-items-table').classList.toggle('hidden', on);
-    document.getElementById('lunch-items-table').classList.toggle('hidden', !on);
-    document.getElementById('lunch-price-control').classList.toggle('hidden', !on);
-    document.getElementById('add-item-label').textContent = on ? 'Add Entry' : 'Add Another Item';
-    document.getElementById('items-section-label').textContent = on ? 'Daily Lunch Entries' : 'Items';
+    if (on) {
+        isRoomMode = false;
+        const roomTable = document.getElementById('room-items-table');
+        if (roomTable) roomTable.classList.add('hidden');
+    }
+    const normalTable = document.getElementById('normal-items-table');
+    if (normalTable) normalTable.classList.toggle('hidden', on || isRoomMode);
+    const lunchTable = document.getElementById('lunch-items-table');
+    if (lunchTable) lunchTable.classList.toggle('hidden', !on);
+    const lunchCtrl = document.getElementById('lunch-price-control');
+    if (lunchCtrl) lunchCtrl.classList.toggle('hidden', !on);
+    updateLabels();
+}
+
+function setRoomMode(on) {
+    isRoomMode = on;
+    if (on) {
+        isLunchMode = false;
+        const lunchTable = document.getElementById('lunch-items-table');
+        if (lunchTable) lunchTable.classList.add('hidden');
+        const lunchCtrl = document.getElementById('lunch-price-control');
+        if (lunchCtrl) lunchCtrl.classList.add('hidden');
+    }
+    const normalTable = document.getElementById('normal-items-table');
+    if (normalTable) normalTable.classList.toggle('hidden', on || isLunchMode);
+    const roomTable = document.getElementById('room-items-table');
+    if (roomTable) roomTable.classList.toggle('hidden', !on);
+    updateLabels();
+}
+
+function updateLabels() {
+    const addLabel = document.getElementById('add-item-label');
+    const secLabel = document.getElementById('items-section-label');
+    if (isLunchMode) {
+        if (addLabel) addLabel.textContent = 'Add Entry';
+        if (secLabel) secLabel.textContent = 'Daily Lunch Entries';
+    } else if (isRoomMode) {
+        if (addLabel) addLabel.textContent = 'Add Entry';
+        if (secLabel) secLabel.textContent = 'Room Reservation Items';
+    } else {
+        if (addLabel) addLabel.textContent = 'Add Another Item';
+        if (secLabel) secLabel.textContent = 'Items';
+    }
 }
 
 
@@ -469,15 +701,54 @@ document.getElementById('add-item').addEventListener('click', function() {
                     input.value = stdPrice || '0.000';
                 }
                 else input.value = '';
-
             }
         });
         tbody.appendChild(newRow);
         totalForms.value = count + 1;
+        
+        // Sync Calculation Mode visibility for the new row
+        const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+        newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        newRow.querySelectorAll('input[name$="-base_price"]').forEach(el => {
+            if (isReverse) {
+                el.readOnly = true;
+                el.style.backgroundColor = '#f3f4f6';
+            }
+        });
+
+        const dateInput = newRow.querySelector('input[name$="-entry_date"]');
+        if (dateInput) dateInput.focus();
+    } else if (isRoomMode) {
+        // Add room row
+        const tbody = document.getElementById('room-formset');
+        const template = document.getElementById('empty-room-template').querySelector('tr');
+        const newRow = template.cloneNode(true);
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+        newRow.querySelectorAll('input').forEach(input => {
+            if (input.name.includes('-id')) input.value = '';
+            else if (input.name.includes('-sort_order')) input.value = count;
+            else if (input.type !== 'hidden') {
+                if (input.name.includes('quantity')) input.value = '1';
+                else if (input.name.includes('base_price')) input.value = '0.00';
+                else input.value = '';
+            }
+        });
+        tbody.appendChild(newRow);
+        totalForms.value = count + 1;
+        
+        // Sync Calculation Mode visibility for the new row
+        const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+        newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        newRow.querySelectorAll('input[name$="-base_price"]').forEach(el => {
+            if (isReverse) {
+                el.readOnly = true;
+                el.style.backgroundColor = '#f3f4f6';
+            }
+        });
+
         const dateInput = newRow.querySelector('input[name$="-entry_date"]');
         if (dateInput) dateInput.focus();
     } else {
-
         // Add normal row
         const tbody = document.getElementById('item-formset');
         const template = document.getElementById('empty-form-template').querySelector('tr');
@@ -495,6 +766,17 @@ document.getElementById('add-item').addEventListener('click', function() {
         });
         tbody.appendChild(newRow);
         totalForms.value = count + 1;
+
+        // Sync Calculation Mode visibility for the new row
+        const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+        newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        newRow.querySelectorAll('input[name$="-base_price"]').forEach(el => {
+            if (isReverse) {
+                el.readOnly = true;
+                el.style.backgroundColor = '#f3f4f6';
+            }
+        });
+
         const desc = newRow.querySelector('input[name$="-description"]');
         if (desc) { desc.focus(); desc.select(); }
     }
@@ -528,6 +810,7 @@ if (stdPriceInput) {
 
 // ── Category Auto-Fill + Lunch Mode Switch ──
 const categorySelect = document.querySelector('[name="transaction_category"]');
+const secondaryCategorySelect = document.querySelector('[name="secondary_category"]');
 
 const fieldMap = {
     vat:            '[name="vat_percentage"]',
@@ -538,6 +821,147 @@ const fieldMap = {
     next_invoice:   '[name="invoice_number"]',
     next_challan:   '[name="challan_number"]',
 };
+
+const secondaryFieldMap = {
+    vat:            '[name="secondary_vat_percentage"]',
+    tax:            '[name="secondary_tax_percentage"]',
+    duty:           '[name="secondary_duty_percentage"]',
+    service_charge: '[name="secondary_service_charge_percentage"]',
+    profit_margin:  '[name="secondary_profit_margin"]',
+};
+
+let currentPrimaryPrefix = "";
+let currentSecondaryPrefix = "";
+let currentInvoiceSuffix = "";
+let currentChallanSuffix = "";
+
+function updateInvoiceNumbers() {
+    let combinedPrefix = currentPrimaryPrefix;
+    if (currentSecondaryPrefix && secondaryCategorySelect && secondaryCategorySelect.value) {
+        combinedPrefix += "&" + currentSecondaryPrefix;
+    }
+    
+    if (currentInvoiceSuffix) {
+        const invEl = document.querySelector('[name="invoice_number"]');
+        if (invEl) {
+            invEl.value = combinedPrefix + currentInvoiceSuffix;
+            highlightField(invEl);
+        }
+    }
+    
+    if (currentChallanSuffix) {
+        const chlEl = document.querySelector('[name="challan_number"]');
+        if (chlEl) {
+            chlEl.value = "CHL-" + combinedPrefix + currentChallanSuffix;
+            highlightField(chlEl);
+        }
+    }
+}
+
+function toggleSecondarySection() {
+    if (!secondaryCategorySelect) return;
+    const hasSecondary = !!secondaryCategorySelect.value;
+    document.getElementById('secondary-financials-row').classList.toggle('hidden', !hasSecondary);
+    document.getElementById('secondary-items-section-header').classList.toggle('hidden', !hasSecondary);
+    document.getElementById('secondary-items-table').classList.toggle('hidden', !hasSecondary);
+    document.getElementById('add-secondary-item').classList.toggle('hidden', !hasSecondary);
+}
+
+if (secondaryCategorySelect) {
+    secondaryCategorySelect.addEventListener('change', function() {
+        toggleSecondarySection();
+        const catId = this.value;
+        if (!catId) {
+            currentSecondaryPrefix = "";
+            updateInvoiceNumbers();
+            return;
+        }
+        
+        fetch(`/api/category/${catId}/defaults/`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.prefix) {
+                    currentSecondaryPrefix = data.prefix;
+                    updateInvoiceNumbers();
+                }
+                for (const [key, selector] of Object.entries(secondaryFieldMap)) {
+                    const el = document.querySelector(selector);
+                    if (el && data[key] !== undefined) {
+                        // If primary profit margin is 0 (Quotation mode), keep secondary margin 0 too
+                        if (key === 'profit_margin') {
+                            const primaryMargin = parseFloat(document.querySelector('[name="profit_margin"]').value) || 0;
+                            if (primaryMargin === 0) {
+                                el.value = 0.00;
+                                continue;
+                            }
+                        }
+                        el.value = data[key];
+                        highlightField(el);
+                    }
+                }
+            })
+            .catch(() => {});
+    });
+}
+
+// Move secondary items to their table on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (secondaryCategorySelect) {
+        toggleSecondarySection();
+        const rows = document.querySelectorAll('#item-formset tr.item-row');
+        const secondaryTbody = document.getElementById('secondary-item-formset');
+        rows.forEach(row => {
+            const isSecondaryCheckbox = row.querySelector('input[name$="-is_secondary"]');
+            if (isSecondaryCheckbox && isSecondaryCheckbox.checked) {
+                secondaryTbody.appendChild(row);
+            }
+        });
+    }
+});
+
+// Add secondary item button click handler
+const addSecondaryItemBtn = document.getElementById('add-secondary-item');
+if (addSecondaryItemBtn) {
+    addSecondaryItemBtn.addEventListener('click', function() {
+        const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+        const count = parseInt(totalForms.value);
+        const tbody = document.getElementById('secondary-item-formset');
+        const template = document.getElementById('empty-form-template').querySelector('tr');
+        const newRow = template.cloneNode(true);
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
+        newRow.querySelectorAll('input').forEach(input => {
+            if (input.name.includes('-id')) input.value = '';
+            else if (input.name.includes('-sort_order')) input.value = count;
+            else if (input.type === 'checkbox' && input.name.includes('-is_secondary')) {
+                input.checked = true;
+                // Workaround for Django form checkbox value posting:
+                input.value = 'on';
+            }
+            else if (input.type !== 'hidden') {
+                if (input.name.includes('quantity')) input.value = '1';
+                else if (input.name.includes('base_price')) input.value = '0.00';
+                else if (input.name.includes('unit')) input.value = 'Pcs';
+                else input.value = '';
+            }
+        });
+        tbody.appendChild(newRow);
+        totalForms.value = count + 1;
+        
+        // Sync Calculation Mode visibility for the new row
+        const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+        newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        newRow.querySelectorAll('input[name$="-base_price"]').forEach(el => {
+            if (isReverse) {
+                el.readOnly = true;
+                el.style.backgroundColor = '#f3f4f6';
+            }
+        });
+
+        const desc = newRow.querySelector('input[name$="-description"]');
+        if (desc) { desc.focus(); desc.select(); }
+    });
+}
+
 if (categorySelect) {
     // Also detect lunch from the selected option text on category change
     const catOptions = categorySelect.options;
@@ -560,14 +984,25 @@ if (categorySelect) {
         }
 
 
-        // Check if "lunch" in selected option text
         const selectedText = catOptions[catOptions.selectedIndex].text.toLowerCase();
-        setLunchMode(selectedText.includes('lunch') || selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar'));
+        const lunchOn = selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar') || selectedText.includes('seheri') || selectedText.includes('lunch');
+        const roomOn = selectedText.includes('room') || selectedText.includes('hotel') || selectedText.includes('resort') || selectedText.includes('stay');
+        setLunchMode(lunchOn && !roomOn);
+        setRoomMode(roomOn && !lunchOn);
 
         fetch(`/api/category/${catId}/defaults/`)
             .then(r => r.json())
             .then(data => {
+                if (data.prefix && data.next_invoice) {
+                    currentPrimaryPrefix = data.prefix;
+                    currentInvoiceSuffix = data.next_invoice.substring(data.prefix.length);
+                    currentChallanSuffix = data.next_challan.substring(4 + data.prefix.length);
+                    updateInvoiceNumbers();
+                }
+
                 for (const [key, sel] of Object.entries(fieldMap)) {
+                    // Skip next_invoice and next_challan since we handle them in updateInvoiceNumbers
+                    if (key === 'next_invoice' || key === 'next_challan') continue;
                     const el = document.querySelector(sel);
                     if (el && data[key] !== undefined) {
                         console.log(`Auto-filling ${key}: ${data[key]}`);
@@ -761,5 +1196,488 @@ function updateActiveSuggestion(items) {
 }
 
 initSuggestionListeners();
+
+// ── Drag & Drop Reordering ──
+function makeTableSortable(tbodyId, onReorder) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    let dragEl = null;
+
+    tbody.addEventListener('dragstart', function(e) {
+        const row = e.target.closest('tr.item-row');
+        if (!row) {
+            e.preventDefault();
+            return;
+        }
+        dragEl = row;
+        dragEl.classList.add('opacity-40');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+    });
+
+    tbody.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        const row = e.target.closest('tr.item-row');
+        if (row && row !== dragEl && row.parentNode === tbody) {
+            const rect = row.getBoundingClientRect();
+            const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+            tbody.insertBefore(dragEl, next ? row.nextSibling : row);
+        }
+    });
+
+    tbody.addEventListener('dragend', function(e) {
+        if (dragEl) {
+            dragEl.classList.remove('opacity-40');
+            dragEl = null;
+        }
+        if (onReorder) onReorder(tbody);
+    });
+    
+    tbody.addEventListener('drop', function(e) {
+        e.preventDefault();
+    });
+}
+
+function updateSortOrders(tbody) {
+    const rows = tbody.querySelectorAll('tr.item-row');
+    rows.forEach((row, index) => {
+        const sortInput = row.querySelector('input[name$="-sort_order"]');
+        if (sortInput) {
+            sortInput.value = index;
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    makeTableSortable('item-formset', updateSortOrders);
+    makeTableSortable('secondary-item-formset', updateSortOrders);
+    makeTableSortable('lunch-formset', updateSortOrders);
+    makeTableSortable('room-formset', updateSortOrders);
+    
+    // Initialize correct layout mode on load
+    setLunchMode(isLunchMode);
+    setRoomMode(isRoomMode);
+
+    // --- Form Auto-Save / Restore Logic ---
+    const AUTO_SAVE_KEY = 'draft_transaction_{{ form.instance.pk|default:"new" }}';
+
+    function saveFormState() {
+        const form = document.querySelector('form');
+        if (!form) return;
+        
+        // Don't save if form has immutable warning (locked)
+        {% if form.instance.status != 'DRAFT' and user.role != 'OWNER' and not user.is_superuser and form.instance.pk %}
+        return;
+        {% endif %}
+
+        const formData = new FormData(form);
+        const data = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'csrfmiddlewaretoken') continue;
+            if (data[key] !== undefined) {
+                if (!Array.isArray(data[key])) {
+                    data[key] = [data[key]];
+                }
+                data[key].push(value);
+            } else {
+                data[key] = value;
+            }
+        }
+        localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+    }
+
+    function restoreFormState() {
+        const saved = localStorage.getItem(AUTO_SAVE_KEY);
+        if (!saved) return;
+        
+        try {
+            const data = JSON.parse(saved);
+            const form = document.querySelector('form');
+            if (!form) return;
+            
+            // 1. Ensure enough formset rows exist
+            const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+            if (totalFormsInput && data['items-TOTAL_FORMS']) {
+                const targetCount = parseInt(data['items-TOTAL_FORMS'], 10);
+                let currentCount = parseInt(totalFormsInput.value, 10);
+                const addButton = document.getElementById('add-item');
+                
+                while (currentCount < targetCount && addButton) {
+                    addButton.click();
+                    currentCount++;
+                }
+            }
+            
+            // 2. Populate fields
+            for (const [key, value] of Object.entries(data)) {
+                const inputs = form.querySelectorAll(`[name="${key}"]`);
+                if (!inputs.length) continue;
+                
+                if (Array.isArray(value)) {
+                    inputs.forEach((input, index) => {
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            input.checked = value.includes(input.value);
+                        } else if (value[index] !== undefined) {
+                            input.value = value[index];
+                        }
+                    });
+                } else {
+                    const input = inputs[0];
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        input.checked = (input.value === value || value === 'on' || value === 'true');
+                    } else {
+                        input.value = value;
+                    }
+                }
+            }
+            
+            // 3. Category layout update
+            const categorySelect = document.querySelector('[name="transaction_category"]');
+            if (categorySelect && categorySelect.value) {
+                const catOptions = categorySelect.options;
+                const selectedText = catOptions[categorySelect.selectedIndex].text.toLowerCase();
+                const lunchOn = selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar') || selectedText.includes('seheri') || selectedText.includes('lunch');
+                const roomOn = selectedText.includes('room') || selectedText.includes('hotel') || selectedText.includes('resort') || selectedText.includes('stay');
+                setLunchMode(lunchOn && !roomOn);
+                setRoomMode(roomOn && !lunchOn);
+                toggleSecondarySection();
+            }
+            
+            // 4. Move secondary items
+            const secondaryTbody = document.getElementById('secondary-item-formset');
+            if (secondaryTbody) {
+                const rows = document.querySelectorAll('#item-formset tr.item-row');
+                rows.forEach(row => {
+                    const isSecondaryCheckbox = row.querySelector('input[name$="-is_secondary"]');
+                    if (isSecondaryCheckbox && isSecondaryCheckbox.checked) {
+                        secondaryTbody.appendChild(row);
+                    }
+                });
+            }
+            
+        } catch (e) {
+            console.error("Failed to restore form state", e);
+        }
+    }
+
+    let saveTimeout;
+    const form = document.querySelector('form');
+    if (form) {
+        const handleInput = () => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(saveFormState, 800);
+        };
+        form.addEventListener('input', handleInput);
+        form.addEventListener('change', handleInput);
+        form.addEventListener('submit', function() {
+            localStorage.removeItem(AUTO_SAVE_KEY);
+        });
+    }
+
+    // Only restore if this is likely a fresh GET request (no errors shown)
+    {% if not form.errors %}
+    restoreFormState();
+    {% endif %}
+
+});
+// ── Reverse Calculation Logic ──
+function getMultiplier(isSecondary) {
+    const prefix = isSecondary ? 'secondary_' : '';
+    const val = (name) => {
+        const el = document.querySelector(`[name="${prefix}${name}"]`);
+        return el && el.value ? parseFloat(el.value) || 0 : 0;
+    };
+    const valPrimary = (name) => {
+        const el = document.querySelector(`[name="${name}"]`);
+        return el && el.value ? parseFloat(el.value) || 0 : 0;
+    };
+
+    const dutyPct = val('duty_percentage');
+    const taxPct = val('tax_percentage');
+    const vatPct = val('vat_percentage');
+    const margin = val('profit_margin');
+    
+    // Service charge percentage is always taken from primary if we want strict compatibility,
+    // but the backend does check secondary_service_charge_percentage for secondary items.
+    const scPct = val('service_charge_percentage');
+
+    const dutyMultiplier = dutyPct / 100.0;
+    const marginMultiplier = 1 + (margin / 100.0);
+    const scMultiplier = scPct / 100.0;
+    
+    let taxMultiplier = 0.0;
+    if (taxPct > 0) {
+        taxMultiplier = (100.0 / (100.0 - taxPct)) - 1.0;
+    }
+
+    // Formula: Total = P * (1 + sc) * (1 + duty_pct + tax_multiplier) * (1 + vat_pct)
+    // where P = BasePrice * (1 + Margin)
+    const factor = (1 + scMultiplier) * (1 + dutyMultiplier + taxMultiplier) * (1 + (vatPct / 100.0));
+    return factor * marginMultiplier;
+}
+
+function doReverseCalculation(row) {
+    const isSecondary = row.querySelector('input[name$="-is_secondary"]')?.checked || false;
+    const qtyInput = row.querySelector('input[name$="-quantity"]');
+    const targetInput = row.querySelector('.target-input');
+    const basePriceInput = row.querySelector('input[name$="-base_price"]');
+
+    if (!targetInput || !basePriceInput) return;
+
+    const targetTotal = parseFloat(targetInput.value) || 0;
+    const quantity = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) || 1 : 1;
+    
+    if (quantity === 0) return;
+
+    const targetPerUnit = targetTotal / quantity;
+    const multiplier = getMultiplier(isSecondary);
+
+    if (multiplier === 0) {
+        basePriceInput.value = targetPerUnit.toFixed(3);
+    } else {
+        const requiredBasePrice = targetPerUnit / multiplier;
+        basePriceInput.value = requiredBasePrice.toFixed(3);
+    }
+}
+
+// Global listener for target input changes
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('target-input')) {
+        const row = e.target.closest('tr');
+        if (row) doReverseCalculation(row);
+    }
+});
+// Re-calculate when percentages or quantity change
+document.querySelectorAll('input[name$="_percentage"], input[name$="profit_margin"]').forEach(el => {
+    el.addEventListener('input', () => {
+        if (document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse') {
+            document.querySelectorAll('tr.item-row').forEach(doReverseCalculation);
+        }
+    });
+});
+document.addEventListener('input', function(e) {
+    if (e.target.name && e.target.name.includes('-quantity')) {
+        if (document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse') {
+            const row = e.target.closest('tr');
+            if (row) doReverseCalculation(row);
+        }
+    }
+    
+    // Sync secondary margin to 0 if primary margin is set to 0
+    if (e.target.name === 'profit_margin') {
+        const val = parseFloat(e.target.value) || 0;
+        const secMargin = document.querySelector('[name="secondary_profit_margin"]');
+        if (secMargin && val === 0) {
+            secMargin.value = '0.00';
+            // Trigger recalculation if in reverse mode
+            secMargin.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+});
+
+// Calculation Mode Toggle
+document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const isReverse = this.value === 'reverse';
+        
+        document.getElementById('calc-mode-hint').textContent = isReverse ? 
+            "Enter Final Target Total. Base Price will be auto-calculated to hit that total." : 
+            "Enter base price. Taxes and margins will be added on top to reach final total.";
+            
+        // Toggle columns
+        document.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        
+        // Update header text
+        document.querySelectorAll('.price-header-label').forEach(el => {
+            el.textContent = isReverse ? 'Base Price (Auto)' : (el.closest('#lunch-items-table') || el.closest('#room-items-table') ? '💰 Cost (৳)' : 'Display Price (৳)');
+        });
+        
+        // Update inputs
+        document.querySelectorAll('input[name$="-base_price"]').forEach(el => {
+            if (isReverse) {
+                el.readOnly = true;
+                el.style.backgroundColor = '#f3f4f6';
+                // Trigger initial calculation
+                const row = el.closest('tr');
+                if (row) doReverseCalculation(row);
+            } else {
+                el.readOnly = false;
+                el.style.backgroundColor = '#fff';
+            }
+        });
+    });
+});
+
+// ── Excel Import Logic ──
+document.getElementById('download-template-btn').addEventListener('click', function() {
+    let csvContent = "";
+    if (isRoomMode) {
+        csvContent = "Description,From Date,To Date,Base Price,Target Total\nDeluxe Room,2026-06-28,2026-06-30,5000,\n";
+    } else if (isLunchMode) {
+        csvContent = "Date,Restaurant Name,Qty,Base Price,Target Total\n2026-06-28,Kacchi Bhai,15,250,\n";
+    } else {
+        csvContent = "Description,Qty,Unit,Base Price,Target Total,Is Secondary\nOffice Chairs,5,Pcs,2000,,No\nTransport Fee,1,Trip,1500,,Yes\n";
+    }
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Invoice_Template.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+document.getElementById('import-excel-btn').addEventListener('click', function() {
+    document.getElementById('excel-upload-input').click();
+});
+
+document.getElementById('excel-upload-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays first to find headers properly
+        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+        if (rows.length < 2) {
+            alert("No data found in the Excel file.");
+            return;
+        }
+
+        // Try to identify header row (first non-empty row)
+        let headerRowIdx = 0;
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i] && rows[i].length > 0) {
+                headerRowIdx = i;
+                break;
+            }
+        }
+        
+        const headers = rows[headerRowIdx].map(h => String(h).toLowerCase().trim());
+        const dataRows = XLSX.utils.sheet_to_json(worksheet, {range: headerRowIdx + 1});
+        
+        let importedCount = 0;
+        
+        dataRows.forEach(row => {
+            // Helper to find value by loose header matching
+            const getVal = (possibleNames) => {
+                const key = Object.keys(row).find(k => possibleNames.some(p => k.toLowerCase().includes(p)));
+                return key ? row[key] : null;
+            };
+
+            const isSecVal = getVal(['is secondary', 'secondary', 'sec']);
+            const isSec = isSecVal && (String(isSecVal).toLowerCase() === 'yes' || String(isSecVal).toLowerCase() === 'true' || isSecVal === 1);
+            
+            // Add row
+            let addButton;
+            if (isSec) {
+                addButton = document.getElementById('add-secondary-item');
+            } else {
+                addButton = document.getElementById('add-item');
+            }
+            if (!addButton || addButton.classList.contains('hidden')) {
+                // If secondary button is hidden, fallback to primary if not lunch/room mode limits
+                addButton = document.getElementById('add-item'); 
+            }
+            if (addButton) {
+                addButton.click();
+            }
+
+            // Find the newly added row
+            // Depending on mode, the row is added to different formsets
+            let targetFormset;
+            if (isRoomMode) targetFormset = 'room-formset';
+            else if (isLunchMode) targetFormset = 'lunch-formset';
+            else if (isSec) targetFormset = 'secondary-item-formset';
+            else targetFormset = 'item-formset';
+
+            const formsetTbody = document.getElementById(targetFormset);
+            if (!formsetTbody) return;
+            const newRow = formsetTbody.lastElementChild;
+            if (!newRow) return;
+
+            // Map values
+            const desc = getVal(['description', 'item', 'name', 'particular', 'restaurant name']) || '';
+            const qty = parseFloat(getVal(['qty', 'quantity'])) || 1;
+            const unit = getVal(['unit', 'uom']) || 'Pcs';
+            const basePrice = parseFloat(getVal(['base price', 'cost', 'price', 'bill amount'])) || 0;
+            const targetTotal = parseFloat(getVal(['target total', 'target', 'final total', 'total target'])) || 0;
+            
+            const entryDate = getVal(['entry date', 'date', 'from date']);
+            const checkoutDate = getVal(['checkout date', 'to date']);
+
+            // Populate fields
+            const descInput = newRow.querySelector('input[name$="-description"]');
+            if (descInput) { descInput.value = desc; highlightField(descInput); }
+
+            const qtyInput = newRow.querySelector('input[name$="-quantity"]');
+            if (qtyInput) { qtyInput.value = qty; highlightField(qtyInput); }
+
+            const unitInput = newRow.querySelector('input[name$="-unit"]');
+            if (unitInput) { unitInput.value = unit; highlightField(unitInput); }
+
+            // Handle date parsing safely (Excel dates might be numbers or strings)
+            const parseExcelDate = (d) => {
+                if (!d) return '';
+                if (typeof d === 'number') {
+                    // Excel serial date to JS date
+                    const date = new Date((d - (25567 + 2)) * 86400 * 1000);
+                    return date.toISOString().split('T')[0];
+                }
+                // Try direct parsing if string
+                const pd = new Date(d);
+                return isNaN(pd.getTime()) ? '' : pd.toISOString().split('T')[0];
+            };
+
+            const entryInput = newRow.querySelector('input[name$="-entry_date"]');
+            if (entryInput) { entryInput.value = parseExcelDate(entryDate); highlightField(entryInput); }
+
+            const checkoutInput = newRow.querySelector('input[name$="-checkout_date"]');
+            if (checkoutInput) { checkoutInput.value = parseExcelDate(checkoutDate); highlightField(checkoutInput); }
+
+            // Handle Prices based on current Calculation Mode
+            const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+            const basePriceInput = newRow.querySelector('input[name$="-base_price"]');
+            const targetInput = newRow.querySelector('.target-input');
+
+            if (isReverse) {
+                if (targetInput && targetTotal > 0) {
+                    targetInput.value = targetTotal;
+                    highlightField(targetInput);
+                    doReverseCalculation(newRow); // trigger reverse math
+                }
+            } else {
+                if (basePriceInput) {
+                    basePriceInput.value = basePrice;
+                    highlightField(basePriceInput);
+                }
+            }
+            
+            importedCount++;
+        });
+        
+        // Reset file input so same file can be selected again if needed
+        document.getElementById('excel-upload-input').value = '';
+        
+        if (importedCount > 0) {
+            alert(`Successfully imported ${importedCount} items!`);
+        } else {
+            alert("Could not find any valid rows to import.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+});
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 {% endblock %}

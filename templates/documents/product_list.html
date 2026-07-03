@@ -5,7 +5,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-black text-gray-800 tracking-tight">Products Inventory</h1>
-            <p class="text-sm text-gray-500 font-medium">Manage all items and their base prices by category.</p>
+            <p class="text-sm text-gray-500 font-medium">Manage all items and their prices by category.</p>
         </div>
         <div class="flex items-center gap-3">
             <a href="{% url 'product_create' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all font-bold text-sm">
@@ -32,8 +32,8 @@
                                 {% if current_sort == 'category' %}<i class="fas fa-sort-amount-down text-indigo-500"></i>{% elif current_sort == '-category' %}<i class="fas fa-sort-amount-up text-indigo-500"></i>{% else %}<i class="fas fa-sort text-gray-300"></i>{% endif %}
                             </a>
                         </th>
-                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Base Price</th>
-                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Upscale Price</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Buying Price</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Selling Price</th>
                         <th class="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center">
                             <a href="?sort={% if current_sort == 'status' %}-status{% else %}status{% endif %}" class="hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
                                 Status

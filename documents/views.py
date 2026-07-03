@@ -7,7 +7,7 @@ from accounts.decorators import (accountant_required, supplier_required,
                                  permission_required, owner_required)
 from .models import Transaction, BusinessParty, TransactionCategory, TransactionItem, Product, VisualRequisition, CheckAuthorization
 from .forms import (TransactionForm, TransactionItemFormSet, SupplierPricingFormSet,
-                    LunchItemFormSet, LunchSupplierPricingFormSet,
+                    LunchItemFormSet, LunchSupplierPricingFormSet, RoomItemFormSet,
                     BusinessPartyForm, TransactionCategoryForm, ProductForm,
                     RequisitionForm, RequisitionItemFormSet, VisualRequisitionForm)
 from django.contrib import messages
@@ -21,17 +21,18 @@ def _is_lunch_cat(cat):
         return False
     return cat.is_lunch
 
+def _is_room_cat(cat):
+    if not cat:
+        return False
+    return cat.is_room_reservation
+
 def _get_next_serial_number(category):
     from django.utils import timezone
     import re
     
-    current_month_str = timezone.now().strftime("%Y%m")
-    
-    # Filter transactions for this category and current month
-    # Our format is PREFIX-YYYYMM-XXXX
+    # Filter all transactions for this category
     txns = Transaction.objects.filter(
         transaction_category=category,
-        invoice_number__contains=f"-{current_month_str}-"
     ).only('invoice_number')
     
     max_seq = 0
@@ -72,7 +73,11 @@ def _process_auto_product_saving(transaction, items, user=None):
             if item.base_price == 0:
                 item.base_price = product.base_price
                 if item.unit_price_uplifted is None:
-                    item.unit_price_uplifted = product.upscale_value
+                    cat = transaction.transaction_category
+                    if cat and (cat.is_lunch or cat.is_room_reservation):
+                        item.unit_price_uplifted = item.base_price
+                    else:
+                        item.unit_price_uplifted = product.upscale_value
                 item.save(update_fields=['base_price', 'unit_price_uplifted'])
         else:
             # If it's a new item WITH a price (from a full bill), create it as a new Product
@@ -86,6 +91,48 @@ def _process_auto_product_saving(transaction, items, user=None):
                     added_by=user,
                     is_approved=(user and (user.role == 'OWNER' or user.is_superuser))
                 )
+
+def _sync_transaction_category_defaults(transaction):
+    if transaction.status in ['DRAFT', 'PRICED']:
+        modified = False
+        if transaction.transaction_category:
+            cat = transaction.transaction_category
+            if transaction.vat_percentage != cat.default_vat:
+                transaction.vat_percentage = cat.default_vat
+                modified = True
+            if transaction.tax_percentage != cat.default_tax:
+                transaction.tax_percentage = cat.default_tax
+                modified = True
+            if transaction.duty_percentage != cat.default_duty:
+                transaction.duty_percentage = cat.default_duty
+                modified = True
+            if transaction.service_charge_percentage != cat.default_service_charge:
+                transaction.service_charge_percentage = cat.default_service_charge
+                modified = True
+            if transaction.profit_margin != cat.default_profit_margin:
+                transaction.profit_margin = cat.default_profit_margin
+                modified = True
+        
+        if transaction.secondary_category:
+            sec_cat = transaction.secondary_category
+            if transaction.secondary_vat_percentage != sec_cat.default_vat:
+                transaction.secondary_vat_percentage = sec_cat.default_vat
+                modified = True
+            if transaction.secondary_tax_percentage != sec_cat.default_tax:
+                transaction.secondary_tax_percentage = sec_cat.default_tax
+                modified = True
+            if transaction.secondary_duty_percentage != sec_cat.default_duty:
+                transaction.secondary_duty_percentage = sec_cat.default_duty
+                modified = True
+            if transaction.secondary_service_charge_percentage != sec_cat.default_service_charge:
+                transaction.secondary_service_charge_percentage = sec_cat.default_service_charge
+                modified = True
+            if transaction.secondary_profit_margin != sec_cat.default_profit_margin:
+                transaction.secondary_profit_margin = sec_cat.default_profit_margin
+                modified = True
+                
+        if modified:
+            transaction.save()
 
 @login_required
 def home(request):
@@ -107,7 +154,13 @@ def transaction_create(request):
         except TransactionCategory.DoesNotExist:
             cat_obj = None
         is_lunch = _is_lunch_cat(cat_obj)
-        FormSetClass = LunchItemFormSet if is_lunch else TransactionItemFormSet
+        is_room = _is_room_cat(cat_obj)
+        if is_lunch:
+            FormSetClass = LunchItemFormSet
+        elif is_room:
+            FormSetClass = RoomItemFormSet
+        else:
+            FormSetClass = TransactionItemFormSet
         formset = FormSetClass(request.POST)
         if form.is_valid() and formset.is_valid():
             transaction = form.save(commit=False)
@@ -118,6 +171,8 @@ def transaction_create(request):
                 item.transaction = transaction
                 if is_lunch and not item.description:
                     item.description = str(item.entry_date or '') 
+                if is_room:
+                    item.quantity = 1
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -125,7 +180,10 @@ def transaction_create(request):
             # Auto-save products
             _process_auto_product_saving(transaction, items, user=request.user)
 
-            audit_details = f"Created new DRAFT Bill #{transaction.invoice_number} under category {cat_obj.name if cat_obj else 'Uncategorized'}. Initialized with {len(items)} line item(s)."
+            cat_names = cat_obj.name if cat_obj else 'Uncategorized'
+            if transaction.secondary_category:
+                cat_names += f" & {transaction.secondary_category.name}"
+            audit_details = f"Created new DRAFT Bill #{transaction.invoice_number} under category {cat_names}. Initialized with {len(items)} line item(s)."
             log_audit(request.user, "Created Transaction", audit_details, transaction=transaction)
 
             messages.success(request, 'Transaction created successfully.')
@@ -144,15 +202,17 @@ def transaction_create(request):
         formset = TransactionItemFormSet()
     
     is_lunch = _is_lunch_cat(getattr(form.instance, 'transaction_category', None)) if form.instance.pk else False
+    is_room = _is_room_cat(getattr(form.instance, 'transaction_category', None)) if form.instance.pk else False
     parties = BusinessParty.objects.all()
     return render(request, 'documents/transaction_form.html', {
-        'form': form, 'formset': formset, 'parties': parties, 'is_lunch': is_lunch
+        'form': form, 'formset': formset, 'parties': parties, 'is_lunch': is_lunch, 'is_room': is_room
     })
 
 @login_required
 @permission_required('p_price_bill')
 def transaction_pricing(request, pk):
     transaction = get_object_or_404(Transaction, pk=pk)
+    _sync_transaction_category_defaults(transaction)
     
     # Immutability Check: Only Owners/Admins can edit after DRAFT
     is_admin = request.user.role == 'OWNER' or request.user.is_superuser
@@ -162,10 +222,13 @@ def transaction_pricing(request, pk):
 
     cat_name = transaction.transaction_category.name.lower() if transaction.transaction_category else ""
     is_lunch = _is_lunch_cat(transaction.transaction_category)
-    is_meal = is_lunch
+    is_room = _is_room_cat(transaction.transaction_category)
+    is_meal = is_lunch or is_room
 
     if is_lunch:
         FormSetClass = LunchItemFormSet
+    elif is_room:
+        FormSetClass = RoomItemFormSet
     elif is_meal:
         FormSetClass = TransactionItemFormSet
     else:
@@ -187,6 +250,19 @@ def transaction_pricing(request, pk):
                 for item in items:
                     if not item.description:
                         item.description = str(item.entry_date or '')
+                    item.save()
+                for obj in formset.deleted_objects:
+                    obj.delete()
+            elif is_room:
+                for item_form in formset.forms:
+                    if item_form.has_changed():
+                        desc = item_form.cleaned_data.get('description', 'Item')
+                        changes.append(f"Updated {desc}")
+                if formset.deleted_forms:
+                    changes.append("Removed items")
+                items = formset.save(commit=False)
+                for item in items:
+                    item.quantity = 1
                     item.save()
                 for obj in formset.deleted_objects:
                     obj.delete()
@@ -237,7 +313,7 @@ def transaction_pricing(request, pk):
             messages.error(request, f"Form error: {', '.join(formset.non_form_errors())}")
 
     return render(request, 'documents/transaction_pricing.html', {
-        'transaction': transaction, 'formset': formset, 'is_meal': is_meal, 'is_lunch': is_lunch
+        'transaction': transaction, 'formset': formset, 'is_meal': is_meal, 'is_lunch': is_lunch, 'is_room': is_room
     })
 
 @login_required
@@ -245,11 +321,13 @@ def transaction_pricing(request, pk):
 def transaction_approve(request, pk):
     from .forms import ApprovalPricingFormSet, TransactionHeaderForm
     transaction = get_object_or_404(Transaction, pk=pk)
+    _sync_transaction_category_defaults(transaction)
     
     # Immutability Check: Approved bills can only be viewed, not edited
     # Owners and Superusers can bypass this lock to make corrections
     is_owner = request.user.role == 'OWNER' or request.user.is_superuser
     is_locked = transaction.status in ['APPROVED', 'SUBMITTED', 'RELEASED'] and not is_owner
+    is_room = _is_room_cat(transaction.transaction_category)
     
     if request.method == 'POST' and not is_locked:
         formset = ApprovalPricingFormSet(request.POST, instance=transaction)
@@ -260,13 +338,28 @@ def transaction_approve(request, pk):
             changes = []
             for form in formset.forms:
                 if form.has_changed():
-                    desc = form.instance.description or 'Item'
-                    for field in form.changed_data:
-                        old = form.initial.get(field)
-                        new = form.cleaned_data.get(field)
-                        changes.append(f"{desc}: {field} change {old} -> {new}")
+                    if form.cleaned_data.get('DELETE'):
+                        desc = form.instance.description or 'Item'
+                        changes.append(f"Deleted item '{desc}'")
+                    elif form.instance.pk is None:
+                        desc = form.cleaned_data.get('description') or 'New Item'
+                        changes.append(f"Added item '{desc}'")
+                    else:
+                        desc = form.instance.description or 'Item'
+                        for field in form.changed_data:
+                            old = form.initial.get(field)
+                            new = form.cleaned_data.get(field)
+                            changes.append(f"{desc}: {field} change {old} -> {new}")
             
-            formset.save()
+            items = formset.save(commit=False)
+            for item in items:
+                if is_room:
+                    item.quantity = 1
+                item.save()
+            formset.save_m2m()
+            for obj in formset.deleted_objects:
+                obj.delete()
+            _process_auto_product_saving(transaction, items, user=request.user)
             
             # Now set to APPROVED if it wasn't already approved or further
             if transaction.status not in ['APPROVED', 'SUBMITTED', 'RELEASED']:
@@ -296,25 +389,34 @@ def transaction_approve(request, pk):
             messages.error(request, "Failed to save prices. Please check the values below.")
     else:
         if not is_locked:
-            # ALWAYS sync with master inventory prices if a product match is found
-            # This ensures the owner's set prices are the starting point in the input boxes
+            # Pre-fill the owner uplift if it hasn't been set yet
             for item in transaction.items.all():
-                master = item.get_master_product()
-                if master:
-                    item.base_price = master.base_price
-                    # Also pre-fill the owner uplift if it hasn't been set yet
+                cat = transaction.transaction_category
+                is_same_price = cat and (cat.is_lunch or cat.is_room_reservation)
+                if is_same_price:
+                    if item.unit_price_uplifted != item.base_price:
+                        item.unit_price_uplifted = item.base_price
+                        item.save(update_fields=['unit_price_uplifted'])
+                else:
                     if item.unit_price_uplifted is None:
-                        item.unit_price_uplifted = master.upscale_value
-                    item.save(update_fields=['base_price', 'unit_price_uplifted'])
+                        master = item.get_master_product()
+                        if master and item.base_price == master.base_price:
+                            item.unit_price_uplifted = master.upscale_value
+                        else:
+                            item.unit_price_uplifted = item.base_price
+                        item.save(update_fields=['unit_price_uplifted'])
         
         formset = ApprovalPricingFormSet(instance=transaction)
         header_form = TransactionHeaderForm(instance=transaction)
         
+    is_lunch = _is_lunch_cat(transaction.transaction_category)
     return render(request, 'documents/transaction_approve.html', {
         'transaction': transaction,
         'formset': formset,
         'header_form': header_form,
-        'is_locked': is_locked
+        'is_locked': is_locked,
+        'is_room': is_room,
+        'is_lunch': is_lunch
     })
 
 @login_required
@@ -644,6 +746,7 @@ def category_create(request):
 @owner_or_accountant_required
 def transaction_update(request, pk):
     transaction = get_object_or_404(Transaction, pk=pk)
+    _sync_transaction_category_defaults(transaction)
     
     # Immutability Check: Only Owners/Admins can edit after DRAFT
     is_admin = request.user.role == 'OWNER' or request.user.is_superuser
@@ -653,7 +756,13 @@ def transaction_update(request, pk):
 
     cat_name = transaction.transaction_category.name.lower() if transaction.transaction_category else ""
     is_lunch = _is_lunch_cat(transaction.transaction_category)
-    FormSetClass = LunchItemFormSet if is_lunch else TransactionItemFormSet
+    is_room = _is_room_cat(transaction.transaction_category)
+    if is_lunch:
+        FormSetClass = LunchItemFormSet
+    elif is_room:
+        FormSetClass = RoomItemFormSet
+    else:
+        FormSetClass = TransactionItemFormSet
 
     if request.method == 'POST':
         form = TransactionForm(request.POST, instance=transaction)
@@ -671,6 +780,9 @@ def transaction_update(request, pk):
                         rest = item_form.cleaned_data.get('restaurant_name', 'Item')
                         edate = item_form.cleaned_data.get('entry_date', '')
                         changes.append(f"Modified daily entry for {rest} on {edate}")
+                    elif is_room:
+                        desc = item_form.cleaned_data.get('description', 'Item')
+                        changes.append(f"Modified room row '{desc}'")
                     else:
                         desc = item_form.cleaned_data.get('description', 'Item')
                         changes.append(f"Modified row item details for '{desc}'")
@@ -684,6 +796,20 @@ def transaction_update(request, pk):
             for item in items:
                 if is_lunch and not item.description:
                     item.description = str(item.entry_date or '')
+                if is_room:
+                    item.quantity = 1
+                
+                # If base_price changed or it's a new item, clear the uplifted price to force recalculation
+                if item.pk:
+                    try:
+                        original = TransactionItem.objects.get(pk=item.pk)
+                        if original.base_price != item.base_price:
+                            item.unit_price_uplifted = None
+                    except TransactionItem.DoesNotExist:
+                        item.unit_price_uplifted = None
+                else:
+                    item.unit_price_uplifted = None
+                
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -713,7 +839,7 @@ def transaction_update(request, pk):
     parties = BusinessParty.objects.all()
     return render(request, 'documents/transaction_form.html', {
         'form': form, 'formset': formset, 'parties': parties,
-        'is_update': True, 'is_lunch': is_lunch
+        'is_update': True, 'is_lunch': is_lunch, 'is_room': is_room
     })
 
 @login_required
@@ -795,6 +921,7 @@ def category_defaults_api(request, pk):
         'profit_margin': str(cat.default_profit_margin),
         'next_invoice': next_inv,
         'next_challan': next_chl,
+        'prefix': prefix,
         'supplier': {
             'name': cat.default_supplier.name if cat.default_supplier else '',
             'bin': cat.default_supplier.bin_number if cat.default_supplier else '',
@@ -849,7 +976,7 @@ def gate_entry(request):
     date_from = parse_date(date_from_str) if date_from_str else None
     date_to   = parse_date(date_to_str)   if date_to_str   else today
 
-    meal_keywords = ['tiffin', 'dinner', 'iftar', 'seheri', 'lunch']
+    meal_keywords = ['tiffin', 'dinner', 'iftar', 'seheri']
     meal_q = Q()
     for kw in meal_keywords:
         meal_q |= Q(transaction_category__name__icontains=kw)

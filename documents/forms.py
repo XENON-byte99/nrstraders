@@ -8,14 +8,21 @@ class TransactionForm(forms.ModelForm):
         empty_label="---------",
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+    secondary_category = forms.ModelChoiceField(
+        queryset=TransactionCategory.objects.all(),
+        required=False,
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
     
     class Meta:
         model = Transaction
         fields = [
-            'transaction_category', 'invoice_number', 'challan_number', 'created_at',
+            'transaction_category', 'secondary_category', 'invoice_number', 'challan_number', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
-            'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin'
+            'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin',
+            'secondary_vat_percentage', 'secondary_duty_percentage', 'secondary_tax_percentage', 'secondary_service_charge_percentage', 'secondary_profit_margin'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
@@ -56,7 +63,7 @@ class TransactionHeaderForm(forms.ModelForm):
 class TransactionItemForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['description', 'unit', 'quantity', 'base_price', 'sort_order']
+        fields = ['description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
         widgets = {
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
         }
@@ -91,8 +98,10 @@ class SupplierPricingFormSet(inlineformset_factory(
 class ApprovalPricingForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['base_price', 'unit_price_uplifted']
+        fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'unit_price_uplifted', 'sort_order', 'is_secondary']
         widgets = {
+            'entry_date': forms.DateInput(attrs={'type': 'date'}),
+            'checkout_date': forms.DateInput(attrs={'type': 'date'}),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
             'unit_price_uplifted': forms.NumberInput(attrs={'step': '0.001'}),
         }
@@ -103,7 +112,7 @@ class ApprovalPricingFormSet(inlineformset_factory(
     TransactionItem,
     form=ApprovalPricingForm,
     extra=0,
-    can_delete=False
+    can_delete=True
 )):
     pass
 
@@ -124,13 +133,12 @@ class LunchItemForm(forms.ModelForm):
         required=True,
     )
     restaurant_name = forms.CharField(max_length=255, required=False)
-
+    description = forms.CharField(max_length=255, required=False)
     base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
-
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'restaurant_name', 'base_price', 'quantity', 'sort_order']
+        fields = ['entry_date', 'restaurant_name', 'description', 'base_price', 'quantity', 'sort_order']
         widgets = {
             'quantity': forms.NumberInput(attrs={'min': 1}),
         }
@@ -139,6 +147,33 @@ LunchItemFormSet = inlineformset_factory(
     Transaction,
     TransactionItem,
     form=LunchItemForm,
+    extra=0,
+    can_delete=True,
+)
+
+# ── Room Reservation Forms ─────────────────────────────────────────
+class RoomItemForm(forms.ModelForm):
+    entry_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True,
+        label="From Date"
+    )
+    checkout_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True,
+        label="To Date"
+    )
+    description = forms.CharField(max_length=255, required=False)
+    base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
+
+    class Meta:
+        model = TransactionItem
+        fields = ['entry_date', 'checkout_date', 'description', 'base_price', 'sort_order']
+
+RoomItemFormSet = inlineformset_factory(
+    Transaction,
+    TransactionItem,
+    form=RoomItemForm,
     extra=0,
     can_delete=True,
 )
@@ -169,8 +204,8 @@ class ProductForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Product Name'}),
             'category': forms.Select(attrs={'class': 'w-full p-2 border rounded-lg'}),
-            'base_price': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Actual Supplier Cost', 'step': '0.001'}),
-            'upscale_value': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Owner Base Price (Upscale)', 'step': '0.001'}),
+            'base_price': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Buying Price', 'step': '0.001'}),
+            'upscale_value': forms.NumberInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Selling Price', 'step': '0.001'}),
 
             'unit': forms.TextInput(attrs={'class': 'w-full p-2 border rounded-lg', 'placeholder': 'Pcs'}),
             'is_approved': forms.CheckboxInput(attrs={'class': 'rounded text-indigo-600 focus:ring-indigo-500'}),
@@ -187,7 +222,7 @@ class ProductForm(forms.ModelForm):
                 if 'upscale_value' in self.fields:
                     self.fields['upscale_value'].widget.attrs['readonly'] = True
                     self.fields['upscale_value'].widget.attrs['class'] += ' bg-gray-100 cursor-not-allowed'
-                    self.fields['upscale_value'].help_text = "Only the owner can set the upscale value."
+                    self.fields['upscale_value'].help_text = "Only the owner can set the selling price."
                 
                 if 'is_approved' in self.fields:
                     self.fields['is_approved'].disabled = True
@@ -208,10 +243,16 @@ class RequisitionForm(forms.ModelForm):
         empty_label="---------",
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+    secondary_category = forms.ModelChoiceField(
+        queryset=TransactionCategory.objects.all(),
+        required=False,
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
     
     class Meta:
         model = Transaction
-        fields = ['transaction_category', 'buyer_name']
+        fields = ['transaction_category', 'secondary_category', 'buyer_name']
         widgets = {
             'buyer_name': forms.TextInput(attrs={'readonly': 'readonly'}),
         }

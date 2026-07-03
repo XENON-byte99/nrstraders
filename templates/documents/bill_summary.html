@@ -63,7 +63,7 @@
       <p class="text-base md:text-xl font-black text-orange-500 font-mono leading-tight">&#2547;{{ total_vat|floatformat:3 }}</p>
     </div>
     <div class="bg-white rounded-xl border border-indigo-100 shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase mb-1">Grand Upscale</p>
+      <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase mb-1">Grand Selling Total</p>
       <p class="text-base md:text-xl font-black text-indigo-700 font-mono leading-tight">&#2547;{{ total_upscale_revenue|floatformat:3 }}</p>
     </div>
     <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-3 md:p-4">
@@ -89,7 +89,7 @@
               <th class="py-2 px-3 text-left">Category</th>
               <th class="py-2 px-2 text-center">#</th>
               <th class="py-2 px-3 text-right">Supply</th>
-              <th class="py-2 px-3 text-right">Upscale</th>
+              <th class="py-2 px-3 text-right">Selling Price</th>
               <th class="py-2 px-3 text-right">VAT</th>
               <th class="py-2 px-3 text-right text-indigo-700">Grand</th>
             </tr>
@@ -115,7 +115,7 @@
                         <th class="py-1 pr-3 text-left">Date</th>
                         <th class="py-1 pr-3 text-left">Invoice</th>
                         <th class="py-1 pr-3 text-right">Supply</th>
-                        <th class="py-1 pr-3 text-right">Upscale</th>
+                        <th class="py-1 pr-3 text-right">Selling Price</th>
                         <th class="py-1 pr-3 text-right">Grand</th>
                         <th class="py-1 pr-2 text-center">Status</th>
                         <th class="py-1 text-center"></th>
@@ -322,7 +322,7 @@
               <a href="?date_from={{ date_from }}&date_to={{ date_to }}&status={{ current_status }}&sort={% if current_sort == 'invoice_number' %}-invoice_number{% else %}invoice_number{% endif %}" class="hover:text-indigo-600">Invoice<i class="fas fa-sort ml-1 opacity-50"></i></a>
             </th>
             <th class="py-3 px-3 text-right">Supply</th>
-            <th class="py-3 px-3 text-right">Upscale</th>
+            <th class="py-3 px-3 text-right">Selling Price</th>
             <th class="py-3 px-3 text-right">VAT</th>
             <th class="py-3 px-3 text-right">Grand Total</th>
             <th class="py-3 px-3 text-right text-green-700 bg-green-50/50">Profit</th>
@@ -427,7 +427,7 @@
         <p class="font-mono font-black text-white text-lg" id="selSupply">&#2547;0.00</p>
       </div>
       <div class="bg-gray-800 rounded-xl p-3">
-        <p class="text-xs text-gray-400 mb-1">Upscale Total</p>
+        <p class="text-xs text-gray-400 mb-1">Selling Price Total</p>
         <p class="font-mono font-black text-indigo-300 text-lg" id="selUpscale">&#2547;0.00</p>
       </div>
       <div class="bg-gray-800 rounded-xl p-3">

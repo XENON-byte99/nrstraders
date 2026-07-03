@@ -21,7 +21,7 @@
         .invoice-header { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 32px 28px 24px; position: relative; overflow: hidden; }
         .invoice-title { font-size: 42px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
         .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
-        .invoice-body { padding: 28px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
+        .invoice-body { padding: 28px 36px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
         .section-title { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 8px; }
         .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
         .info-block { line-height: 1.6; }
@@ -36,14 +36,13 @@
         th { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
         td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
         tbody tr:nth-child(odd) { background: #f8fafc; }
-        .amount-section { display: grid; grid-template-columns: 1fr 220px; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed #cbd5e1; }
+        .amount-section { display: grid; grid-template-columns: 1fr 220px; gap: 16px; margin-bottom: 8px; }
         .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #059669; margin-bottom: 4px; }
         .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border: none; }
-        .invoice-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 12px; border-top: 1px dashed #cbd5e1; margin-top: auto; }
-        .signature-box { text-align: center; padding: 8px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 110px; }
-        .official-signature { height: 80px; position: absolute; bottom: 25px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
-        .signature-line { height: 30px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
-        .signature-label { font-size: 8px; font-weight: bold; text-align: center; }
+        .signature-box { padding: 0; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; height: 90px; margin-top: 30px; z-index: 50; cursor: grab; }
+        .official-signature { height: 70px; position: absolute; bottom: 12px; left: 10px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
+        .signature-line { height: 50px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
+        .signature-label { font-size: 8px; font-weight: bold; text-align: left; padding-left: 5px; }
         .category-badge {
             display: inline-block;
             padding: 1px 5px;
@@ -57,19 +56,46 @@
             margin-top: 3px;
             letter-spacing: 0.02em;
         }
+        .mode-target .display-base { display: none !important; }
+        .mode-base .display-target { display: none !important; }
     </style>
 </head>
 <body class="h-full">
     <div class="a4-container">
-        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
-            <button onclick="window.print()" style="padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print</button>
-            <button onclick="downloadPDF()" style="padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+                <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999;">
+            <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="amount_toggle" value="base" checked onchange="toggleAmountDisplay(this.value)"> 
+                    Show Base Amount
+                </label>
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="amount_toggle" value="target" onchange="toggleAmountDisplay(this.value)"> 
+                    Show Target Amount (Incl. VAT/Tax)
+                </label>
+            </div>
+            <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                    Enable Edit & Live Calculation
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print</button>
+                <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+            </div>
         </div>
-        <div class="a4-invoice" id="quotationContent">
-            <div class="invoice-header">
+        <div class="a4-invoice mode-base" id="quotationContent">
+            <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <h1 class="invoice-title">QUOTATION</h1>
                     <p class="invoice-subtitle">Professional Business Document</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Quotation No.</div>
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; margin-bottom: 8px;">{{ transaction.invoice_number|default:"Draft" }} <br><span class="category-badge" style="background: rgba(255,255,255,0.2); color: white; border: none;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                    
+                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Issue Date</div>
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700;">{{ transaction.created_at|date:"M d, Y" }}</div>
                 </div>
             </div>
             <div class="invoice-body">
@@ -87,17 +113,6 @@
                         <div class="info-value">BIN: {{ transaction.buyer_bin }}</div>
                         <div class="info-value">{{ transaction.buyer_address }}</div>
                         <div class="info-value">{{ transaction.buyer_contact }}</div>
-                    </div>
-                </div>
-                <div class="divider"></div>
-                <div class="invoice-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Quotation No.</div>
-                        <div class="detail-value">{{ transaction.invoice_number|default:"Draft" }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Issue Date</div>
-                        <div class="detail-value">{{ transaction.created_at|date:"M d, Y" }}</div>
                     </div>
                 </div>
                 <table>
@@ -122,7 +137,10 @@
                                 <td style="text-align:left;">{{ item.description }}</td>
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
+                                <td style="text-align:right;">
+                                        <span class="display-base">৳{{ item.billed_total|floatformat:3 }}</span>
+                                        <span class="display-target">৳{{ item.total_with_tax|floatformat:3 }}</span>
+                                    </td>
                             </tr>
                             {% endfor %}
                         {% else %}
@@ -133,14 +151,13 @@
                                 <td style="text-align:center;">{{ item.unit }}</td>
                                 <td style="text-align:center;">{{ item.quantity }}</td>
                                 <td style="text-align:right;">
-                                    {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
-                                        ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(incl. VAT/Tax)</span>
-                                        <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
-                                    {% else %}
-                                        ৳{{ item.billed_unit_price|floatformat:3 }}
-                                    {% endif %}
+                                    <span class="display-base">৳{{ item.billed_unit_price|floatformat:3 }}</span>
+                                        <span class="display-target">৳{{ item.unit_billed_total|floatformat:2 }}</span>
                                 </td>
-                                <td style="text-align:right;">৳{{ item.billed_total|floatformat:3 }}</td>
+                                <td style="text-align:right;">
+                                        <span class="display-base">৳{{ item.billed_total|floatformat:3 }}</span>
+                                        <span class="display-target">৳{{ item.total_with_tax|floatformat:3 }}</span>
+                                    </td>
                             </tr>
                             {% endfor %}
                         {% endif %}
@@ -151,18 +168,29 @@
                     <div class="terms">
                         <div style="font-weight:700;margin-bottom:4px;">Quote Terms</div>
                         Valid for 30 days from date of issue.
+                        
+                        <div class="signature-box">
+                            <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Company Authorized</div>
+                        </div>
                     </div>
                     <div>
                         <div class="amount-row">
                             <span class="amount-label">Subtotal</span>
-                            <span class="amount-value mono">৳{{ transaction.display_subtotal|floatformat:3 }}</span>
+                            <span class="amount-value mono">
+                                <span class="display-base">৳{{ transaction.display_subtotal|floatformat:3 }}</span>
+                                <span class="display-target">৳{{ transaction.grand_total|floatformat:3 }}</span>
+                            </span>
                         </div>
+                        <div class="display-base">
                         {% if transaction.total_service_charge > 0 %}
                         <div class="amount-row">
                             <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
                             <span class="amount-value mono">৳{{ transaction.total_service_charge|floatformat:3 }}</span>
                         </div>
                         {% endif %}
+                        </div>
                         <div class="amount-row total" style="flex-direction:column;align-items:flex-start;padding:8px 10px;gap:4px;">
                             <div style="display:flex;justify-content:space-between;width:100%;">
                                 <span class="amount-label" style="font-size:12px;">Grand Total</span>
@@ -174,22 +202,9 @@
                         </div>
                     </div>
                 </div>
-                <div class="invoice-footer">
-                    <div class="signature-box">
-                        <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Company Authorized</div>
-                    </div>
-                    <div class="signature-box">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Client Approval</div>
-                    </div>
-                </div>
+                <!-- Removed quotation-footer, signature moved under terms -->
             </div>
-            <!-- Developer Credit -->
-            <div style="text-align:center;padding:6px 0;border-top:1px dashed #e2e8f0;font-size:7.5px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;">
-                System designed and Developed by &nbsp;<strong style="color:#059669;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in EEE, Specialized in Deep learning - 01849885607
-            </div>
+            <!-- Developer Credit Removed -->
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -203,7 +218,7 @@
             const filename = `Quotation_${invoiceNo}_${buyerName}.pdf`;
 
             const opt = {
-                margin: 0,
+                margin: 0.15,
                 filename: filename,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true, letterRendering: true },
@@ -221,6 +236,207 @@
                 element.style.boxShadow = oldShadow || '0 10px 40px rgba(0, 0, 0, 0.1)';
             });
         }
+    </script>
+<script>
+        function toggleAmountDisplay(mode) {
+            const container = document.getElementById('invoiceContent') || document.getElementById('quotationContent');
+            if (container) {
+                if (mode === 'target') {
+                    container.classList.remove('mode-base');
+                    container.classList.add('mode-target');
+                } else {
+                    container.classList.remove('mode-target');
+                    container.classList.add('mode-base');
+                }
+            }
+        }
+
+        // --- Live Edit and Calculation Script ---
+        function toggleEditMode(enabled) {
+            const container = document.getElementById('quotationContent');
+            if (container) {
+                container.contentEditable = enabled ? "true" : "false";
+                container.querySelectorAll('.display-base, .display-target').forEach(el => {
+                    el.contentEditable = "inherit";
+                });
+            }
+
+            if (enabled && !window.liveCalcBound) {
+                window.liveCalcBound = true;
+                bindLiveCalculations();
+            }
+        }
+
+        function extractNum(text) {
+            if (!text) return 0;
+            const match = text.replace(/,/g, '').match(/[\d\.]+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function bindLiveCalculations() {
+            const container = document.getElementById('quotationContent');
+            if (!container) return;
+            
+            container.addEventListener('input', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+                
+                const tr = td.closest('tr');
+                const table = tr.closest('table');
+                if (!table) return;
+
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const qtyIdx = headers.findIndex(h => h === 'qty');
+                const rateIdx = headers.findIndex(h => h === 'rate');
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+
+                const tds = Array.from(tr.children);
+                const cellIdx = tds.indexOf(td);
+
+                if (cellIdx === qtyIdx || cellIdx === rateIdx || cellIdx === amountIdx) {
+                    if (qtyIdx !== -1 && rateIdx !== -1 && cellIdx !== amountIdx) {
+                        const qty = extractNum(tds[qtyIdx].innerText);
+                        const rate = extractNum(tds[rateIdx].innerText);
+                        const amount = qty * rate;
+                        
+                        const amountTd = tds[amountIdx];
+                        const baseSpan = amountTd.querySelector('.display-base');
+                        if (baseSpan) {
+                            baseSpan.innerText = '৳' + amount.toFixed(3);
+                            const targetSpan = amountTd.querySelector('.display-target');
+                            if (targetSpan) targetSpan.innerText = '৳' + amount.toFixed(2);
+                        } else {
+                            amountTd.innerText = '৳' + amount.toFixed(3);
+                        }
+                    }
+                    
+                    recalculateQuotationTotals();
+                }
+            });
+        }
+
+        function recalculateQuotationTotals() {
+            let subtotals = [];
+            let totalSubtotal = 0;
+
+            document.querySelectorAll('table').forEach(table => {
+                let tableSub = 0;
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+                
+                if (amountIdx !== -1) {
+                    table.querySelectorAll('tbody tr').forEach(tr => {
+                        if (tr.children[amountIdx]) {
+                            const amountTd = tr.children[amountIdx];
+                            const valText = amountTd.querySelector('.display-base') ? amountTd.querySelector('.display-base').innerText : amountTd.innerText;
+                            tableSub += extractNum(valText);
+                        }
+                    });
+                }
+                subtotals.push(tableSub);
+                totalSubtotal += tableSub;
+            });
+
+            // Update subtotal
+            const amountRows = document.querySelectorAll('.amount-row');
+            let grandTotal = totalSubtotal;
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('subtotal')) {
+                    baseSpan.innerText = '৳' + totalSubtotal.toFixed(3);
+                } else if (label.includes('grand total')) {
+                    // Skip here, will update at the end
+                } else {
+                    // Tax / VAT / Duty / Service Charge
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        let taxAmt = 0;
+                        if (pctMatches.length === 1 || subtotals.length === 1) {
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = totalSubtotal * (pct / 100);
+                        } else {
+                            pctMatches.forEach((match, idx) => {
+                                const pct = parseFloat(match[1]);
+                                const sub = subtotals[idx] || 0;
+                                taxAmt += sub * (pct / 100);
+                            });
+                        }
+                        
+                        valueEl.innerText = '৳' + taxAmt.toFixed(3);
+                        grandTotal += taxAmt;
+                    }
+                }
+            });
+            
+            amountRows.forEach(row => {
+                const label = row.querySelector('.amount-label').innerText.toLowerCase();
+                if (label.includes('grand total')) {
+                    const val = row.querySelector('.amount-value');
+                    const baseSpan = val.querySelector('.display-base');
+                    if (baseSpan) {
+                        baseSpan.innerText = '৳' + grandTotal.toFixed(3);
+                        const targetSpan = val.querySelector('.display-target');
+                        if (targetSpan) targetSpan.innerText = '৳' + grandTotal.toFixed(3);
+                    } else {
+                        val.innerText = '৳' + grandTotal.toFixed(3);
+                    }
+                }
+            });
+        }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const signatureBoxes = document.querySelectorAll('.signature-box');
+            signatureBoxes.forEach(box => {
+                let isDragging = false;
+                let currentX = 0;
+                let currentY = 0;
+                let initialX = 0;
+                let initialY = 0;
+                let xOffset = 0;
+                let yOffset = 0;
+
+                box.addEventListener('mousedown', dragStart);
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', dragEnd);
+
+                function dragStart(e) {
+                    if (e.target.closest('.signature-box') === box) {
+                        initialX = e.clientX - xOffset;
+                        initialY = e.clientY - yOffset;
+                        isDragging = true;
+                        box.style.cursor = 'grabbing';
+                    }
+                }
+
+                function drag(e) {
+                    if (isDragging) {
+                        e.preventDefault();
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                        xOffset = currentX;
+                        yOffset = currentY;
+                        box.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                    }
+                }
+
+                function dragEnd(e) {
+                    if (isDragging) {
+                        initialX = currentX;
+                        initialY = currentY;
+                        isDragging = false;
+                        box.style.cursor = 'grab';
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>

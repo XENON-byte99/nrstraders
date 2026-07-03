@@ -2,7 +2,7 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <title>Delivery Challan</title>
+    <title>Challan - {{ transaction.challan_number|default:'Draft' }}</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; }
@@ -53,9 +53,17 @@
 </head>
 <body>
     <div class="wrapper">
-        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; gap: 10px; z-index: 9999;">
-            <button onclick="window.print()" style="padding: 10px 15px; background: #1e293b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Challan Copies</button>
-            <button onclick="downloadPDF()" style="padding: 10px 15px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999;">
+            <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;">
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                    Enable Edit & Live Calculation
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.print()" style="padding: 10px 15px; background: #1e293b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Challan</button>
+                <button onclick="downloadPDF()" style="padding: 10px 15px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+            </div>
         </div>
         <div class="copies-container" id="challanContent">
         <!-- Original Copy -->
@@ -78,7 +86,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
                     <div style="background:white;border:1.2px solid #bdf1da;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#064e3b;margin-bottom:3px;">CHALLAN #</div>
-                        <div style="font-size:10px;font-weight:800;color:#064e3b;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                        <div style="font-size:10px;font-weight:800;color:#059669;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}{% if transaction.secondary_category and transaction.secondary_items.exists %} &amp; {{ transaction.secondary_category.name }}{% endif %}</span></div>
                     </div>
                     <div style="background:white;border:1.2px solid #bdf1da;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#064e3b;margin-bottom:3px;">DATE</div>
@@ -93,6 +101,15 @@
             </div>
             <table>
                 <thead>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                    <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:70px;">FROM</th>
+                        <th style="width:70px;">TO</th>
+                        <th style="width:50px;">REMARKS</th>
+                    </tr>
+                    {% else %}
                     <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
                         <th>DESCRIPTION OF GOODS</th>
@@ -100,48 +117,61 @@
                         <th style="width:35px;">QTY</th>
                         <th style="width:50px;">REMARKS</th>
                     </tr>
+                    {% endif %}
                 </thead>
                 <tbody>
-                    {% if date_items %}
-                    {% for item in date_items %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
-                            <div style="font-size:8px;color:#064e3b;">Bill — {{ challan_date|date:"d M Y" }}</div>
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
-                    {% elif single_item %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">1</td>
-                        <td>
-                            {% if single_item.restaurant_name %}
-                                {{ single_item.restaurant_name }}
-                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#064e3b;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                            {% else %}
-                                {{ transaction.transaction_category.name|title|default:single_item.description }}
-                            {% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
-                        <td></td>
-                    </tr>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
                     {% else %}
-                    {% for item in transaction.items.all %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
+                        {% if date_items %}
+                        {% for item in date_items %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <div style="font-size:8px;color:#064e3b;">Bill — {{ challan_date|date:"d M Y" }}</div>
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                        {% elif single_item %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">1</td>
+                            <td>
+                                {% if single_item.restaurant_name %}
+                                    {{ single_item.restaurant_name }}
+                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#064e3b;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                                {% else %}
+                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
+                                {% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% else %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
                     {% endif %}
                 </tbody>
             </table>
@@ -151,11 +181,7 @@
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#059669;color:#064e3b;">Verified By</div></div>
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#059669;color:#064e3b;">Received By</div></div>
                 </div>
-                <div
-                    style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #6ee7b7;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
-                    System designed and Developed by &nbsp;<strong style="color:#064e3b;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in
-                    EEE, Specialized in Deep learning - 01849885607
-                </div>
+                <!-- Removed Notice -->
             </div>
         </div>
 
@@ -179,7 +205,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
                     <div style="background:white;border:1.2px solid #93c5fd;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">CHALLAN #</div>
-                        <div style="font-size:10px;font-weight:800;color:#1e3a8a;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                        <div style="font-size:10px;font-weight:800;color:#1e3a8a;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}{% if transaction.secondary_category and transaction.secondary_items.exists %} &amp; {{ transaction.secondary_category.name }}{% endif %}</span></div>
                     </div>
                     <div style="background:white;border:1.2px solid #93c5fd;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#1e3a8a;margin-bottom:3px;">DATE</div>
@@ -194,6 +220,15 @@
             </div>
             <table>
                 <thead>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                    <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:70px;">FROM</th>
+                        <th style="width:70px;">TO</th>
+                        <th style="width:50px;">PRICE</th>
+                    </tr>
+                    {% else %}
                     <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
                         <th>DESCRIPTION OF GOODS</th>
@@ -201,62 +236,75 @@
                         <th style="width:35px;">QTY</th>
                         <th style="width:50px;">PRICE</th>
                     </tr>
+                    {% endif %}
                 </thead>
                 <tbody>
-                    {% if date_items %}
-                    {% for item in date_items %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
-                            <div style="font-size:8px;color:#1e3a8a;">{{ challan_date|date:"d M Y" }}</div>
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">
-                            {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
-                                ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
-                                <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
-                            {% else %}
-                                ৳{{ item.billed_unit_price }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% elif single_item %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">1</td>
-                        <td>
-                            {% if single_item.restaurant_name %}
-                                {{ single_item.restaurant_name }}
-                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#1e3a8a;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                            {% else %}
-                                {{ transaction.transaction_category.name|title|default:single_item.description }}
-                            {% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
-                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ single_item.billed_unit_price }}</td>
-                    </tr>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_total|floatformat:3 }}</td>
+                        </tr>
+                        {% endfor %}
                     {% else %}
-                    {% for item in transaction.items.all %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td style="text-align:center;font-weight:700;color:#1e3a8a;">
-                            {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
-                                ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
-                                <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
-                            {% else %}
-                                ৳{{ item.billed_unit_price }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
+                        {% if date_items %}
+                        {% for item in date_items %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <div style="font-size:8px;color:#1e3a8a;">{{ challan_date|date:"d M Y" }}</div>
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">
+                                {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
+                                    ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                {% else %}
+                                    ৳{{ item.billed_unit_price }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% elif single_item %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">1</td>
+                            <td>
+                                {% if single_item.restaurant_name %}
+                                    {{ single_item.restaurant_name }}
+                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#1e3a8a;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                                {% else %}
+                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
+                                {% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ single_item.billed_unit_price }}</td>
+                        </tr>
+                        {% else %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">
+                                {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
+                                    ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                {% else %}
+                                    ৳{{ item.billed_unit_price }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
                     {% endif %}
                 </tbody>
             </table>
@@ -293,11 +341,7 @@
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#2563eb;color:#1e3a8a;">Verified By</div></div>
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#2563eb;color:#1e3a8a;">Received By</div></div>
                 </div>
-                <div
-                    style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #93c5fd;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
-                    System designed and Developed by &nbsp;<strong style="color:#1e3a8a;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in
-                    EEE, Specialized in Deep learning - 01849885607
-                </div>
+                <!-- Removed Notice -->
             </div>
         </div>
 
@@ -321,7 +365,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
                     <div style="background:white;border:1.2px solid #c7d2fe;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#764ba2;margin-bottom:3px;">CHALLAN #</div>
-                        <div style="font-size:10px;font-weight:800;color:#764ba2;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                        <div style="font-size:10px;font-weight:800;color:#764ba2;">{{ transaction.challan_number }} <br><span class="category-badge">{{ transaction.transaction_category.name|default:"General" }}{% if transaction.secondary_category and transaction.secondary_items.exists %} &amp; {{ transaction.secondary_category.name }}{% endif %}</span></div>
                     </div>
                     <div style="background:white;border:1.2px solid #c7d2fe;padding:6px 7px;">
                         <div style="font-size:8px;font-weight:700;color:#764ba2;margin-bottom:3px;">DATE</div>
@@ -336,6 +380,15 @@
             </div>
             <table>
                 <thead>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
+                        <th style="width:22px;">#</th>
+                        <th>DESCRIPTION OF GOODS</th>
+                        <th style="width:70px;">FROM</th>
+                        <th style="width:70px;">TO</th>
+                        <th style="width:50px;">REMARKS</th>
+                    </tr>
+                    {% else %}
                     <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
                         <th>DESCRIPTION OF GOODS</th>
@@ -343,48 +396,61 @@
                         <th style="width:35px;">QTY</th>
                         <th style="width:50px;">REMARKS</th>
                     </tr>
+                    {% endif %}
                 </thead>
                 <tbody>
-                    {% if date_items %}
-                    {% for item in date_items %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
-                            <div style="font-size:8px;color:#764ba2;">{{ challan_date|date:"d M Y" }}</div>
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
-                    {% elif single_item %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">1</td>
-                        <td>
-                            {% if single_item.restaurant_name %}
-                                {{ single_item.restaurant_name }}
-                                {% if single_item.entry_date %}<br><span style="font-size:8px;color:#764ba2;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                            {% else %}
-                                {{ transaction.transaction_category.name|title|default:single_item.description }}
-                            {% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
-                        <td></td>
-                    </tr>
+                    {% if transaction.transaction_category.is_room_reservation %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
                     {% else %}
-                    {% for item in transaction.items.all %}
-                    <tr>
-                        <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
-                        <td>
-                            {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
-                        </td>
-                        <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
-                        <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
+                        {% if date_items %}
+                        {% for item in date_items %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <div style="font-size:8px;color:#764ba2;">{{ challan_date|date:"d M Y" }}</div>
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                        {% elif single_item %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">1</td>
+                            <td>
+                                {% if single_item.restaurant_name %}
+                                    {{ single_item.restaurant_name }}
+                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#764ba2;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
+                                {% else %}
+                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
+                                {% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% else %}
+                        {% for item in transaction.items.all %}
+                        <tr>
+                            <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            <td>
+                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                            </td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
                     {% endif %}
                 </tbody>
             </table>
@@ -394,9 +460,7 @@
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#667eea;color:#764ba2;">Verified By</div></div>
                     <div style="text-align:center;"><div style="height:95px;"></div><div class="sig-line" style="--border-color:#667eea;color:#764ba2;">Gate Entry</div></div>
                 </div>
-                <div style="text-align:center;margin-top:6px;padding-top:5px;border-top:1px dashed #c7d2fe;font-size:6.5px;color:#9f9f9f;letter-spacing:0.04em;">
-                    System designed and Developed by &nbsp;<strong style="color:#764ba2;">Al NAHIAN</strong>&nbsp;&mdash;&nbsp;B.Sc. in EEE, Specialized in Deep learning - 01849885607
-                </div>
+                <!-- Removed Notice -->
             </div>
         </div> <!-- End of copies container -->
     </div>
@@ -419,6 +483,95 @@
             };
 
             html2pdf().set(opt).from(element).save();
+        }
+
+        // --- Live Edit and Calculation Script ---
+        function toggleEditMode(enabled) {
+            const container = document.getElementById('challanContent');
+            if (container) {
+                container.contentEditable = enabled ? "true" : "false";
+            }
+
+            if (enabled && !window.liveCalcBound) {
+                window.liveCalcBound = true;
+                bindLiveCalculations();
+            }
+        }
+
+        function extractNum(text) {
+            if (!text) return 0;
+            const match = text.replace(/,/g, '').match(/[\d\.]+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function bindLiveCalculations() {
+            const container = document.getElementById('challanContent');
+            if (!container) return;
+            
+            container.addEventListener('input', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+                
+                const table = td.closest('table');
+                if (!table) return;
+
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const priceIdx = headers.findIndex(h => h === 'price');
+                
+                if (priceIdx !== -1) {
+                    recalculateChallanTotals(table);
+                }
+            });
+        }
+
+        function recalculateChallanTotals(table) {
+            let subtotal = 0;
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+            const priceIdx = headers.findIndex(h => h === 'price');
+            
+            if (priceIdx !== -1) {
+                table.querySelectorAll('tbody tr').forEach(tr => {
+                    const tds = tr.children;
+                    if (tds[priceIdx]) {
+                        let text = tds[priceIdx].innerText;
+                        let lines = text.split('\n');
+                        subtotal += extractNum(lines[0]);
+                    }
+                });
+            }
+
+            const receiverCopy = table.closest('.challan-copy');
+            if (!receiverCopy) return;
+            
+            let currentSubtotal = subtotal;
+            let grandTotal = subtotal;
+            
+            // Subtotal container relies on specific styling in the template
+            const amounts = receiverCopy.querySelectorAll('div[style*="border-bottom:1px solid #93c5fd"]');
+            amounts.forEach(el => {
+                const parent = el.parentElement;
+                const labelSpan = parent.querySelector('span');
+                if (!labelSpan) return;
+                
+                const label = labelSpan.innerText.toLowerCase();
+                
+                if (label.includes('subtotal')) {
+                    el.innerText = '৳' + subtotal.toFixed(3);
+                } else {
+                    const pctMatch = label.match(/([\d\.]+)%/);
+                    if (pctMatch) {
+                        const pct = parseFloat(pctMatch[1]);
+                        const taxAmt = currentSubtotal * (pct / 100);
+                        el.innerText = '৳' + taxAmt.toFixed(3);
+                        grandTotal += taxAmt;
+                    }
+                }
+            });
+            
+            const grandTotalEl = receiverCopy.querySelector('div[style*="border:2px solid #1e3a8a"]');
+            if (grandTotalEl) {
+                grandTotalEl.innerText = '৳' + grandTotal.toFixed(3);
+            }
         }
     </script>
 </body>

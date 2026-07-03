@@ -49,7 +49,12 @@ class TransactionCategory(SyncableModel):
     @property
     def is_lunch(self):
         name = self.name.lower()
-        return any(keyword in name for keyword in ['lunch', 'tiffin', 'dinner', 'iftar'])
+        return any(keyword in name for keyword in ['tiffin', 'dinner', 'iftar', 'seheri', 'lunch'])
+
+    @property
+    def is_room_reservation(self):
+        name = self.name.lower()
+        return 'room' in name or 'hotel' in name or 'resort' in name or 'stay' in name
 
 class Transaction(SyncableModel):
     STATUS_CHOICES = (
@@ -77,7 +82,14 @@ class Transaction(SyncableModel):
     service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
 
+    secondary_vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=15.00)
+    secondary_duty_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)
+    secondary_tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    secondary_service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    secondary_profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+
     transaction_category = models.ForeignKey(TransactionCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    secondary_category = models.ForeignKey(TransactionCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='secondary_transactions', help_text="Optional secondary category for dual-category registration.")
     
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     challan_number = models.CharField(max_length=100, blank=True, null=True)
@@ -89,36 +101,28 @@ class Transaction(SyncableModel):
     
     @property
     def display_subtotal(self):
-
         return sum(item.billed_total for item in self.items.all())
 
     @property
     def total_service_charge(self):
-
         import decimal
-        return round(self.display_subtotal * (self.service_charge_percentage / decimal.Decimal('100.0')), 3)
+        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
+        secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
+        return round(primary_sc + secondary_sc, 3)
 
     @property
     def total_duty(self):
-        import decimal
-        base = self.display_subtotal + self.total_service_charge
-        return round(base * (self.duty_percentage / decimal.Decimal('100.0')), 3)
+        return sum(item.duty_amount for item in self.items.all()) + self.service_charge_duty
 
     @property
     def total_tax(self):
-        import decimal
-        tax_pct = self.tax_percentage
-        if tax_pct == 0:
-            return decimal.Decimal('0.000')
-        base = self.display_subtotal + self.total_service_charge
-        gross = (base * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
-        return round(gross - base, 3)
+        return sum(item.tax_amount for item in self.items.all()) + self.service_charge_tax
 
     @property
     def total_vat(self):
-        import decimal
-        base = self.display_subtotal + self.total_service_charge
-        return round((base + self.total_duty + self.total_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 3)
+        return sum(item.vat_amount for item in self.items.all()) + self.service_charge_vat
 
     @property
     def grand_subtotal(self):
@@ -127,25 +131,59 @@ class Transaction(SyncableModel):
     @property
     def service_charge_duty(self):
         import decimal
-        return round(self.total_service_charge * (self.duty_percentage / decimal.Decimal('100.0')), 3)
+        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
+        secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
+        primary_sc_duty = primary_sc * (self.duty_percentage / decimal.Decimal('100.0'))
+        secondary_sc_duty = secondary_sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
+        return round(primary_sc_duty + secondary_sc_duty, 3)
 
     @property
     def service_charge_tax(self):
         import decimal
-        tax_pct = self.tax_percentage
-        if tax_pct == 0:
-            return decimal.Decimal('0.000')
-        base = self.total_service_charge
-        gross = (base * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
-        return round(gross - base, 3)
+        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
+        secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
+        
+        primary_sc_tax = decimal.Decimal('0.000')
+        if self.tax_percentage > 0:
+            gross = (primary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
+            primary_sc_tax = gross - primary_sc
+            
+        secondary_sc_tax = decimal.Decimal('0.000')
+        if self.secondary_tax_percentage > 0:
+            gross = (secondary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
+            secondary_sc_tax = gross - secondary_sc
+            
+        return round(primary_sc_tax + secondary_sc_tax, 3)
 
     @property
     def service_charge_vat(self):
         import decimal
-        base = self.total_service_charge
-        return round((base + self.service_charge_duty + self.service_charge_tax) * (self.vat_percentage / decimal.Decimal('100.0')), 3)
-
-
+        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
+        secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
+        
+        primary_sc_duty = primary_sc * (self.duty_percentage / decimal.Decimal('100.0'))
+        secondary_sc_duty = secondary_sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
+        
+        primary_sc_tax = decimal.Decimal('0.000')
+        if self.tax_percentage > 0:
+            gross = (primary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
+            primary_sc_tax = gross - primary_sc
+            
+        secondary_sc_tax = decimal.Decimal('0.000')
+        if self.secondary_tax_percentage > 0:
+            gross = (secondary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
+            secondary_sc_tax = gross - secondary_sc
+            
+        primary_sc_vat = (primary_sc + primary_sc_duty + primary_sc_tax) * (self.vat_percentage / decimal.Decimal('100.0'))
+        secondary_sc_vat = (secondary_sc + secondary_sc_duty + secondary_sc_tax) * (self.secondary_vat_percentage / decimal.Decimal('100.0'))
+        
+        return round(primary_sc_vat + secondary_sc_vat, 3)
 
     @property
     def service_charge_total_with_tax(self):
@@ -154,6 +192,80 @@ class Transaction(SyncableModel):
     @property
     def grand_total(self):
         return self.display_subtotal + self.total_service_charge + self.total_duty + self.total_vat + self.total_tax
+
+    @property
+    def primary_total_service_charge(self):
+        import decimal
+        sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        return round(sub * (self.service_charge_percentage / decimal.Decimal('100.0')), 3)
+
+    @property
+    def secondary_total_service_charge(self):
+        import decimal
+        sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        return round(sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0')), 3)
+
+    @property
+    def primary_total_duty(self):
+        import decimal
+        item_duty = sum(item.duty_amount for item in self.items.filter(is_secondary=False))
+        sc_duty = self.primary_total_service_charge * (self.duty_percentage / decimal.Decimal('100.0'))
+        return round(item_duty + sc_duty, 3)
+
+    @property
+    def secondary_total_duty(self):
+        import decimal
+        item_duty = sum(item.duty_amount for item in self.items.filter(is_secondary=True))
+        sc_duty = self.secondary_total_service_charge * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
+        return round(item_duty + sc_duty, 3)
+
+    @property
+    def primary_total_tax(self):
+        import decimal
+        item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=False))
+        sc = self.primary_total_service_charge
+        sc_tax = decimal.Decimal('0.000')
+        if self.tax_percentage > 0:
+            gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
+            sc_tax = gross - sc
+        return round(item_tax + sc_tax, 3)
+
+    @property
+    def secondary_total_tax(self):
+        import decimal
+        item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=True))
+        sc = self.secondary_total_service_charge
+        sc_tax = decimal.Decimal('0.000')
+        if self.secondary_tax_percentage > 0:
+            gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
+            sc_tax = gross - sc
+        return round(item_tax + sc_tax, 3)
+
+    @property
+    def primary_total_vat(self):
+        import decimal
+        item_vat = sum(item.vat_amount for item in self.items.filter(is_secondary=False))
+        sc = self.primary_total_service_charge
+        sc_duty = sc * (self.duty_percentage / decimal.Decimal('100.0'))
+        sc_tax = decimal.Decimal('0.000')
+        if self.tax_percentage > 0:
+            gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
+            sc_tax = gross - sc
+        sc_vat = (sc + sc_duty + sc_tax) * (self.vat_percentage / decimal.Decimal('100.0'))
+        return round(item_vat + sc_vat, 3)
+
+    @property
+    def secondary_total_vat(self):
+        import decimal
+        item_vat = sum(item.vat_amount for item in self.items.filter(is_secondary=True))
+        sc = self.secondary_total_service_charge
+        sc_duty = sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
+        sc_tax = decimal.Decimal('0.000')
+        if self.secondary_tax_percentage > 0:
+            gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
+            sc_tax = gross - sc
+        sc_vat = (sc + sc_duty + sc_tax) * (self.secondary_vat_percentage / decimal.Decimal('100.0'))
+        return round(item_vat + sc_vat, 3)
 
     @property
     def total_quantity(self):
@@ -169,30 +281,59 @@ class Transaction(SyncableModel):
         # Simplified: It's the sum of your markup (Profit Margin) + Service Charge income.
         return (self.grand_total - self.total_base_cost) - (self.total_duty + self.total_tax + self.total_vat)
 
-    @property
-    def grouped_lunch_items(self):
+    def _grouped_lunch_items_for_sec(self, is_secondary):
         grouped = {}
-        for item in self.items.all():
-            if not item.entry_date: continue
+        ungrouped = []
+        for item in self.items.filter(is_secondary=is_secondary):
+            if not item.entry_date:
+                ungrouped.append({
+                    'description': item.description or 'Lunch Supply',
+                    'unit': item.unit or 'Pcs',
+                    'quantity': item.quantity,
+                    'billed_total': item.billed_total,
+                    'total_with_tax': item.total_with_tax,
+                    'billed_unit_price': item.billed_unit_price,
+                })
+                continue
             if item.entry_date not in grouped:
+                desc = item.description if item.description else f"Lunch Supply ({item.entry_date.strftime('%d %b %Y')})"
                 grouped[item.entry_date] = {
-                    'description': f"Lunch Supply ({item.entry_date.strftime('%d %b %Y')})",
+                    'description': desc,
                     'unit': item.unit or 'Day',
                     'quantity': 0,
                     'billed_total': 0,
+                    'total_with_tax': 0,
                 }
-            # For lunch, typically quantity is 1 per restaurant per day, but we sum it.
-            # Actually, the requirement says "sum all the amount of that day and write in one day"
-            # It might be better to just set quantity=1 for the day, and rate = sum
-            grouped[item.entry_date]['quantity'] = 1  # One day=1 unit
+            grouped[item.entry_date]['quantity'] = 1
             grouped[item.entry_date]['billed_total'] += item.billed_total
+            grouped[item.entry_date]['total_with_tax'] += item.total_with_tax
             
         result = []
         for date_key in sorted(grouped.keys()):
             g = grouped[date_key]
-            g['billed_unit_price'] = g['billed_total']  # Since qty is 1, rate = total
+            g['billed_unit_price'] = g['billed_total']
             result.append(g)
-        return result
+        return result + ungrouped
+
+    @property
+    def grouped_primary_lunch_items(self):
+        return self._grouped_lunch_items_for_sec(is_secondary=False)
+
+    @property
+    def grouped_secondary_lunch_items(self):
+        return self._grouped_lunch_items_for_sec(is_secondary=True)
+
+    @property
+    def primary_items(self):
+        return self.items.filter(is_secondary=False)
+
+    @property
+    def secondary_items(self):
+        return self.items.filter(is_secondary=True)
+
+    @property
+    def grouped_lunch_items(self):
+        return self._grouped_lunch_items_for_sec(is_secondary=False)
 
     def get_whatsapp_message(self):
         """Generates a text summary for WhatsApp notification."""
@@ -299,17 +440,19 @@ class TransactionItem(SyncableModel):
     sort_order = models.IntegerField(default=0)
     # Lunch Supply fields
     entry_date = models.DateField(null=True, blank=True)
+    checkout_date = models.DateField(null=True, blank=True)
     restaurant_name = models.CharField(max_length=255, blank=True)
+    is_secondary = models.BooleanField(default=False)
     
     class Meta:
         ordering = ['sort_order', 'id']
 
     @property
     def billed_unit_price(self):
-
         import decimal
         price_basis = self.unit_price_uplifted if self.unit_price_uplifted is not None else self.base_price
-        profit_pct = self.transaction.profit_margin / decimal.Decimal('100.0')
+        margin = self.transaction.secondary_profit_margin if self.is_secondary else self.transaction.profit_margin
+        profit_pct = margin / decimal.Decimal('100.0')
         val = price_basis * (1 + profit_pct)
         return round(val, 3)
 
@@ -328,30 +471,28 @@ class TransactionItem(SyncableModel):
         return self.total_with_tax / decimal.Decimal(str(self.quantity))
 
     def get_master_product(self):
-        if not self.transaction.transaction_category:
+        cat = self.transaction.secondary_category if (self.is_secondary and self.transaction.secondary_category) else self.transaction.transaction_category
+        if not cat:
             return None
             
         # Determine the logical product name for lookup
         product_name = self.description
         
         # For lunch/tiffin, restaurant_name is a better identifier than the date-description
-        if self.transaction.transaction_category.is_lunch:
+        if cat.is_lunch:
             if self.restaurant_name:
                 product_name = self.restaurant_name
             else:
-                # Fallback: if no restaurant is named, treat this as a generic meal for the category
-                # This prevents "date" strings from becoming product names
                 import re
-                # Check if description looks like a date (e.g. 2026-05-09)
                 if re.match(r'\d{4}-\d{2}-\d{2}', str(self.description)):
-                    product_name = self.transaction.transaction_category.name
+                    product_name = cat.name
         
         if not product_name or str(product_name).strip() == "":
             return None
 
         return Product.objects.filter(
             name=product_name,
-            category=self.transaction.transaction_category
+            category=cat
         ).first()
 
     @property
@@ -371,12 +512,13 @@ class TransactionItem(SyncableModel):
     @property
     def duty_amount(self):
         import decimal
-        return round(self.billed_total * (self.transaction.duty_percentage / decimal.Decimal('100.0')), 3)
+        duty_pct = self.transaction.secondary_duty_percentage if self.is_secondary else self.transaction.duty_percentage
+        return round(self.billed_total * (duty_pct / decimal.Decimal('100.0')), 3)
         
     @property
     def tax_amount(self):
         import decimal
-        tax_pct = self.transaction.tax_percentage
+        tax_pct = self.transaction.secondary_tax_percentage if self.is_secondary else self.transaction.tax_percentage
         if tax_pct == 0:
             return decimal.Decimal('0.000')
         gross = (self.billed_total * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
@@ -385,9 +527,8 @@ class TransactionItem(SyncableModel):
     @property
     def vat_amount(self):
         import decimal
-        return round((self.billed_total + self.duty_amount + self.tax_amount) * (self.transaction.vat_percentage / decimal.Decimal('100.0')), 3)
-
-
+        vat_pct = self.transaction.secondary_vat_percentage if self.is_secondary else self.transaction.vat_percentage
+        return round((self.billed_total + self.duty_amount + self.tax_amount) * (vat_pct / decimal.Decimal('100.0')), 3)
 
     @property
     def total_with_tax(self):

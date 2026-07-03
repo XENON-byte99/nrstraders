@@ -40,7 +40,7 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="font-medium text-gray-900">{{ item.invoice_number|default:"-" }} / {{ item.challan_number|default:"-" }}</div>
                         <div class="text-xs mt-1 font-semibold uppercase tracking-wider inline-block px-2 py-0.5 rounded bg-{{ item.transaction_category.color_theme|default:'gray' }}-200 text-{{ item.transaction_category.color_theme|default:'gray' }}-800">
-                            <i class="fas fa-tag mr-1"></i> {{ item.transaction_category.name|default:"General" }}
+                            <i class="fas fa-tag mr-1"></i> {{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
                         </div>
                     </td>
                     <td class="px-6 py-4 text-sm">{{ item.buyer_name }}</td>
@@ -112,7 +112,7 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                 <div>
                     <div class="font-bold text-gray-900 text-sm">{{ item.invoice_number|default:"-" }} / {{ item.challan_number|default:"-" }}</div>
                     <div class="text-xs font-semibold uppercase tracking-wider inline-block px-2 py-0.5 rounded bg-{{ item.transaction_category.color_theme|default:'gray' }}-200 text-{{ item.transaction_category.color_theme|default:'gray' }}-800 mt-1">
-                        <i class="fas fa-tag mr-1"></i>{{ item.transaction_category.name|default:"General" }}
+                        <i class="fas fa-tag mr-1"></i>{{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
                     </div>
                 </div>
                 <span class="status-badge status-{{ item.status }} flex-shrink-0">
