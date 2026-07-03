@@ -33,7 +33,8 @@ jobs:
         port: 22
         script: |
           cd /var/www/nrs-software
-          if [ -f "db.sqlite3" ]; then
+          if [ -f "db_deploy.sqlite3" ]; then
+            mv -f db_deploy.sqlite3 db.sqlite3
             chmod 666 db.sqlite3
           fi
           /var/www/nrs-software/venv/bin/pip install -r requirements.txt
