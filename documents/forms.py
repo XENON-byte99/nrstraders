@@ -22,7 +22,8 @@ class TransactionForm(forms.ModelForm):
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
             'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin',
-            'secondary_vat_percentage', 'secondary_duty_percentage', 'secondary_tax_percentage', 'secondary_service_charge_percentage', 'secondary_profit_margin'
+            'secondary_vat_percentage', 'secondary_duty_percentage', 'secondary_tax_percentage', 'secondary_service_charge_percentage', 'secondary_profit_margin',
+            'is_daily_basis'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
@@ -34,7 +35,8 @@ class TransactionHeaderForm(forms.ModelForm):
         fields = [
             'invoice_number', 'challan_number', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
-            'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact'
+            'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
+            'is_daily_basis'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
@@ -155,20 +157,31 @@ LunchItemFormSet = inlineformset_factory(
 class RoomItemForm(forms.ModelForm):
     entry_date = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-        required=True,
+        required=False,
         label="From Date"
     )
     checkout_date = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-        required=True,
+        required=False,
         label="To Date"
     )
     description = forms.CharField(max_length=255, required=False)
+    unit = forms.CharField(
+        max_length=50,
+        required=False,
+        initial='Day',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Unit'})
+    )
+    quantity = forms.IntegerField(
+        required=False,
+        initial=1,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Qty', 'style': 'text-align: center;'})
+    )
     base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'description', 'base_price', 'sort_order']
+        fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'sort_order']
 
 RoomItemFormSet = inlineformset_factory(
     Transaction,

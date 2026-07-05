@@ -208,6 +208,17 @@
                 <div><label class="form-label">Challan #</label>{{ form.challan_number }}</div>
             </div>
 
+            <!-- Room Daily Basis Mode Toggle -->
+            <div id="room-daily-basis-toggle" class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl hidden">
+                <label class="flex items-center gap-3 cursor-pointer">
+                    {{ form.is_daily_basis }}
+                    <div>
+                        <span class="text-sm font-semibold text-indigo-900 block">Daily Basis Mode (Date, Unit, Qty, Rate)</span>
+                        <span class="text-[10px] text-indigo-500 font-medium">Toggle this to log stay/service day-by-day instead of a date range.</span>
+                    </div>
+                </label>
+            </div>
+
             <!-- Calculation Mode -->
             <div class="mt-5 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                 <label class="form-label text-indigo-800">Calculation Mode <i class="fas fa-calculator ml-1"></i></label>
@@ -345,16 +356,29 @@
                 </table>
             </div>
 
+            <!-- Room Daily Mode Standard Price Control -->
+            <div id="room-price-control" class="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row gap-3 items-center {% if not is_room or not form.is_daily_basis.value %}hidden{% endif %}">
+                <div class="flex-1">
+                    <label class="block text-xs font-black text-indigo-900 uppercase tracking-wider mb-1">Standard Room Rate (৳)</label>
+                    <p class="text-[10px] text-indigo-500 font-medium">Enter a standard price once to apply to all daily entries automatically.</p>
+                </div>
+                <div class="w-full sm:w-48 relative">
+                    <input type="number" id="room-standard-price" step="0.001" placeholder="0.000" class="w-full px-3.5 py-2.5 rounded-xl border border-indigo-200 font-black text-right text-indigo-700 bg-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+
             <!-- Room Items Table -->
             <div id="room-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if not is_room %}hidden{% endif %}">
                 <table>
                     <thead>
                         <tr>
                             <th class="w-10"></th>
-                            <th class="text-left" style="min-width:120px">📅 From Date</th>
-                            <th class="text-left" style="min-width:120px">📅 To Date</th>
+                            <th class="text-left date-hdr-label" style="min-width:120px">📅 From Date</th>
+                            <th class="text-left checkout-date-hdr" style="min-width:120px">📅 To Date</th>
                             <th class="text-left" style="min-width:180px">🏷 Description</th>
-                            <th class="text-right" style="width:130px"><span class="price-header-label">💰 Cost (৳)</span></th>
+                            <th class="text-center room-unit-hdr hidden" style="width:80px">Unit</th>
+                            <th class="text-center room-qty-hdr hidden" style="width:100px">Qty</th>
+                            <th class="text-right room-cost-hdr" style="width:130px"><span class="price-header-label">💰 Cost (৳)</span></th>
                             <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
@@ -370,8 +394,10 @@
                                     <i class="fas fa-grip-vertical"></i>
                                 </td>
                                 <td>{{ item_form.entry_date }}</td>
-                                <td>{{ item_form.checkout_date }}</td>
+                                <td class="checkout-date-col">{{ item_form.checkout_date }}</td>
                                 <td>{{ item_form.description }}</td>
+                                <td class="room-unit-col hidden">{{ item_form.unit }}</td>
+                                <td class="room-qty-col hidden">{{ item_form.quantity }}</td>
                                 <td class="base-price-cell">{{ item_form.base_price }}</td>
                                 <td class="target-col hidden">
                                     <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
@@ -402,7 +428,7 @@
                                    id="id_items-__prefix__-entry_date"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
                         </td>
-                        <td>
+                        <td class="checkout-date-col">
                             <input type="date" name="items-__prefix__-checkout_date"
                                    id="id_items-__prefix__-checkout_date"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
@@ -412,6 +438,18 @@
                                    id="id_items-__prefix__-description"
                                    placeholder="Description..."
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td class="room-unit-col hidden">
+                            <input type="text" name="items-__prefix__-unit"
+                                   id="id_items-__prefix__-unit"
+                                   value="Day"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td class="room-qty-col hidden">
+                            <input type="number" name="items-__prefix__-quantity"
+                                   id="id_items-__prefix__-quantity"
+                                   value="1" min="1"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:center;">
                         </td>
                         <td class="base-price-cell">
                             <input type="number" name="items-__prefix__-base_price"
@@ -648,6 +686,54 @@ function setLunchMode(on) {
     updateLabels();
 }
 
+function syncRoomDailyBasisMode() {
+    const isDaily = document.getElementById('id_is_daily_basis')?.checked;
+    const roomTable = document.getElementById('room-items-table');
+    const roomCtrl = document.getElementById('room-price-control');
+    
+    const toggleDiv = document.getElementById('room-daily-basis-toggle');
+    if (toggleDiv) {
+        toggleDiv.classList.toggle('hidden', !isRoomMode);
+    }
+    
+    if (!isRoomMode) {
+        if (roomCtrl) roomCtrl.classList.add('hidden');
+        return;
+    }
+    
+    // Toggle standard price control
+    if (roomCtrl) roomCtrl.classList.toggle('hidden', !isDaily);
+    
+    // Toggle table column headers
+    const dateHdr = roomTable ? roomTable.querySelector('.date-hdr-label') : null;
+    if (dateHdr) dateHdr.textContent = isDaily ? '📅 Date' : '📅 From Date';
+    
+    const checkoutHdr = roomTable ? roomTable.querySelector('.checkout-date-hdr') : null;
+    if (checkoutHdr) checkoutHdr.classList.toggle('hidden', isDaily);
+    
+    const unitHdr = roomTable ? roomTable.querySelector('.room-unit-hdr') : null;
+    if (unitHdr) unitHdr.classList.toggle('hidden', !isDaily);
+    
+    const qtyHdr = roomTable ? roomTable.querySelector('.room-qty-hdr') : null;
+    if (qtyHdr) qtyHdr.classList.toggle('hidden', !isDaily);
+    
+    const costHdrLabel = roomTable ? roomTable.querySelector('.room-cost-hdr .price-header-label') : null;
+    if (costHdrLabel) costHdrLabel.innerHTML = isDaily ? '💰 Rate (৳)' : '💰 Cost (৳)';
+    
+    // Toggle column inputs in all rows
+    const rows = roomTable ? roomTable.querySelectorAll('.item-row') : [];
+    rows.forEach(row => {
+        const checkoutCol = row.querySelector('.checkout-date-col');
+        if (checkoutCol) checkoutCol.classList.toggle('hidden', isDaily);
+        
+        const unitCol = row.querySelector('.room-unit-col');
+        if (unitCol) unitCol.classList.toggle('hidden', !isDaily);
+        
+        const qtyCol = row.querySelector('.room-qty-col');
+        if (qtyCol) qtyCol.classList.toggle('hidden', !isDaily);
+    });
+}
+
 function setRoomMode(on) {
     isRoomMode = on;
     if (on) {
@@ -661,6 +747,7 @@ function setRoomMode(on) {
     if (normalTable) normalTable.classList.toggle('hidden', on || isLunchMode);
     const roomTable = document.getElementById('room-items-table');
     if (roomTable) roomTable.classList.toggle('hidden', !on);
+    syncRoomDailyBasisMode();
     updateLabels();
 }
 
@@ -729,7 +816,16 @@ document.getElementById('add-item').addEventListener('click', function() {
             else if (input.name.includes('-sort_order')) input.value = count;
             else if (input.type !== 'hidden') {
                 if (input.name.includes('quantity')) input.value = '1';
-                else if (input.name.includes('base_price')) input.value = '0.00';
+                else if (input.name.includes('base_price')) {
+                    const isDaily = document.getElementById('id_is_daily_basis')?.checked;
+                    if (isDaily) {
+                        const stdPrice = document.getElementById('room-standard-price')?.value;
+                        input.value = stdPrice || '0.00';
+                    } else {
+                        input.value = '0.00';
+                    }
+                }
+                else if (input.name.includes('unit')) input.value = 'Day';
                 else input.value = '';
             }
         });
@@ -745,6 +841,15 @@ document.getElementById('add-item').addEventListener('click', function() {
                 el.style.backgroundColor = '#f3f4f6';
             }
         });
+
+        // Hide/show daily basis columns for this new row
+        const isDaily = document.getElementById('id_is_daily_basis')?.checked;
+        const checkoutCol = newRow.querySelector('.checkout-date-col');
+        if (checkoutCol) checkoutCol.classList.toggle('hidden', isDaily);
+        const unitCol = newRow.querySelector('.room-unit-col');
+        if (unitCol) unitCol.classList.toggle('hidden', !isDaily);
+        const qtyCol = newRow.querySelector('.room-qty-col');
+        if (qtyCol) qtyCol.classList.toggle('hidden', !isDaily);
 
         const dateInput = newRow.querySelector('input[name$="-entry_date"]');
         if (dateInput) dateInput.focus();
@@ -804,6 +909,27 @@ if (stdPriceInput) {
         document.querySelectorAll('#lunch-formset input[name$="-base_price"]').forEach(inp => {
             inp.value = val;
         });
+    });
+}
+
+// ── Room Standard Price Sync ──
+const roomStdPriceInput = document.getElementById('room-standard-price');
+if (roomStdPriceInput) {
+    roomStdPriceInput.addEventListener('input', function() {
+        const val = this.value;
+        const catId = categorySelect ? categorySelect.value : 'default';
+        if (catId) localStorage.setItem('room_std_price_' + catId, val);
+        
+        document.querySelectorAll('#room-formset input[name$="-base_price"]').forEach(inp => {
+            inp.value = val;
+        });
+    });
+}
+
+const dailyBasisToggle = document.getElementById('id_is_daily_basis');
+if (dailyBasisToggle) {
+    dailyBasisToggle.addEventListener('change', function() {
+        syncRoomDailyBasisMode();
     });
 }
 
@@ -917,6 +1043,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    syncRoomDailyBasisMode();
 });
 
 // Add secondary item button click handler
@@ -981,6 +1108,20 @@ if (categorySelect) {
             }, 150);
         } else if (stdPriceInput) {
             stdPriceInput.value = '';
+        }
+
+        const savedRoomPrice = localStorage.getItem('room_std_price_' + catId);
+        if (savedRoomPrice && roomStdPriceInput) {
+            roomStdPriceInput.value = savedRoomPrice;
+            setTimeout(() => {
+                document.querySelectorAll('#room-formset input[name$="-base_price"]').forEach(inp => {
+                    if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
+                        inp.value = savedRoomPrice;
+                    }
+                });
+            }, 150);
+        } else if (roomStdPriceInput) {
+            roomStdPriceInput.value = '';
         }
 
 
@@ -1050,6 +1191,18 @@ if (categorySelect) {
                     document.querySelectorAll('#lunch-formset input[name$="-base_price"]').forEach(inp => {
                         if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
                             inp.value = savedPrice;
+                        }
+                    });
+                }, 200);
+            }
+            
+            const savedRoomPrice = localStorage.getItem('room_std_price_' + catId);
+            if (savedRoomPrice && roomStdPriceInput) {
+                roomStdPriceInput.value = savedRoomPrice;
+                setTimeout(() => {
+                    document.querySelectorAll('#room-formset input[name$="-base_price"]').forEach(inp => {
+                        if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
+                            inp.value = savedRoomPrice;
                         }
                     });
                 }, 200);

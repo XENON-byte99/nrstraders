@@ -102,13 +102,24 @@
             <table>
                 <thead>
                     {% if transaction.transaction_category.is_room_reservation %}
-                    <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
-                        <th style="width:22px;">#</th>
-                        <th>DESCRIPTION OF GOODS</th>
-                        <th style="width:70px;">FROM</th>
-                        <th style="width:70px;">TO</th>
-                        <th style="width:50px;">REMARKS</th>
-                    </tr>
+                        {% if transaction.is_daily_basis %}
+                        <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th style="width:70px;">DATE</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:50px;">UNIT</th>
+                            <th style="width:35px;">QTY</th>
+                            <th style="width:50px;">REMARKS</th>
+                        </tr>
+                        {% else %}
+                        <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:70px;">FROM</th>
+                            <th style="width:70px;">TO</th>
+                            <th style="width:50px;">REMARKS</th>
+                        </tr>
+                        {% endif %}
                     {% else %}
                     <tr style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
@@ -124,9 +135,16 @@
                         {% for item in transaction.items.all %}
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            {% if transaction.is_daily_basis %}
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            {% else %}
                             <td>{{ item.description }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            {% endif %}
                             <td></td>
                         </tr>
                         {% endfor %}
@@ -221,13 +239,24 @@
             <table>
                 <thead>
                     {% if transaction.transaction_category.is_room_reservation %}
-                    <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
-                        <th style="width:22px;">#</th>
-                        <th>DESCRIPTION OF GOODS</th>
-                        <th style="width:70px;">FROM</th>
-                        <th style="width:70px;">TO</th>
-                        <th style="width:50px;">PRICE</th>
-                    </tr>
+                        {% if transaction.is_daily_basis %}
+                        <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th style="width:70px;">DATE</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:50px;">UNIT</th>
+                            <th style="width:35px;">QTY</th>
+                            <th style="width:50px;">PRICE</th>
+                        </tr>
+                        {% else %}
+                        <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:70px;">FROM</th>
+                            <th style="width:70px;">TO</th>
+                            <th style="width:50px;">PRICE</th>
+                        </tr>
+                        {% endif %}
                     {% else %}
                     <tr style="background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
@@ -243,9 +272,16 @@
                         {% for item in transaction.items.all %}
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            {% if transaction.is_daily_basis %}
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            {% else %}
                             <td>{{ item.description }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            {% endif %}
                             <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_total|floatformat:3 }}</td>
                         </tr>
                         {% endfor %}
@@ -381,13 +417,24 @@
             <table>
                 <thead>
                     {% if transaction.transaction_category.is_room_reservation %}
-                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
-                        <th style="width:22px;">#</th>
-                        <th>DESCRIPTION OF GOODS</th>
-                        <th style="width:70px;">FROM</th>
-                        <th style="width:70px;">TO</th>
-                        <th style="width:50px;">REMARKS</th>
-                    </tr>
+                        {% if transaction.is_daily_basis %}
+                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th style="width:70px;">DATE</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:50px;">UNIT</th>
+                            <th style="width:35px;">QTY</th>
+                            <th style="width:50px;">REMARKS</th>
+                        </tr>
+                        {% else %}
+                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
+                            <th style="width:22px;">#</th>
+                            <th>DESCRIPTION OF GOODS</th>
+                            <th style="width:70px;">FROM</th>
+                            <th style="width:70px;">TO</th>
+                            <th style="width:50px;">REMARKS</th>
+                        </tr>
+                        {% endif %}
                     {% else %}
                     <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-weight:700;">
                         <th style="width:22px;">#</th>
@@ -403,9 +450,16 @@
                         {% for item in transaction.items.all %}
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
+                            {% if transaction.is_daily_basis %}
+                            <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
+                            <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
+                            {% else %}
                             <td>{{ item.description }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
+                            {% endif %}
                             <td></td>
                         </tr>
                         {% endfor %}

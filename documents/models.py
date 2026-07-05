@@ -93,6 +93,7 @@ class Transaction(SyncableModel):
     
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     challan_number = models.CharField(max_length=100, blank=True, null=True)
+    is_daily_basis = models.BooleanField(default=False, help_text="Toggles daily basis mode for room service / hotel stay bills.")
     
     creator = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     

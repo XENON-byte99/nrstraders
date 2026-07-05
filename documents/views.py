@@ -172,7 +172,10 @@ def transaction_create(request):
                 if is_lunch and not item.description:
                     item.description = str(item.entry_date or '') 
                 if is_room:
-                    item.quantity = 1
+                    if transaction.is_daily_basis:
+                        item.checkout_date = None
+                    else:
+                        item.quantity = 1
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -262,7 +265,10 @@ def transaction_pricing(request, pk):
                     changes.append("Removed items")
                 items = formset.save(commit=False)
                 for item in items:
-                    item.quantity = 1
+                    if transaction.is_daily_basis:
+                        item.checkout_date = None
+                    else:
+                        item.quantity = 1
                     item.save()
                 for obj in formset.deleted_objects:
                     obj.delete()
@@ -354,7 +360,10 @@ def transaction_approve(request, pk):
             items = formset.save(commit=False)
             for item in items:
                 if is_room:
-                    item.quantity = 1
+                    if transaction.is_daily_basis:
+                        item.checkout_date = None
+                    else:
+                        item.quantity = 1
                 item.save()
             formset.save_m2m()
             for obj in formset.deleted_objects:
@@ -832,7 +841,10 @@ def transaction_update(request, pk):
                 if is_lunch and not item.description:
                     item.description = str(item.entry_date or '')
                 if is_room:
-                    item.quantity = 1
+                    if transaction.is_daily_basis:
+                        item.checkout_date = None
+                    else:
+                        item.quantity = 1
                 
                 # If base_price changed or it's a new item, clear the uplifted price to force recalculation
                 if item.pk:

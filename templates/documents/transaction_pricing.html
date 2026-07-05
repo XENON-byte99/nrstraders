@@ -189,12 +189,36 @@
                 <p class="text-sm font-bold text-gray-700">
                     <i class="fas fa-bed text-indigo-500 mr-1"></i>Room Reservation Items
                 </p>
-                <p class="text-xs text-gray-400 italic">Enter the room reservation dates and cost. Drag rows to reorder.</p>
+                <p class="text-xs text-gray-400 italic">Enter the room reservation details and cost/rate. Drag rows to reorder.</p>
             </div>
+
+            {% if transaction.is_daily_basis %}
+            <!-- Room Daily Mode Standard Price Control -->
+            <div id="room-price-control" class="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row gap-3 items-center">
+                <div class="flex-1">
+                    <label class="block text-xs font-black text-indigo-900 uppercase tracking-wider mb-1">Standard Room Rate (৳)</label>
+                    <p class="text-[10px] text-indigo-500 font-medium">Enter a standard price once to apply to all daily entries automatically.</p>
+                </div>
+                <div class="w-full sm:w-48 relative">
+                    <input type="number" id="room-standard-price" step="0.001" placeholder="0.000" class="w-full px-3.5 py-2.5 rounded-xl border border-indigo-200 font-black text-right text-indigo-700 bg-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+            {% endif %}
 
             <div class="items-table-wrap border border-gray-100 rounded-xl mb-4">
                 <table>
                     <thead>
+                        {% if transaction.is_daily_basis %}
+                        <tr>
+                            <th class="w-8"></th>
+                            <th class="text-left" style="min-width:110px">📅 Date</th>
+                            <th class="text-left" style="min-width:180px">Description</th>
+                            <th class="text-center w-24">Unit</th>
+                            <th class="text-center w-20">Qty</th>
+                            <th class="text-right w-32">Rate (৳)</th>
+                            <th class="text-center w-10 !bg-red-500/80"><i class="fas fa-trash text-xs"></i></th>
+                        </tr>
+                        {% else %}
                         <tr>
                             <th class="w-8"></th>
                             <th class="text-left" style="min-width:110px">📅 From Date</th>
@@ -203,6 +227,7 @@
                             <th class="text-right w-32">Cost (৳)</th>
                             <th class="text-center w-10 !bg-red-500/80"><i class="fas fa-trash text-xs"></i></th>
                         </tr>
+                        {% endif %}
                     </thead>
                     <tbody id="item-formset">
                         {% for item_form in formset %}
@@ -210,10 +235,18 @@
                             <td class="text-center drag-handle" title="Drag to reorder">
                                 <i class="fas fa-grip-vertical text-gray-300"></i>
                             </td>
+                            {% if transaction.is_daily_basis %}
+                            <td>{{ item_form.entry_date }}</td>
+                            <td>{{ item_form.description }}</td>
+                            <td>{{ item_form.unit }}</td>
+                            <td>{{ item_form.quantity }}</td>
+                            <td>{{ item_form.base_price }}</td>
+                            {% else %}
                             <td>{{ item_form.entry_date }}</td>
                             <td>{{ item_form.checkout_date }}</td>
                             <td>{{ item_form.description }}</td>
                             <td>{{ item_form.base_price }}</td>
+                            {% endif %}
                             <td class="text-center">
                                 <div class="hidden">{{ item_form.DELETE }}</div>
                                 <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
@@ -232,6 +265,37 @@
                 <tbody id="empty-form-template">
                     <tr class="border-b item-row bg-white">
                         <td class="text-center drag-handle"><i class="fas fa-grip-vertical text-gray-300"></i></td>
+                        {% if transaction.is_daily_basis %}
+                        <td>
+                            <input type="date" name="items-__prefix__-entry_date"
+                                   id="id_items-__prefix__-entry_date"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="text" name="items-__prefix__-description"
+                                   id="id_items-__prefix__-description"
+                                   placeholder="Description..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="text" name="items-__prefix__-unit"
+                                   id="id_items-__prefix__-unit"
+                                   value="Day"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-quantity"
+                                   id="id_items-__prefix__-quantity"
+                                   value="1" min="1"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:center;">
+                        </td>
+                        <td>
+                            <input type="number" name="items-__prefix__-base_price"
+                                   id="id_items-__prefix__-base_price"
+                                   value="0.000" step="0.001" min="0"
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:right;">
+                        </td>
+                        {% else %}
                         <td>
                             <input type="date" name="items-__prefix__-entry_date"
                                    id="id_items-__prefix__-entry_date"
@@ -254,6 +318,7 @@
                                    value="0.000" step="0.001" min="0"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
+                        {% endif %}
                         <td class="text-center">
                             <button type="button" class="text-red-400 hover:text-red-600 transition p-1 rounded" onclick="removeRow(this)">
                                 <i class="fas fa-trash text-xs"></i>
@@ -434,6 +499,30 @@
         }
         updateSortOrders();
 
+        const catId = "{{ transaction.transaction_category.id }}";
+        const roomStdPriceInput = document.getElementById('room-standard-price');
+        if (roomStdPriceInput && catId) {
+            const savedPrice = localStorage.getItem('room_std_price_' + catId);
+            if (savedPrice) {
+                roomStdPriceInput.value = savedPrice;
+                setTimeout(() => {
+                    document.querySelectorAll('#item-formset input[name$="-base_price"]').forEach(inp => {
+                        if (!inp.value || inp.value === '0.000' || inp.value === '0.00') {
+                            inp.value = savedPrice;
+                        }
+                    });
+                }, 200);
+            }
+
+            roomStdPriceInput.addEventListener('input', function() {
+                const val = this.value;
+                localStorage.setItem('room_std_price_' + catId, val);
+                document.querySelectorAll('#item-formset input[name$="-base_price"]').forEach(inp => {
+                    inp.value = val;
+                });
+            });
+        }
+
         document.getElementById('add-item').addEventListener('click', function() {
             const tbody = document.getElementById('item-formset');
             const template = document.getElementById('empty-form-template').querySelector('tr');
@@ -448,9 +537,17 @@
                 if (inp.name.includes('-id')) inp.value = '';
                 else if (inp.type !== 'hidden') {
                     if (inp.name.includes('quantity')) inp.value = '1';
-                    else if (inp.name.includes('price')) inp.value = '0.00';
+                    else if (inp.name.includes('base_price')) {
+                        const isDaily = {% if transaction.is_daily_basis %}true{% else %}false{% endif %};
+                        if (isDaily) {
+                            const stdPrice = document.getElementById('room-standard-price')?.value;
+                            inp.value = stdPrice || '0.00';
+                        } else {
+                            inp.value = '0.00';
+                        }
+                    }
                     else if (inp.name.includes('description')) inp.value = {% if is_room %}''{% else %}today{% endif %};
-                    else if (inp.name.includes('unit')) inp.value = 'Pcs';
+                    else if (inp.name.includes('unit')) inp.value = 'Day';
                     else inp.value = '';
                 } else if (inp.name.includes('sort_order')) inp.value = count;
             });
