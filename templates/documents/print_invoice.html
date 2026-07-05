@@ -444,10 +444,19 @@
                         <div style="font-weight:700;margin-bottom:4px;">Terms & Conditions</div>
                         Payment is expected within 30 days. No returns without prior approval.
                         
-                        <div class="signature-box">
-                            <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
-                            <div class="signature-line"></div>
-                            <div class="signature-label">Company Authorized</div>
+                        <div style="display: flex; gap: 40px; margin-top: 30px;">
+                            <div class="signature-box" style="margin-top: 0; position: relative;">
+                                {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                                    <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
+                                    {% if transaction.supplier_party.seal_image %}
+                                        <img src="{{ transaction.supplier_party.seal_image.url }}" alt="Supplier Seal" style="height: 50px; position: absolute; bottom: 5px; right: -20px; z-index: 5; opacity: 0.8; mix-blend-mode: multiply;">
+                                    {% endif %}
+                                {% else %}
+                                    <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                                {% endif %}
+                                <div class="signature-line"></div>
+                                <div class="signature-label">Company Authorized</div>
+                            </div>
                         </div>
                     </div>
                     <div>

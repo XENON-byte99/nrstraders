@@ -207,11 +207,15 @@
 
             <div class="footer-container">
                 <div class="footer-left">
-                    <div class="footer-field"><div class="footer-label">Name of person In-Charge:</div><div class="footer-value" contenteditable="true">MD NAHIDUR RAHMAN SAKIB</div></div>
+                    <div class="footer-field"><div class="footer-label">Name of person In-Charge:</div><div class="footer-value" contenteditable="true">{% if transaction.supplier_party.ceo_name %}{{ transaction.supplier_party.ceo_name }}{% else %}MD NAHIDUR RAHMAN SAKIB{% endif %}</div></div>
                     <div class="footer-field"><div class="footer-label">Designation:</div><div class="footer-value" contenteditable="true">CEO</div></div>
                     <div class="signature-section">
                         <div class="signature-area">
-                            <img src="{% static 'images/signature.png' %}" alt="Signature" class="official-signature">
+                            {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                                <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Signature" class="official-signature">
+                            {% else %}
+                                <img src="{% static 'images/signature.png' %}" alt="Signature" class="official-signature">
+                            {% endif %}
                             <div class="signature-line"></div>
                             <div class="signature-label">Signature</div>
                         </div>
@@ -219,7 +223,11 @@
                 </div>
                 <div class="footer-right">
                     <div class="seal-area">
-                        <img src="{% static 'images/seal.png' %}" alt="Official Seal" class="official-seal">
+                        {% if transaction.supplier_party and transaction.supplier_party.seal_image %}
+                            <img src="{{ transaction.supplier_party.seal_image.url }}" alt="Official Seal" class="official-seal">
+                        {% else %}
+                            <img src="{% static 'images/seal.png' %}" alt="Official Seal" class="official-seal">
+                        {% endif %}
                     </div>
                 </div>
             </div>

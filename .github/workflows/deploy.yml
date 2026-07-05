@@ -11,33 +11,62 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Copy files via SSH
+    - name: Copy files to nrs-software
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.NRS_SSH_HOST }}
         username: ${{ secrets.NRS_SSH_USER }}
         password: ${{ secrets.NRS_SSH_PASSWORD }}
-
         port: 22
-        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root"
+        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip"
         target: "/var/www/nrs-software/"
         overwrite: true
 
-    - name: Run remote SSH commands
+    - name: Copy files to nrs
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.NRS_SSH_HOST }}
+        username: ${{ secrets.NRS_SSH_USER }}
+        password: ${{ secrets.NRS_SSH_PASSWORD }}
+        port: 22
+        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip"
+        target: "/var/www/nrs/"
+        overwrite: true
+
+    - name: Run remote SSH commands for both
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.NRS_SSH_HOST }}
         username: ${{ secrets.NRS_SSH_USER }}
         password: ${{ secrets.NRS_SSH_PASSWORD }}
-
         port: 22
         script: |
+          # Setup & commands for nrs-software
           cd /var/www/nrs-software
           if [ -f "db_deploy.sqlite3" ]; then
             mv -f db_deploy.sqlite3 db.sqlite3
-            chmod 666 db.sqlite3
           fi
+          chmod 666 db.sqlite3
           /var/www/nrs-software/venv/bin/pip install -r requirements.txt
           /var/www/nrs-software/venv/bin/python manage.py collectstatic --no-input
           /var/www/nrs-software/venv/bin/python manage.py migrate
-          systemctl restart nrs-software
+          systemctl restart nrs-software || true
+
+          # Setup & commands for nrs
+          cd /var/www/nrs
+          if [ -f "db_deploy.sqlite3" ]; then
+            mv -f db_deploy.sqlite3 db.sqlite3
+          fi
+          chmod 666 db.sqlite3
+          if [ -d "venv" ]; then
+            ENV_PATH=venv
+          elif [ -d ".venv" ]; then
+            ENV_PATH=.venv
+          else
+            python3 -m venv venv
+            ENV_PATH=venv
+          fi
+          $ENV_PATH/bin/pip install -r requirements.txt
+          $ENV_PATH/bin/python manage.py collectstatic --no-input
+          $ENV_PATH/bin/python manage.py migrate
+          systemctl restart nrs || true

@@ -750,7 +750,7 @@ def party_list(request):
 @permission_required('p_manage_contacts')
 def party_create(request):
     if request.method == 'POST':
-        form = BusinessPartyForm(request.POST)
+        form = BusinessPartyForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             messages.success(request, 'Contact saved successfully.')
@@ -901,7 +901,7 @@ def transaction_delete(request, pk):
 def party_update(request, pk):
     obj = get_object_or_404(BusinessParty, pk=pk)
     if request.method == 'POST':
-        form = BusinessPartyForm(request.POST, instance=obj)
+        form = BusinessPartyForm(request.POST, request.FILES, instance=obj)
         if form.is_valid():
             form.save()
             messages.success(request, 'Contact updated.')

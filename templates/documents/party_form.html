@@ -45,16 +45,22 @@
     </div>
 
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-7">
-        <form method="post" class="space-y-5">
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
             {% csrf_token %}
 
             <div class="form-field">
                 <label class="form-label">Party Type</label>
                 {{ form.party_type }}
             </div>
-            <div class="form-field">
-                <label class="form-label">Company / Individual Name <span class="text-red-400">*</span></label>
-                {{ form.name }}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-field">
+                    <label class="form-label">Company / Individual Name <span class="text-red-400">*</span></label>
+                    {{ form.name }}
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Name of Person In-Charge / CEO</label>
+                    {{ form.ceo_name }}
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -76,6 +82,23 @@
             <div class="form-field">
                 <label class="form-label">Address</label>
                 {{ form.address }}
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-field">
+                    <label class="form-label">Signature Image (For Suppliers)</label>
+                    {{ form.signature_image }}
+                    {% if form.instance.signature_image %}
+                        <img src="{{ form.instance.signature_image.url }}" alt="Signature" class="mt-2 h-16 object-contain rounded border border-gray-200">
+                    {% endif %}
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Seal Image (For Suppliers)</label>
+                    {{ form.seal_image }}
+                    {% if form.instance.seal_image %}
+                        <img src="{{ form.instance.seal_image.url }}" alt="Seal" class="mt-2 h-16 object-contain rounded border border-gray-200">
+                    {% endif %}
+                </div>
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 pt-3 border-t border-gray-100">

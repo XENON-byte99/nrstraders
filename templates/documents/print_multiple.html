@@ -39,6 +39,12 @@
                 Show Target Amount (Incl. VAT/Tax)
             </label>
         </div>
+        <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                Enable Edit & Live Calculation
+            </label>
+        </div>
         <div style="display: flex; gap: 10px;">
             <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print All</button>
             <button onclick="downloadJointPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download Joint PDF</button>
@@ -128,6 +134,9 @@
             if (docType === 'challan' || docType === 'mushok') {
                 controls.children[0].style.display = 'none';
             }
+
+            // Initialize signature dragging
+            initSignatureDrag();
         }
 
         function downloadJointPDF() {
@@ -174,6 +183,199 @@
                 shadowItems.forEach((item, i) => {
                     item.style.boxShadow = oldShadows[i];
                 });
+            });
+        }
+
+        // --- Live Edit and Calculation Script ---
+        function toggleEditMode(enabled) {
+            const containers = document.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+            containers.forEach(container => {
+                container.contentEditable = enabled ? "true" : "false";
+                // Prevent editing on elements that shouldn't be edited
+                container.querySelectorAll('.display-base, .display-target').forEach(el => {
+                    el.contentEditable = "inherit";
+                });
+            });
+
+            if (enabled && !window.liveCalcBound) {
+                window.liveCalcBound = true;
+                bindLiveCalculations();
+            }
+        }
+
+        function extractNum(text) {
+            if (!text) return 0;
+            const match = text.replace(/,/g, '').match(/[\d\.]+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function bindLiveCalculations() {
+            const container = document.getElementById('multiPrintContainer');
+            if (!container) return;
+            
+            container.addEventListener('input', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+                
+                const tr = td.closest('tr');
+                const table = tr.closest('table');
+                if (!table) return;
+
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const qtyIdx = headers.findIndex(h => h === 'qty');
+                const rateIdx = headers.findIndex(h => h === 'rate');
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+
+                const tds = Array.from(tr.children);
+                const cellIdx = tds.indexOf(td);
+
+                if (cellIdx === qtyIdx || cellIdx === rateIdx || cellIdx === amountIdx) {
+                    if (qtyIdx !== -1 && rateIdx !== -1 && cellIdx !== amountIdx) {
+                        const qty = extractNum(tds[qtyIdx].innerText);
+                        const rate = extractNum(tds[rateIdx].innerText);
+                        const amount = qty * rate;
+                        
+                        const amountTd = tds[amountIdx];
+                        const baseSpan = amountTd.querySelector('.display-base');
+                        if (baseSpan) {
+                            baseSpan.innerText = '৳' + amount.toFixed(3);
+                            const targetSpan = amountTd.querySelector('.display-target');
+                            if (targetSpan) targetSpan.innerText = '৳' + amount.toFixed(2);
+                        } else {
+                            amountTd.innerText = '৳' + amount.toFixed(3);
+                        }
+                    }
+                    
+                    const invoiceContainer = td.closest('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+                    if (invoiceContainer) {
+                        recalculateInvoiceTotals(invoiceContainer);
+                    }
+                }
+            });
+        }
+
+        function recalculateInvoiceTotals(container) {
+            let subtotals = [];
+            let totalSubtotal = 0;
+
+            container.querySelectorAll('table').forEach(table => {
+                let tableSub = 0;
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+                
+                if (amountIdx !== -1) {
+                    table.querySelectorAll('tbody tr').forEach(tr => {
+                        if (tr.children[amountIdx]) {
+                            const amountTd = tr.children[amountIdx];
+                            const valText = amountTd.querySelector('.display-base') ? amountTd.querySelector('.display-base').innerText : amountTd.innerText;
+                            tableSub += extractNum(valText);
+                        }
+                    });
+                }
+                subtotals.push(tableSub);
+                totalSubtotal += tableSub;
+            });
+
+            const amountRows = container.querySelectorAll('.amount-row');
+            let grandTotal = totalSubtotal;
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('subtotal')) {
+                    baseSpan.innerText = '৳' + totalSubtotal.toFixed(3);
+                } else if (label.includes('grand total')) {
+                    baseSpan.innerText = '৳' + grandTotal.toFixed(3);
+                } else {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        let taxAmt = 0;
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = (subtotals[catIdx] || 0) * (pct / 100);
+                        } else if (pctMatches.length === 1 || subtotals.length === 1) {
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = totalSubtotal * (pct / 100);
+                        } else {
+                            pctMatches.forEach((match, idx) => {
+                                const pct = parseFloat(match[1]);
+                                const sub = subtotals[idx] || 0;
+                                taxAmt += sub * (pct / 100);
+                            });
+                        }
+                        
+                        valueEl.innerText = '৳' + taxAmt.toFixed(3);
+                        grandTotal += taxAmt;
+                    }
+                }
+            });
+            
+            amountRows.forEach(row => {
+                const label = row.querySelector('.amount-label').innerText.toLowerCase();
+                if (label.includes('grand total')) {
+                    const val = row.querySelector('.amount-value');
+                    const baseSpan = val.querySelector('.display-base');
+                    if (baseSpan) {
+                        baseSpan.innerText = '৳' + grandTotal.toFixed(3);
+                        const targetSpan = val.querySelector('.display-target');
+                        if (targetSpan) targetSpan.innerText = '৳' + grandTotal.toFixed(3);
+                    } else {
+                        val.innerText = '৳' + grandTotal.toFixed(3);
+                    }
+                }
+            });
+        }
+
+        function initSignatureDrag() {
+            const signatureBoxes = document.querySelectorAll('.signature-box');
+            signatureBoxes.forEach(box => {
+                let isDragging = false;
+                let currentX = 0;
+                let currentY = 0;
+                let initialX = 0;
+                let initialY = 0;
+                let xOffset = 0;
+                let yOffset = 0;
+
+                box.addEventListener('mousedown', dragStart);
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', dragEnd);
+
+                function dragStart(e) {
+                    if (e.target.closest('.signature-box') === box) {
+                        initialX = e.clientX - xOffset;
+                        initialY = e.clientY - yOffset;
+                        isDragging = true;
+                        box.style.cursor = 'grabbing';
+                    }
+                }
+
+                function drag(e) {
+                    if (isDragging) {
+                        e.preventDefault();
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                        xOffset = currentX;
+                        yOffset = currentY;
+                        box.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                    }
+                }
+
+                function dragEnd(e) {
+                    if (isDragging) {
+                        initialX = currentX;
+                        initialY = currentY;
+                        isDragging = false;
+                        box.style.cursor = 'grab';
+                    }
+                }
             });
         }
 

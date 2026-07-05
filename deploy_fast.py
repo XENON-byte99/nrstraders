@@ -4,7 +4,6 @@ VPS_HOST    = "194.238.19.210"
 VPS_PORT    = 22
 VPS_USER    = "root"
 VPS_PASS    = "qscfkz0B&VY?rf7D"
-REMOTE_ROOT = "/var/www/nrs"
 
 def run_ssh(client, cmd):
     print(f"Running: {cmd}")
@@ -23,24 +22,23 @@ def main():
     
     print("Uploading deploy.zip...")
     sftp.put("deploy.zip", "/tmp/deploy.zip")
+    sftp.close()
     
-    print("Extracting files...")
-    run_ssh(client, f"mkdir -p {REMOTE_ROOT} && unzip -o /tmp/deploy.zip -d {REMOTE_ROOT}")
+    dirs = ["/var/www/nrs-software", "/var/www/nrs"]
     
-    print("Setting permissions...")
-    run_ssh(client, f"chmod 666 {REMOTE_ROOT}/db.sqlite3")
-    run_ssh(client, f"chown -R www-data:www-data {REMOTE_ROOT}")
-    
-    print("Running Django commands...")
-    # Setup venv if it doesn't exist
-    run_ssh(client, f"cd {REMOTE_ROOT} && python3 -m venv .venv")
-    run_ssh(client, f"cd {REMOTE_ROOT} && {REMOTE_ROOT}/.venv/bin/pip install -r requirements.txt")
-    run_ssh(client, f"cd {REMOTE_ROOT} && {REMOTE_ROOT}/.venv/bin/python manage.py collectstatic --no-input")
-    run_ssh(client, f"cd {REMOTE_ROOT} && {REMOTE_ROOT}/.venv/bin/python manage.py migrate")
-    
-    # We should make sure the service is correct
-    print("Restarting service...")
-    run_ssh(client, f"systemctl restart nrs || systemctl daemon-reload && systemctl restart nrs")
+    for folder in dirs:
+        print(f"\n--- Deploying to {folder} ---")
+        run_ssh(client, f"mkdir -p {folder} && unzip -o /tmp/deploy.zip -d {folder}")
+        run_ssh(client, f"if [ -f {folder}/db_deploy.sqlite3 ]; then mv -f {folder}/db_deploy.sqlite3 {folder}/db.sqlite3; fi")
+        run_ssh(client, f"chmod 666 {folder}/db.sqlite3")
+        run_ssh(client, f"chown -R www-data:www-data {folder}")
+        
+        cmd_env = f"cd {folder} && if [ -d venv ]; then ENV_PATH=venv; elif [ -d .venv ]; then ENV_PATH=.venv; else python3 -m venv venv && ENV_PATH=venv; fi && $ENV_PATH/bin/pip install -r requirements.txt && $ENV_PATH/bin/python manage.py collectstatic --no-input && $ENV_PATH/bin/python manage.py migrate"
+        run_ssh(client, cmd_env)
+        
+    print("\n--- Restarting services ---")
+    run_ssh(client, "systemctl restart nrs-software || true")
+    run_ssh(client, "systemctl restart nrs || true")
     
     client.close()
     print("Deployment finished successfully!")

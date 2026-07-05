@@ -100,6 +100,20 @@ class Transaction(SyncableModel):
     status_updated_at = models.DateTimeField(null=True, blank=True)
     
     @property
+    def supplier_party(self):
+        if not self.supplier_name:
+            return None
+        
+        def clean_name(s):
+            return ''.join(c for c in s.lower() if c.isalnum())
+            
+        target = clean_name(self.supplier_name)
+        for party in BusinessParty.objects.filter(party_type='SUPPLIER'):
+            if clean_name(party.name) == target:
+                return party
+        return None
+
+    @property
     def display_subtotal(self):
         return sum(item.billed_total for item in self.items.all())
 
@@ -544,10 +558,14 @@ class BusinessParty(SyncableModel):
     ]
     party_type = models.CharField(max_length=20, choices=PARTY_TYPES)
     name = models.CharField(max_length=255)
+    ceo_name = models.CharField(max_length=255, blank=True, help_text="Name of the person in charge / CEO")
     bin_number = models.CharField(max_length=100, blank=True)
     address = models.TextField(blank=True)
     contact = models.CharField(max_length=100, blank=True)
     whatsapp_number = models.CharField(max_length=20, blank=True, help_text="e.g. 88017...")
+    
+    signature_image = models.ImageField(upload_to='signatures/', blank=True, null=True)
+    seal_image = models.ImageField(upload_to='seals/', blank=True, null=True)
     
     def __str__(self):
         return self.name
