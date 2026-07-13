@@ -74,7 +74,7 @@ def user_password_override(request, pk):
     })
 
 @login_required
-@permission_required('p_approve_bill') # Using p_approve_bill as the 'Owner level' permission
+@permission_required('p_manage_users')
 def permission_dashboard(request):
     users = CustomUser.objects.exclude(is_superuser=True).order_by('username')
     permission_fields = [
@@ -94,6 +94,7 @@ def permission_dashboard(request):
         ('p_manage_authorizations', 'Check Authorizations'),
         ('p_manage_peer_transactions', 'Money Tracker (Initiate)'),
         ('p_print_documents', 'Print Documents'),
+        ('p_view_audit_logs', 'Audit Logs'),
         ('p_manage_users', 'User Mgmt'),
     ]
     return render(request, 'accounts/permission_dashboard.html', {
@@ -102,21 +103,31 @@ def permission_dashboard(request):
     })
 
 @login_required
-@permission_required('p_approve_bill')
+@permission_required('p_manage_users')
 def api_update_permission(request):
     from django.http import JsonResponse
     import json
+    # Only real permission flags may be toggled — never arbitrary model
+    # attributes (is_superuser, role, password, ...).
+    ALLOWED_PERMS = {
+        f.name for f in CustomUser._meta.get_fields()
+        if f.name.startswith('p_') and getattr(f, 'get_internal_type', lambda: '')() == 'BooleanField'
+    }
     if request.method == 'POST':
         data = json.loads(request.body)
         user_id = data.get('user_id')
         perm_name = data.get('perm_name')
-        value = data.get('value')
-        
+        value = bool(data.get('value'))
+
+        if perm_name not in ALLOWED_PERMS:
+            return JsonResponse({'success': False, 'error': 'Invalid permission'}, status=400)
+
         user_obj = get_object_or_404(CustomUser, pk=user_id)
-        if hasattr(user_obj, perm_name):
-            setattr(user_obj, perm_name, value)
-            user_obj.save(update_fields=[perm_name])
-            return JsonResponse({'success': True})
+        if user_obj.is_superuser and not request.user.is_superuser:
+            return JsonResponse({'success': False, 'error': 'Cannot modify a superuser'}, status=403)
+        setattr(user_obj, perm_name, value)
+        user_obj.save(update_fields=[perm_name])
+        return JsonResponse({'success': True})
     return JsonResponse({'success': False}, status=400)
 
 @login_required

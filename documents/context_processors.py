@@ -1,4 +1,9 @@
+from django.conf import settings
 from accounts.models import User
+
+def debug_mode(request):
+    """Expose settings.DEBUG to all templates (e.g. to hide demo credentials in production)."""
+    return {'debug_mode': settings.DEBUG}
 
 def whatsapp_contacts(request):
     """Provides default WhatsApp numbers for various roles globally."""
