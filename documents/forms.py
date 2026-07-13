@@ -23,7 +23,8 @@ class TransactionForm(forms.ModelForm):
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
             'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin',
             'secondary_vat_percentage', 'secondary_duty_percentage', 'secondary_tax_percentage', 'secondary_service_charge_percentage', 'secondary_profit_margin',
-            'is_daily_basis'
+            'discount_percentage', 'discount_flat',
+            'is_daily_basis', 'decimal_display_mode', 'calculation_mode'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
@@ -32,16 +33,20 @@ class TransactionForm(forms.ModelForm):
 class TransactionHeaderForm(forms.ModelForm):
     class Meta:
         model = Transaction
+        # NOTE: is_daily_basis is intentionally NOT here.
+        # It is edited on the create/edit form, not at approval.
         fields = [
             'invoice_number', 'challan_number', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
-            'is_daily_basis'
+            'decimal_display_mode', 'calculation_mode'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
             'supplier_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
             'buyer_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'decimal_display_mode': forms.Select(attrs={'class': 'form-control'}),
+            'calculation_mode': forms.RadioSelect(attrs={'class': 'w-4 h-4 text-indigo-600 focus:ring-indigo-500'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -65,8 +70,11 @@ class TransactionHeaderForm(forms.ModelForm):
 class TransactionItemForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
         widgets = {
+            'entry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'checkout_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
         }
 
@@ -104,6 +112,7 @@ class ApprovalPricingForm(forms.ModelForm):
         widgets = {
             'entry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'checkout_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
             'unit_price_uplifted': forms.NumberInput(attrs={'step': '0.001'}),
         }
@@ -132,17 +141,29 @@ class TransactionCategoryForm(forms.ModelForm):
 class LunchItemForm(forms.ModelForm):
     entry_date = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-        required=True,
+        required=False,
+        label="Date"
+    )
+    checkout_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        required=False,
+        label="Checkout Date"
     )
     restaurant_name = forms.CharField(max_length=255, required=False)
     description = forms.CharField(max_length=255, required=False)
+    unit = forms.CharField(
+        max_length=50,
+        required=False,
+        initial='Meal',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Unit'})
+    )
     base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'restaurant_name', 'description', 'base_price', 'quantity', 'sort_order']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
         widgets = {
-            'quantity': forms.NumberInput(attrs={'min': 1}),
+            'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
         }
 
 LunchItemFormSet = inlineformset_factory(
@@ -172,16 +193,16 @@ class RoomItemForm(forms.ModelForm):
         initial='Day',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Unit'})
     )
-    quantity = forms.IntegerField(
+    quantity = forms.DecimalField(
         required=False,
         initial=1,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Qty', 'style': 'text-align: center;'})
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Qty', 'style': 'text-align: center;', 'step': 'any', 'min': '0.001'})
     )
     base_price = forms.DecimalField(max_digits=10, decimal_places=3, initial=0)
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'sort_order']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
 
 RoomItemFormSet = inlineformset_factory(
     Transaction,
@@ -281,7 +302,7 @@ class RequisitionItemForm(forms.ModelForm):
         model = TransactionItem
         fields = ['description', 'unit', 'base_price', 'quantity', 'sort_order']
         widgets = {
-            'quantity': forms.NumberInput(attrs={'min': 1}),
+            'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
         }
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Transaction, TransactionItem, BusinessParty, TransactionCategory
+from .models import Transaction, TransactionItem, BusinessParty, TransactionCategory, TransactionSnapshot
 
 @admin.register(BusinessParty)
 class BusinessPartyAdmin(admin.ModelAdmin):
@@ -31,3 +31,9 @@ class TransactionAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         if 'delete_selected' in actions and not request.user.is_superuser:
             del actions['delete_selected']
         return actions
+
+@admin.register(TransactionSnapshot)
+class TransactionSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('transaction', 'created_at', 'created_by')
+    readonly_fields = ('transaction', 'created_at', 'created_by', 'snapshot_data')
+    search_fields = ('transaction__invoice_number',)

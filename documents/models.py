@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
@@ -65,6 +66,20 @@ class Transaction(SyncableModel):
         ('RELEASED', 'Released'),
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+
+    DECIMAL_CHOICES = (
+        ('DEFAULT', 'Show Decimals'),
+        ('ROUND_UP', 'Round Up'),
+        ('TRUNCATE', 'Truncate'),
+        ('ROUND', 'Round Nearest'),
+    )
+    decimal_display_mode = models.CharField(max_length=20, choices=DECIMAL_CHOICES, default='DEFAULT')
+    
+    CALCULATION_CHOICES = (
+        ('forward', 'Forward'),
+        ('reverse', 'Reverse'),
+    )
+    calculation_mode = models.CharField(max_length=20, choices=CALCULATION_CHOICES, default='forward')
     
     supplier_name = models.CharField(max_length=255, blank=True)
     supplier_bin = models.CharField(max_length=100, blank=True)
@@ -76,17 +91,22 @@ class Transaction(SyncableModel):
     buyer_address = models.TextField(blank=True)
     buyer_contact = models.CharField(max_length=100, blank=True)
 
-    vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=15.00)
-    duty_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)
-    tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    # Defaults must be Decimal, not float — a freshly constructed (not yet
+    # reloaded) instance otherwise carries float attrs that crash money math.
+    vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('15.00'))
+    duty_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('5.00'))
+    tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
 
-    secondary_vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=15.00)
-    secondary_duty_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)
-    secondary_tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    secondary_service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    secondary_profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    secondary_vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('15.00'))
+    secondary_duty_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('5.00'))
+    secondary_tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    secondary_service_charge_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    secondary_profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), help_text='Discount percentage deducted from the grand total')
+    discount_flat = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text='Flat discount amount (Tk) deducted in addition to the percentage discount')
 
     transaction_category = models.ForeignKey(TransactionCategory, on_delete=models.SET_NULL, null=True, blank=True)
     secondary_category = models.ForeignKey(TransactionCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='secondary_transactions', help_text="Optional secondary category for dual-category registration.")
@@ -119,6 +139,10 @@ class Transaction(SyncableModel):
         return sum(item.billed_total for item in self.items.all())
 
     @property
+    def total_quantity(self):
+        return sum(item.quantity for item in self.items.all() if item.quantity is not None)
+
+    @property
     def total_service_charge(self):
         import decimal
         primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
@@ -129,15 +153,21 @@ class Transaction(SyncableModel):
 
     @property
     def total_duty(self):
-        return sum(item.duty_amount for item in self.items.all()) + self.service_charge_duty
+        import decimal
+        undiscounted = sum(item.duty_amount for item in self.items.all()) + self.service_charge_duty
+        return round(undiscounted * self.discount_factor, 3)
 
     @property
     def total_tax(self):
-        return sum(item.tax_amount for item in self.items.all()) + self.service_charge_tax
+        import decimal
+        undiscounted = sum(item.tax_amount for item in self.items.all()) + self.service_charge_tax
+        return round(undiscounted * self.discount_factor, 3)
 
     @property
     def total_vat(self):
-        return sum(item.vat_amount for item in self.items.all()) + self.service_charge_vat
+        import decimal
+        undiscounted = sum(item.vat_amount for item in self.items.all()) + self.service_charge_vat
+        return round(undiscounted * self.discount_factor, 3)
 
     @property
     def grand_subtotal(self):
@@ -163,12 +193,12 @@ class Transaction(SyncableModel):
         secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
         
         primary_sc_tax = decimal.Decimal('0.000')
-        if self.tax_percentage > 0:
+        if 0 < self.tax_percentage < 100:
             gross = (primary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
             primary_sc_tax = gross - primary_sc
             
         secondary_sc_tax = decimal.Decimal('0.000')
-        if self.secondary_tax_percentage > 0:
+        if 0 < self.secondary_tax_percentage < 100:
             gross = (secondary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
             secondary_sc_tax = gross - secondary_sc
             
@@ -186,12 +216,12 @@ class Transaction(SyncableModel):
         secondary_sc_duty = secondary_sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
         
         primary_sc_tax = decimal.Decimal('0.000')
-        if self.tax_percentage > 0:
+        if 0 < self.tax_percentage < 100:
             gross = (primary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
             primary_sc_tax = gross - primary_sc
             
         secondary_sc_tax = decimal.Decimal('0.000')
-        if self.secondary_tax_percentage > 0:
+        if 0 < self.secondary_tax_percentage < 100:
             gross = (secondary_sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
             secondary_sc_tax = gross - secondary_sc
             
@@ -205,8 +235,36 @@ class Transaction(SyncableModel):
         return self.total_service_charge + self.service_charge_duty + self.service_charge_vat + self.service_charge_tax
 
     @property
+    def discount_amount(self):
+        import decimal
+        # Discount is applied to the base price (subtotal + service charge):
+        # percentage part + flat amount, clamped so it never exceeds the base.
+        base_for_discount = self.display_subtotal + self.total_service_charge
+        total = base_for_discount * (self.discount_percentage / decimal.Decimal('100.0')) + self.discount_flat
+        if total > base_for_discount:
+            total = base_for_discount
+        return round(total, 3)
+
+    @property
+    def discount_factor(self):
+        """Fraction of the base that remains after all discounts (scales taxes)."""
+        import decimal
+        base_for_discount = self.display_subtotal + self.total_service_charge
+        if base_for_discount <= 0:
+            return decimal.Decimal('1.0')
+        return decimal.Decimal('1.0') - (self.discount_amount / base_for_discount)
+
+    @property
+    def price_after_discount_base(self):
+        return self.display_subtotal + self.total_service_charge - self.discount_amount
+
+    @property
+    def price_after_discount_target(self):
+        return self.grand_total
+
+    @property
     def grand_total(self):
-        return self.display_subtotal + self.total_service_charge + self.total_duty + self.total_vat + self.total_tax
+        return self.price_after_discount_base + self.total_duty + self.total_vat + self.total_tax
 
     @property
     def primary_total_service_charge(self):
@@ -240,7 +298,7 @@ class Transaction(SyncableModel):
         item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=False))
         sc = self.primary_total_service_charge
         sc_tax = decimal.Decimal('0.000')
-        if self.tax_percentage > 0:
+        if 0 < self.tax_percentage < 100:
             gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
             sc_tax = gross - sc
         return round(item_tax + sc_tax, 3)
@@ -251,7 +309,7 @@ class Transaction(SyncableModel):
         item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=True))
         sc = self.secondary_total_service_charge
         sc_tax = decimal.Decimal('0.000')
-        if self.secondary_tax_percentage > 0:
+        if 0 < self.secondary_tax_percentage < 100:
             gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
             sc_tax = gross - sc
         return round(item_tax + sc_tax, 3)
@@ -263,7 +321,7 @@ class Transaction(SyncableModel):
         sc = self.primary_total_service_charge
         sc_duty = sc * (self.duty_percentage / decimal.Decimal('100.0'))
         sc_tax = decimal.Decimal('0.000')
-        if self.tax_percentage > 0:
+        if 0 < self.tax_percentage < 100:
             gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.tax_percentage)
             sc_tax = gross - sc
         sc_vat = (sc + sc_duty + sc_tax) * (self.vat_percentage / decimal.Decimal('100.0'))
@@ -276,7 +334,7 @@ class Transaction(SyncableModel):
         sc = self.secondary_total_service_charge
         sc_duty = sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
         sc_tax = decimal.Decimal('0.000')
-        if self.secondary_tax_percentage > 0:
+        if 0 < self.secondary_tax_percentage < 100:
             gross = (sc * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - self.secondary_tax_percentage)
             sc_tax = gross - sc
         sc_vat = (sc + sc_duty + sc_tax) * (self.secondary_vat_percentage / decimal.Decimal('100.0'))
@@ -302,6 +360,7 @@ class Transaction(SyncableModel):
         for item in self.items.filter(is_secondary=is_secondary):
             if not item.entry_date:
                 ungrouped.append({
+                    'date': None,
                     'description': item.description or 'Lunch Supply',
                     'unit': item.unit or 'Pcs',
                     'quantity': item.quantity,
@@ -311,8 +370,9 @@ class Transaction(SyncableModel):
                 })
                 continue
             if item.entry_date not in grouped:
-                desc = item.description if item.description else f"Lunch Supply ({item.entry_date.strftime('%d %b %Y')})"
+                desc = item.display_description
                 grouped[item.entry_date] = {
+                    'date': item.entry_date,
                     'description': desc,
                     'unit': item.unit or 'Day',
                     'quantity': 0,
@@ -347,6 +407,10 @@ class Transaction(SyncableModel):
         return self.items.filter(is_secondary=True)
 
     @property
+    def items_separated_by_category(self):
+        return self.items.all().order_by('is_secondary', 'sort_order', 'id')
+
+    @property
     def grouped_lunch_items(self):
         return self._grouped_lunch_items_for_sec(is_secondary=False)
 
@@ -364,7 +428,8 @@ class Transaction(SyncableModel):
             if not item.base_price or item.base_price == 0:
                 blank_items.append(desc)
         
-        msg = f"*Quotation Alert: {self.transaction_category.name}*\n"
+        cat_name = self.transaction_category.name if self.transaction_category else "General"
+        msg = f"*Quotation Alert: {cat_name}*\n"
         msg += f"Status: {self.status}\n"
         if self.invoice_number:
             msg += f"ID: {self.invoice_number}\n"
@@ -420,7 +485,8 @@ class Transaction(SyncableModel):
         link = ""
         if self.status == 'DRAFT':
             # Link to pricing view if Accountant/Supplier needs to act
-            link = f"{current_domain}/bills/{self.id}/pricing/" if self.transaction_category.name.lower() != 'lunch' else f"{current_domain}/bills/{self.id}/edit/"
+            cat_name = self.transaction_category.name.lower() if self.transaction_category else ""
+            link = f"{current_domain}/bills/{self.id}/pricing/" if cat_name != 'lunch' else f"{current_domain}/bills/{self.id}/edit/"
         elif self.status == 'PRICED':
             # Link to approval view for Owner
             link = f"{current_domain}/bills/{self.id}/approve/"
@@ -448,8 +514,8 @@ class TransactionItem(SyncableModel):
     transaction = models.ForeignKey(Transaction, related_name='items', on_delete=models.CASCADE)
     description = models.CharField(max_length=255, blank=True)
     unit = models.CharField(max_length=50, default='Pcs')
-    quantity = models.IntegerField(default=1)
-    base_price = models.DecimalField(max_digits=10, decimal_places=3, default=0.000)
+    quantity = models.DecimalField(max_digits=10, decimal_places=3, default=Decimal('1.000'))
+    base_price = models.DecimalField(max_digits=10, decimal_places=3, default=Decimal('0.000'))
     unit_price_uplifted = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, help_text="Owner set price before taxes. If blank, global profit margin applies.")
 
     sort_order = models.IntegerField(default=0)
@@ -461,6 +527,21 @@ class TransactionItem(SyncableModel):
     
     class Meta:
         ordering = ['sort_order', 'id']
+
+    @property
+    def display_description(self):
+        import re
+        is_date = re.match(r'^\d{4}-\d{2}-\d{2}$', str(self.description or "").strip())
+        if not self.description or is_date:
+            cat = self.transaction.secondary_category if (self.is_secondary and self.transaction.secondary_category) else self.transaction.transaction_category
+            cat_name = cat.name if cat else "Lunch"
+            if self.restaurant_name:
+                return f"{cat_name} from {self.restaurant_name}"
+            elif self.entry_date:
+                return f"{cat_name} Supply ({self.entry_date.strftime('%d %b %Y')})"
+            else:
+                return f"{cat_name} Supply"
+        return self.description
 
     @property
     def billed_unit_price(self):
@@ -534,7 +615,8 @@ class TransactionItem(SyncableModel):
     def tax_amount(self):
         import decimal
         tax_pct = self.transaction.secondary_tax_percentage if self.is_secondary else self.transaction.tax_percentage
-        if tax_pct == 0:
+        # The gross-up formula divides by (100 - pct): invalid at or above 100%.
+        if tax_pct <= 0 or tax_pct >= 100:
             return decimal.Decimal('0.000')
         gross = (self.billed_total * decimal.Decimal('100.0')) / (decimal.Decimal('100.0') - tax_pct)
         return round(gross - self.billed_total, 3)
@@ -627,3 +709,15 @@ class CheckAuthorization(SyncableModel):
 
     def __str__(self):
         return f"{self.reference_number} - {self.nominee.username}"
+
+class TransactionSnapshot(models.Model):
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='snapshots')
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_data = models.JSONField(help_text="Serialized state of the transaction and its items before the update")
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Snapshot of {self.transaction.invoice_number or self.transaction.id} at {self.created_at}"
