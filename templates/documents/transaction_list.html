@@ -28,6 +28,7 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice/Challan</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -42,6 +43,18 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                         <div class="text-xs mt-1 font-semibold uppercase tracking-wider inline-block px-2 py-0.5 rounded bg-{{ item.transaction_category.color_theme|default:'gray' }}-200 text-{{ item.transaction_category.color_theme|default:'gray' }}-800">
                             <i class="fas fa-tag mr-1"></i> {{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
                         </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% with items=item.items.all %}
+                        {% with first=items|first %}
+                        <div class="text-sm text-gray-800 truncate max-w-[240px]" title="{% for it in items %}{{ it.display_description }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                            {{ first.display_description|default:"(no items)"|truncatechars:45 }}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5">
+                            {{ items|length }} item{{ items|length|pluralize }}{% if item.supplier_name %} · <span class="font-medium">{{ item.supplier_name|truncatechars:28 }}</span>{% endif %}
+                        </div>
+                        {% endwith %}
+                        {% endwith %}
                     </td>
                     <td class="px-6 py-4 text-sm">{{ item.buyer_name }}</td>
                     <td class="px-6 py-4">
@@ -108,7 +121,7 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                 </tr>
                 {% endfor %}
                 {% if not transactions %}
-                <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No transactions found.</td></tr>
+                <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No transactions found.</td></tr>
                 {% endif %}
             </tbody>
         </table>
@@ -143,6 +156,12 @@ bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
                 </span>
                 {% endif %}
             </div>
+            {% with items=item.items.all %}
+            {% with first=items|first %}
+            <div class="text-sm text-gray-800 font-medium truncate">{{ first.display_description|default:"(no items)"|truncatechars:50 }}</div>
+            <div class="text-xs text-gray-500 mb-1">{{ items|length }} item{{ items|length|pluralize }}{% if item.supplier_name %} · {{ item.supplier_name|truncatechars:30 }}{% endif %}</div>
+            {% endwith %}
+            {% endwith %}
             <div class="text-sm text-gray-700"><span class="font-semibold">Buyer:</span> {{ item.buyer_name }}</div>
             <div class="text-xs text-gray-500 mt-0.5">{{ item.created_at|date:"M d, Y" }}</div>
         </div>
