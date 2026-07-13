@@ -67,15 +67,22 @@ class TransactionHeaderForm(forms.ModelForm):
                 self.fields['buyer_address'].initial = "Adamjee EPZ, Siddhirganj, Narayanganj, Dhaka"
                 self.fields['buyer_contact'].initial = "01XXXXXXXXX"
 
+# Small inputs for the collapsible per-item tax override in the create/edit form
+_OVERRIDE_WIDGETS = {
+    'override_vat': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '99.99', 'placeholder': 'VAT%', 'class': 'ov-vat'}),
+    'override_tax': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '99.99', 'placeholder': 'TAX%', 'class': 'ov-tax'}),
+}
+
 class TransactionItemForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary', 'override_vat', 'override_tax']
         widgets = {
             'entry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'checkout_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
             'base_price': forms.NumberInput(attrs={'step': '0.001'}),
+            **_OVERRIDE_WIDGETS,
         }
 
 
@@ -163,9 +170,10 @@ class LunchItemForm(forms.ModelForm):
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary', 'override_vat', 'override_tax']
         widgets = {
             'quantity': forms.NumberInput(attrs={'step': 'any', 'min': '0.001'}),
+            **_OVERRIDE_WIDGETS,
         }
 
 LunchItemFormSet = inlineformset_factory(
@@ -204,7 +212,8 @@ class RoomItemForm(forms.ModelForm):
 
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary']
+        fields = ['entry_date', 'checkout_date', 'restaurant_name', 'description', 'unit', 'quantity', 'base_price', 'sort_order', 'is_secondary', 'override_vat', 'override_tax']
+        widgets = dict(_OVERRIDE_WIDGETS)
 
 RoomItemFormSet = inlineformset_factory(
     Transaction,

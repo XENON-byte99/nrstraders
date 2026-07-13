@@ -3,6 +3,24 @@
 
 {% block content %}
 <style>
+    /* ── Per-item tax override (collapsed by default) ── */
+    .tax-ov-toggle {
+        font-size: 9px; font-weight: 700; color: #9ca3af; cursor: pointer;
+        background: none; border: none; padding: 2px 0 0; margin-top: 2px; text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .tax-ov-toggle:hover { color: #6366f1; }
+    .tax-ov-toggle.active { color: #6366f1; }
+    .tax-ov-fields { display: flex; gap: 3px; margin-top: 3px; }
+    .tax-ov-fields.hidden { display: none; }
+    .tax-ov-fields input.ov-vat, .tax-ov-fields input.ov-tax {
+        width: 50% !important; padding: 3px 5px !important; font-size: 10px !important;
+        border: 1px solid #e5e7eb !important; border-radius: 6px !important; text-align: right;
+        min-width: 0;
+    }
+    .tax-ov-fields input.ov-vat { color: #dc2626; }
+    .tax-ov-fields input.ov-tax { color: #ea580c; }
+
     /* ── Form field styles ── */
     .form-input, input[type="text"], input[type="number"], textarea, select {
         width: 100%;
@@ -325,7 +343,13 @@
                             </td>
                             <td>{{ item_form.unit }}</td>
                             <td>{{ item_form.quantity }}</td>
-                            <td class="base-price-cell">{{ item_form.base_price }}</td>
+                            <td class="base-price-cell">
+                                {{ item_form.base_price }}
+                                <div class="tax-ov">
+                                    <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                    <div class="tax-ov-fields hidden">{{ item_form.override_vat }}{{ item_form.override_tax }}</div>
+                                </div>
+                            </td>
                             <td class="target-col hidden">
                                 <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                             </td>
@@ -381,7 +405,13 @@
                                 </td>
                                 <td>{{ item_form.entry_date }}</td>
                                 <td>{{ item_form.restaurant_name }}</td>
-                                <td class="base-price-cell">{{ item_form.base_price }}</td>
+                                <td class="base-price-cell">
+                                    {{ item_form.base_price }}
+                                    <div class="tax-ov">
+                                        <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                        <div class="tax-ov-fields hidden">{{ item_form.override_vat }}{{ item_form.override_tax }}</div>
+                                    </div>
+                                </td>
                                 <td class="target-col hidden">
                                     <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                                 </td>
@@ -446,7 +476,13 @@
                                 <td>{{ item_form.description }}</td>
                                 <td class="room-unit-col hidden">{{ item_form.unit }}</td>
                                 <td class="room-qty-col hidden">{{ item_form.quantity }}</td>
-                                <td class="base-price-cell">{{ item_form.base_price }}</td>
+                                <td class="base-price-cell">
+                                    {{ item_form.base_price }}
+                                    <div class="tax-ov">
+                                        <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                        <div class="tax-ov-fields hidden">{{ item_form.override_vat }}{{ item_form.override_tax }}</div>
+                                    </div>
+                                </td>
                                 <td class="target-col hidden">
                                     <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                                 </td>
@@ -505,6 +541,13 @@
                                    id="id_items-__prefix__-base_price"
                                    value="0.000" step="0.001" min="0"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                            <div class="tax-ov">
+                                <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                <div class="tax-ov-fields hidden">
+                                    <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_vat" id="id_items-__prefix__-override_vat" placeholder="VAT%" class="ov-vat">
+                                    <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_tax" id="id_items-__prefix__-override_tax" placeholder="TAX%" class="ov-tax">
+                                </div>
+                            </div>
                         </td>
                         <td class="target-col hidden">
                             <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
@@ -541,7 +584,13 @@
                         </td>
                         <td>{{ formset.empty_form.unit }}</td>
                         <td>{{ formset.empty_form.quantity }}</td>
-                        <td class="base-price-cell">{{ formset.empty_form.base_price }}</td>
+                        <td class="base-price-cell">
+                            {{ formset.empty_form.base_price }}
+                            <div class="tax-ov">
+                                <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                <div class="tax-ov-fields hidden">{{ formset.empty_form.override_vat }}{{ formset.empty_form.override_tax }}</div>
+                            </div>
+                        </td>
                         <td class="target-col hidden">
                             <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
@@ -576,6 +625,13 @@
                                    id="id_items-__prefix__-base_price"
                                    value="0.000" step="0.001" min="0"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
+                            <div class="tax-ov">
+                                <button type="button" class="tax-ov-toggle" onclick="toggleTaxOverride(this)" title="Set item-specific VAT/TAX % (overrides the bill's rate)"><i class="fas fa-percent text-[8px]"></i> tax</button>
+                                <div class="tax-ov-fields hidden">
+                                    <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_vat" id="id_items-__prefix__-override_vat" placeholder="VAT%" class="ov-vat">
+                                    <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_tax" id="id_items-__prefix__-override_tax" placeholder="TAX%" class="ov-tax">
+                                </div>
+                            </div>
                         </td>
                         <td class="target-col hidden">
                             <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
@@ -1855,8 +1911,29 @@ document.addEventListener('DOMContentLoaded', function() {
         checkedRadio.dispatchEvent(new Event('change'));
     }
 });
+// ── Per-item tax override toggle ──
+function toggleTaxOverride(btn) {
+    const fields = btn.parentElement.querySelector('.tax-ov-fields');
+    if (!fields) return;
+    const nowHidden = fields.classList.toggle('hidden');
+    btn.classList.toggle('active', !nowHidden);
+}
+// On load, auto-expand any row that already carries an override value
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tax-ov-fields').forEach(f => {
+        const vat = f.querySelector('.ov-vat');
+        const tax = f.querySelector('.ov-tax');
+        if ((vat && vat.value !== '') || (tax && tax.value !== '')) {
+            f.classList.remove('hidden');
+            const btn = f.parentElement.querySelector('.tax-ov-toggle');
+            if (btn) btn.classList.add('active');
+        }
+    });
+});
+
 // ── Reverse Calculation Logic ──
-function getMultiplier(isSecondary) {
+// `row` (optional) lets a line item's per-item VAT/TAX override beat the bill rate.
+function getMultiplier(isSecondary, row) {
     const prefix = isSecondary ? 'secondary_' : '';
     const val = (name) => {
         const el = document.querySelector(`[name="${prefix}${name}"]`);
@@ -1868,9 +1945,17 @@ function getMultiplier(isSecondary) {
     };
 
     const dutyPct = val('duty_percentage');
-    const taxPct = val('tax_percentage');
-    const vatPct = val('vat_percentage');
+    let taxPct = val('tax_percentage');
+    let vatPct = val('vat_percentage');
     const margin = val('profit_margin');
+
+    // Per-item overrides (blank = inherit the bill rate)
+    if (row) {
+        const ovVat = row.querySelector('.ov-vat');
+        const ovTax = row.querySelector('.ov-tax');
+        if (ovVat && ovVat.value !== '') vatPct = parseFloat(ovVat.value) || 0;
+        if (ovTax && ovTax.value !== '') taxPct = parseFloat(ovTax.value) || 0;
+    }
     
     // Service charge percentage is always taken from primary if we want strict compatibility,
     // but the backend does check secondary_service_charge_percentage for secondary items.
@@ -1881,7 +1966,7 @@ function getMultiplier(isSecondary) {
     const scMultiplier = scPct / 100.0;
     
     let taxMultiplier = 0.0;
-    if (taxPct > 0) {
+    if (taxPct > 0 && taxPct < 100) {
         taxMultiplier = (100.0 / (100.0 - taxPct)) - 1.0;
     }
 
@@ -1910,7 +1995,7 @@ function doReverseCalculation(row) {
     if (quantity === 0) return;
 
     const targetPerUnit = targetTotal / quantity;
-    const multiplier = getMultiplier(isSecondary);
+    const multiplier = getMultiplier(isSecondary, row);
 
     if (multiplier === 0) {
         basePriceInput.value = targetPerUnit.toFixed(3);
@@ -1932,7 +2017,7 @@ function syncTargetInputsFromBasePrices() {
             const quantity = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) || 1 : 1;
             if (basePrice > 0) {
                 const isSecondary = row.querySelector('input[name$="-is_secondary"]')?.checked || false;
-                const multiplier = getMultiplier(isSecondary);
+                const multiplier = getMultiplier(isSecondary, row);
                 targetInput.value = (basePrice * multiplier * quantity).toFixed(3);
             } else {
                 targetInput.value = "0.000";
@@ -1946,6 +2031,14 @@ document.addEventListener('input', function(e) {
     if (e.target.classList.contains('target-input')) {
         const row = e.target.closest('tr');
         if (row) doReverseCalculation(row);
+    }
+    // Per-item tax override changed: in reverse mode re-derive that row's base,
+    // in forward mode refresh its target preview.
+    if (e.target.classList.contains('ov-vat') || e.target.classList.contains('ov-tax')) {
+        const row = e.target.closest('tr');
+        if (!row) return;
+        const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+        if (isReverse) doReverseCalculation(row);
     }
 });
 // Re-calculate when percentages or quantity change
