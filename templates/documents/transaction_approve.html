@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load whatsapp_tags %}
+{% load billing_tags %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto pb-20">
@@ -148,6 +149,57 @@
             </div>
         </div>
 
+        <!-- Calculation & Display Settings (Editable) -->
+        {% if not is_locked %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+            <!-- Calculation Mode Toggle -->
+            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i class="fas fa-calculator text-indigo-400"></i> Calculation Mode
+                </h3>
+                <div class="flex gap-4 mt-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="calculation_mode" value="forward" {% if transaction.calculation_mode != 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-semibold text-gray-700">Forward (Base &rarr; Total)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="calculation_mode" value="reverse" {% if transaction.calculation_mode == 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Total &rarr; Base)</span>
+                    </label>
+                </div>
+                <p class="text-[10px] text-indigo-500 mt-2 font-medium" id="calc-mode-hint">Enter base price. Taxes and margins will be added on top to reach final total.</p>
+            </div>
+            
+            <!-- Rounding & Display Settings -->
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+                <h3 class="text-xs font-black text-gray-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i class="fas fa-eye text-gray-400"></i> Rounding &amp; Display Mode
+                </h3>
+                <div class="mt-2">
+                    {{ header_form.decimal_display_mode }}
+                </div>
+                <p class="text-[10px] text-gray-500 mt-2 font-medium">Choose how amounts should be rounded on final documents.</p>
+                <p id="rounding-example" class="text-[11px] font-bold text-indigo-600 mt-1"></p>
+            </div>
+        </div>
+        {% else %}
+        <!-- Locked View (ReadOnly) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+            <div class="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-5 opacity-80">
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider mb-2">Calculation Mode</h3>
+                <p class="text-sm font-bold text-gray-800">
+                    {% if transaction.calculation_mode == 'reverse' %}Reverse (Target Total &rarr; Base){% else %}Forward (Base &rarr; Total){% endif %}
+                </p>
+            </div>
+            <div class="bg-gray-50/50 border border-gray-200/50 rounded-2xl p-5 opacity-80">
+                <h3 class="text-xs font-black text-gray-600 uppercase tracking-wider mb-2">Rounding &amp; Display Mode</h3>
+                <p class="text-sm font-bold text-gray-800">
+                    {{ transaction.get_decimal_display_mode_display }}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Main Approval Form Content -->
             
             <!-- Shared Percentages for JS -->
@@ -157,6 +209,8 @@
                  data-duty="{{ transaction.duty_percentage }}" 
                  data-sc="{{ transaction.service_charge_percentage }}"
                  data-margin="{{ transaction.profit_margin }}"
+                 data-discount="{{ transaction.discount_percentage }}"
+                 data-discount-flat="{{ transaction.discount_flat }}"
                  data-sec-vat="{{ transaction.secondary_vat_percentage }}" 
                  data-sec-tax="{{ transaction.secondary_tax_percentage }}" 
                  data-sec-duty="{{ transaction.secondary_duty_percentage }}" 
@@ -185,11 +239,12 @@
                         <tr>
                             <th class="py-3 px-2 text-center w-8"></th>
                             <th class="py-3 px-4 text-left">Description</th>
-                            {% if not is_room %}
+                            {% if not is_room or transaction.is_daily_basis %}
                             <th class="py-3 px-4 text-center w-16">Qty</th>
                             {% endif %}
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
+                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Unit<br>Price (৳)</th>
                             <th class="py-3 px-4 text-right w-24 bg-indigo-900/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
                             <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
                             <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
@@ -218,19 +273,19 @@
                                     {% if is_room %}
                                     <div class="flex flex-wrap gap-2 mb-1">
                                         <div class="flex items-center gap-1">
-                                            <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">{% if transaction.is_daily_basis %}Date:{% else %}From:{% endif %}</span>
                                             <input type="date" name="{{ form.entry_date.html_name }}" 
                                                    value="{% if form.entry_date.value %}{{ form.entry_date.value|date:'Y-m-d'|default:form.entry_date.value }}{% endif %}"
-                                                   class="date-input text-[10px] text-gray-500 w-28"
-                                                   required>
+                                                   class="date-input text-[10px] text-gray-500 w-28">
                                         </div>
+                                        {% if not transaction.is_daily_basis %}
                                         <div class="flex items-center gap-1">
                                             <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
                                             <input type="date" name="{{ form.checkout_date.html_name }}" 
                                                    value="{% if form.checkout_date.value %}{{ form.checkout_date.value|date:'Y-m-d'|default:form.checkout_date.value }}{% endif %}"
-                                                   class="date-input text-[10px] text-gray-500 w-28"
-                                                   required>
+                                                   class="date-input text-[10px] text-gray-500 w-28">
                                         </div>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
                                     <div class="flex items-center gap-2">
@@ -242,7 +297,7 @@
                                             <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge">Sec</span>
                                         {% endif %}
                                     </div>
-                                    {% if not is_room %}
+                                    {% if not is_room or transaction.is_daily_basis %}
                                     <div class="mt-1 flex items-center gap-1">
                                         <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
                                         <input type="text" name="{{ form.unit.html_name }}" 
@@ -257,14 +312,18 @@
                                 {% else %}
                                     {% if is_room %}
                                     <div class="text-[10px] text-indigo-600 font-bold mb-1">
+                                        {% if transaction.is_daily_basis %}
+                                        📅 {{ form.instance.entry_date|date:'d M Y' }}
+                                        {% else %}
                                         📅 {{ form.instance.entry_date|date:'d M Y' }} → {{ form.instance.checkout_date|date:'d M Y' }}
+                                        {% endif %}
                                     </div>
                                     {% endif %}
                                     <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
                                     {% if form.instance.is_secondary or form.is_secondary.value %}
                                         <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded ml-1 border border-purple-200">Sec</span>
                                     {% endif %}
-                                    {% if not is_room %}
+                                    {% if not is_room or transaction.is_daily_basis %}
                                     <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
                                     {% endif %}
                                 {% endif %}
@@ -272,7 +331,7 @@
                                 <input type="hidden" name="{{ form.sort_order.html_name }}" value="{{ form.sort_order.value|default:forloop.counter0 }}" class="sort-order-input">
                                 <div class="hidden">{{ form.is_secondary }}</div>
                             </td>
-                            {% if not is_room %}
+                            {% if not is_room or transaction.is_daily_basis %}
                             <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
                                 {% if not is_locked %}
                                     <input type="number" step="any" name="{{ form.quantity.html_name }}" 
@@ -324,6 +383,11 @@
                                         <div class="text-[9px] text-red-500 font-bold text-right mt-1">{{ form.unit_price_uplifted.errors.0 }}</div>
                                     {% endif %}
                                 </div>
+                            </td>
+
+                            <!-- Target Price (Reverse Mode) -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30 target-col hidden">
+                                <input type="number" step="0.001" class="target-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" value="0.000" min="0" {% if is_locked %}disabled{% endif %}>
                             </td>
 
                             <!-- Billed Price -->
@@ -383,11 +447,10 @@
                         <tr>
                             <th class="py-3 px-2 text-center w-8"></th>
                             <th class="py-3 px-4 text-left">Description</th>
-                            {% if not is_room %}
                             <th class="py-3 px-4 text-center w-16">Qty</th>
-                            {% endif %}
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
+                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Unit<br>Price (৳)</th>
                             <th class="py-3 px-4 text-right w-24 bg-purple-950/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
                             <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
                             <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
@@ -416,19 +479,19 @@
                                     {% if is_room %}
                                     <div class="flex flex-wrap gap-2 mb-1">
                                         <div class="flex items-center gap-1">
-                                            <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase">{% if transaction.is_daily_basis %}Date:{% else %}From:{% endif %}</span>
                                             <input type="date" name="{{ form.entry_date.html_name }}" 
                                                    value="{% if form.entry_date.value %}{{ form.entry_date.value|date:'Y-m-d'|default:form.entry_date.value }}{% endif %}"
-                                                   class="date-input text-[10px] text-gray-500 w-28"
-                                                   required>
+                                                   class="date-input text-[10px] text-gray-500 w-28">
                                         </div>
+                                        {% if not transaction.is_daily_basis %}
                                         <div class="flex items-center gap-1">
                                             <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
                                             <input type="date" name="{{ form.checkout_date.html_name }}" 
                                                    value="{% if form.checkout_date.value %}{{ form.checkout_date.value|date:'Y-m-d'|default:form.checkout_date.value }}{% endif %}"
-                                                   class="date-input text-[10px] text-gray-500 w-28"
-                                                   required>
+                                                   class="date-input text-[10px] text-gray-500 w-28">
                                         </div>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
                                     <div class="flex items-center gap-2">
@@ -438,7 +501,6 @@
                                                class="desc-input font-bold text-gray-800">
                                         <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge">Sec</span>
                                     </div>
-                                    {% if not is_room %}
                                     <div class="mt-1 flex items-center gap-1">
                                         <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
                                         <input type="text" name="{{ form.unit.html_name }}" 
@@ -447,26 +509,24 @@
                                                class="unit-input text-[10px] text-gray-500 w-16"
                                                required>
                                     </div>
-                                    {% else %}
-                                    <input type="hidden" name="{{ form.unit.html_name }}" value="Pcs" class="unit-input">
-                                    {% endif %}
                                 {% else %}
                                     {% if is_room %}
                                     <div class="text-[10px] text-indigo-600 font-bold mb-1">
+                                        {% if transaction.is_daily_basis %}
+                                        📅 {{ form.instance.entry_date|date:'d M Y' }}
+                                        {% else %}
                                         📅 {{ form.instance.entry_date|date:'d M Y' }} → {{ form.instance.checkout_date|date:'d M Y' }}
+                                        {% endif %}
                                     </div>
                                     {% endif %}
                                     <span class="font-bold text-gray-800">{{ form.instance.description }}</span>
                                     <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded ml-1 border border-purple-200">Sec</span>
-                                    {% if not is_room %}
                                     <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
-                                    {% endif %}
                                 {% endif %}
                                 {{ form.id }}
                                 <input type="hidden" name="{{ form.sort_order.html_name }}" value="{{ form.sort_order.value|default:forloop.counter0 }}" class="sort-order-input">
                                 <div class="hidden">{{ form.is_secondary }}</div>
                             </td>
-                            {% if not is_room %}
                             <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
                                 {% if not is_locked %}
                                     <input type="number" step="any" name="{{ form.quantity.html_name }}" 
@@ -480,11 +540,6 @@
                                     {{ form.instance.quantity }}
                                 {% endif %}
                             </td>
-                            {% else %}
-                            <td class="hidden">
-                                <input type="hidden" name="{{ form.quantity.html_name }}" value="1" class="qty-input">
-                            </td>
-                            {% endif %}
                             
                             <!-- Supplier Cost -->
                             <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
@@ -518,6 +573,11 @@
                                         <div class="text-[9px] text-red-500 font-bold text-right mt-1">{{ form.unit_price_uplifted.errors.0 }}</div>
                                     {% endif %}
                                 </div>
+                            </td>
+
+                            <!-- Target Price (Reverse Mode) -->
+                            <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30 target-col hidden">
+                                <input type="number" step="0.001" class="target-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" value="0.000" min="0" {% if is_locked %}disabled{% endif %}>
                             </td>
 
                             <!-- Billed Price -->
@@ -601,17 +661,19 @@
                             {% if is_room %}
                             <div class="flex flex-wrap gap-2 mb-1">
                                 <div class="flex items-center gap-1">
-                                    <span class="text-[9px] text-gray-400 font-bold uppercase">From:</span>
+                                    <span class="text-[9px] text-gray-400 font-bold uppercase">{% if transaction.is_daily_basis %}Date:{% else %}From:{% endif %}</span>
                                     <input type="date" name="items-__prefix__-entry_date" id="id_items-__prefix__-entry_date"
                                            class="date-input text-[10px] text-gray-500 w-28"
-                                           required disabled>
+                                           disabled>
                                 </div>
+                                {% if not transaction.is_daily_basis %}
                                 <div class="flex items-center gap-1">
                                     <span class="text-[9px] text-gray-400 font-bold uppercase">To:</span>
                                     <input type="date" name="items-__prefix__-checkout_date" id="id_items-__prefix__-checkout_date"
                                            class="date-input text-[10px] text-gray-500 w-28"
-                                           required disabled>
+                                           disabled>
                                 </div>
+                                {% endif %}
                             </div>
                             {% endif %}
                             <div class="flex items-center gap-2">
@@ -620,7 +682,7 @@
                                        class="desc-input font-bold text-gray-800" disabled>
                                 <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge hidden">Sec</span>
                             </div>
-                            {% if not is_room %}
+                            {% if not is_room or transaction.is_daily_basis %}
                             <div class="mt-1 flex items-center gap-1">
                                 <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
                                 <input type="text" name="items-__prefix__-unit" id="id_items-__prefix__-unit"
@@ -637,7 +699,7 @@
                                 <input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary" class="is-secondary-checkbox" disabled>
                             </div>
                         </td>
-                        {% if not is_room %}
+                        {% if not is_room or transaction.is_daily_basis %}
                         <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
                             <input type="number" step="any" name="items-__prefix__-quantity" id="id_items-__prefix__-quantity"
                                    value="1"
@@ -663,6 +725,10 @@
                             <input type="number" step="0.001" name="items-__prefix__-unit_price_uplifted" id="id_items-__prefix__-unit_price_uplifted"
                                    value="0.000"
                                    class="uplifted-price-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" disabled>
+                        </td>
+                        <!-- Target Price (Reverse Mode) -->
+                        <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30 target-col hidden">
+                            <input type="number" step="0.001" class="target-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" value="0.000" min="0" disabled>
                         </td>
                         <!-- Billed Price -->
                         <td class="py-2 px-4 text-right font-mono font-bold text-gray-800 bg-blue-50/30 border-l border-gray-100">
@@ -695,6 +761,98 @@
                             </div>
                             <button type="button" class="text-red-300 hover:text-red-600 transition p-1 rounded delete-row-btn" onclick="removeApproveRow(this)">
                                  <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+<tbody id="empty-secondary-form-template">
+                    <tr class="item-row hover:bg-white transition-colors border-b border-gray-100" 
+                        data-qty="1"
+                        data-is-secondary="true"
+                        data-master-base="0"
+                        data-master-upscale="0"
+                        draggable="true">
+                        <td class="text-center align-middle cursor-move drag-handle text-gray-300 py-2 px-1">
+                            <i class="fas fa-grip-vertical"></i>
+                        </td>
+                        <td class="py-2 px-4">
+                            <div class="flex items-center gap-2">
+                                <input type="text" name="items-__prefix__-description" id="id_items-__prefix__-description"
+                                       placeholder="Description..."
+                                       class="desc-input font-bold text-gray-800" disabled>
+                                <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge hidden">Sec</span>
+                            </div>
+                            <div class="mt-1 flex items-center gap-1">
+                                <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
+                                <input type="text" name="items-__prefix__-unit" id="id_items-__prefix__-unit"
+                                       value="Pcs" placeholder="Unit..."
+                                       class="unit-input text-[10px] text-gray-500 w-16"
+                                       required disabled>
+                            </div>
+                            <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" disabled>
+                            <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" class="sort-order-input" disabled>
+                            <div class="hidden">
+                                <input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary" class="is-secondary-checkbox" disabled>
+                            </div>
+                        </td>
+                        <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
+                            <input type="number" step="any" name="items-__prefix__-quantity" id="id_items-__prefix__-quantity"
+                                   value="1"
+                                   class="qty-input w-full text-center font-mono text-[11px] font-bold"
+                                   required disabled>
+                        </td>
+                        
+                        <!-- Supplier Cost -->
+                        <td class="py-2 px-1 border-l border-gray-100 bg-gray-50/50">
+                            <input type="number" step="0.001" name="items-__prefix__-base_price" id="id_items-__prefix__-base_price"
+                                   value="0.000"
+                                   class="base-cost-input w-full text-right font-mono text-gray-600 bg-transparent text-[11px]" disabled>
+                        </td>
+                        
+                        <!-- Selling Price -->
+                        <td class="py-2 px-1 border-l border-gray-100 relative">
+                            <input type="number" step="0.001" name="items-__prefix__-unit_price_uplifted" id="id_items-__prefix__-unit_price_uplifted"
+                                   value="0.000"
+                                   class="uplifted-price-input w-full text-right font-bold font-mono text-[11px] focus:ring-1 focus:ring-purple-500 rounded" disabled>
+                            <div class="master-price-hint absolute right-1 -top-2 text-[8px] font-bold text-gray-400 bg-white px-1 shadow-sm border border-gray-100 rounded-sm hidden" title="Different from master list selling price"></div>
+                        </td>
+                        <!-- Target Price (Reverse Mode) -->
+                        <td class="py-2 px-1 border-l border-gray-100 bg-indigo-50/30 target-col hidden">
+                            <input type="number" step="0.001" class="target-input w-full px-1 py-1 text-right font-mono text-[11px] font-bold text-indigo-700 bg-white border border-indigo-100 rounded focus:ring-1 focus:ring-indigo-500 outline-none" value="0.000" min="0" disabled>
+                        </td>
+                        
+                        <!-- Billed Price -->
+                        <td class="py-2 px-2 text-right bg-purple-50/50">
+                            <span class="billed-price font-bold text-purple-900 font-mono text-[12px]">???0.00</span>
+                        </td>
+                        
+                        <!-- Markup Gain -->
+                        <td class="py-2 px-2 text-right">
+                            <span class="markup-profit font-bold text-gray-400 font-mono text-[11px]">???0.00</span>
+                        </td>
+                        
+                        <!-- VAT & Tax Display -->
+                        <td class="py-2 px-1 text-right text-[10px] text-gray-500 border-l border-gray-100">
+                            <span class="row-vat font-mono">???0.00</span>
+                        </td>
+                        <td class="py-2 px-1 text-right text-[10px] text-gray-500 border-l border-gray-100">
+                            <span class="row-tax font-mono">???0.00</span>
+                        </td>
+                        
+                        <!-- Full Price -->
+                        <td class="py-2 px-2 text-right border-l border-gray-100">
+                            <span class="unit-total font-black text-gray-700 font-mono text-[12px]">???0.00</span>
+                        </td>
+                        
+                        <!-- Line Total -->
+                        <td class="py-2 px-2 text-right bg-gray-700 text-white">
+                            <span class="line-total font-black font-mono text-[13px]">???0.00</span>
+                        </td>
+                        
+                        <!-- Actions -->
+                        <td class="py-2 px-1 text-center align-middle">
+                            <button type="button" class="text-red-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" onclick="removeApproveRow(this)" title="Delete Row">
+                                <i class="fas fa-trash text-xs"></i>
                             </button>
                         </td>
                     </tr>
@@ -735,11 +893,11 @@
                     <div class="space-y-3">
                         <div class="flex justify-between text-xs text-gray-400 uppercase font-black tracking-widest">
                             <span>Subtotal (Base Cost)</span>
-                            <span id="grand-base-total">৳{{ transaction.total_base_cost|floatformat:3 }}</span>
+                            <span id="grand-base-total">৳{{ transaction.total_base_cost|format_billing:transaction }}</span>
                         </div>
                         <div class="flex justify-between text-sm">
                             <span class="text-gray-400">Total Billed Amt</span>
-                            <span class="font-mono font-bold" id="grand-billed-total">৳{{ transaction.display_subtotal|floatformat:3 }}</span>
+                            <span class="font-mono font-bold" id="grand-billed-total">৳{{ transaction.display_subtotal|format_billing:transaction }}</span>
                         </div>
                         
                         <div class="h-px bg-gray-800 my-1"></div>
@@ -759,14 +917,24 @@
 
                         <div class="h-px bg-gray-800 my-1"></div>
 
+                        <div class="flex justify-between text-[11px] text-red-400 uppercase font-bold" id="discount-row" {% if not transaction.discount_percentage and not transaction.discount_flat %}style="display:none"{% endif %}>
+                            <span>Discount{% if transaction.discount_percentage %} ({{ transaction.discount_percentage }}%){% endif %}{% if transaction.discount_flat %} + ৳{{ transaction.discount_flat }} flat{% endif %}</span>
+                            <span class="font-mono" id="grand-discount-total">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                        </div>
+
+                        <div class="flex justify-between text-[11px] text-gray-300 uppercase font-bold" id="price-after-deduction-row" {% if not transaction.discount_percentage and not transaction.discount_flat %}style="display:none"{% endif %}>
+                            <span>Price After Deduction</span>
+                            <span class="font-mono" id="grand-price-after-deduction-total">৳{{ transaction.price_after_discount_base|format_billing:transaction }}</span>
+                        </div>
+
                         <div class="flex justify-between text-sm text-emerald-400" id="summary-profit-row">
                             <span>Est. Gross Profit</span>
-                            <span class="font-mono font-bold" id="grand-markup-total">৳{{ transaction.total_gross_profit|floatformat:3 }}</span>
+                            <span class="font-mono font-bold" id="grand-markup-total">৳{{ transaction.total_gross_profit|format_billing:transaction }}</span>
                         </div>
                         <div class="h-px bg-gray-800 my-2"></div>
                         <div class="flex justify-between items-center pt-2">
                             <span class="text-xs font-black uppercase tracking-tighter text-indigo-300">Final Grand Total</span>
-                            <span class="text-2xl font-black font-mono text-white" id="grand-final-total">৳{{ transaction.grand_total|floatformat:3 }}</span>
+                            <span class="text-2xl font-black font-mono text-white" id="grand-final-total">৳{{ transaction.grand_total|format_billing:transaction }}</span>
                         </div>
                     </div>
                 </div>
@@ -945,12 +1113,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const dutyPct = parseFloat(config.duty) || 0;
     const scPct = parseFloat(config.sc) || 0;
     const marginPct = parseFloat(config.margin) || 0;
+    const discountPct = parseFloat(config.discount) || 0;
+    const discountFlat = parseFloat(config.discountFlat) || 0;
 
     const secVatPct = parseFloat(config.secVat) || 0;
     const secTaxPct = parseFloat(config.secTax) || 0;
     const secDutyPct = parseFloat(config.secDuty) || 0;
     const secScPct = parseFloat(config.secSc) || 0;
     const secMarginPct = parseFloat(config.secMargin) || 0;
+
+    function getDecimalMode() {
+        const sel = document.getElementById('id_decimal_display_mode');
+        return (sel && sel.value) || '{{ transaction.decimal_display_mode }}';
+    }
+
+    function formatMoney(val) {
+        const mode = getDecimalMode();
+        const near = Math.round(val); if (Math.abs(val - near) < 0.01) val = near;
+        if (mode === 'ROUND_UP') return Math.ceil(val).toLocaleString();
+        if (mode === 'TRUNCATE') return Math.floor(val).toLocaleString();
+        if (mode === 'ROUND') return Math.round(val).toLocaleString();
+        return val.toLocaleString(undefined, {minimumFractionDigits: 2});
+    }
 
     function calculate() {
         let grandBase = 0;
@@ -973,7 +1157,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const qtyInput = row.querySelector('.qty-input');
-            const qty = qtyInput ? (parseFloat(qtyInput.value) || 0) : 0;
+            let qty = 0;
+            if (qtyInput) {
+                qty = parseFloat(qtyInput.value) || 0;
+            } else {
+                qty = parseFloat(row.dataset.qty) || 0;
+            }
             
             const isSecondary = row.dataset.isSecondary === 'true';
             const baseInput = row.querySelector('.base-cost-input');
@@ -1025,12 +1214,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const unitTotalEl = row.querySelector('.unit-total');
             const lineTotalEl = row.querySelector('.line-total');
 
-            if (billedPriceEl) billedPriceEl.textContent = `৳${billedPrice.toFixed(2)}`;
-            if (markupProfitEl) markupProfitEl.textContent = `৳${markupPerUnit.toFixed(2)}`;
-            if (rowVatEl) rowVatEl.textContent = `৳${vat.toFixed(2)}`;
-            if (rowTaxEl) rowTaxEl.textContent = `৳${taxAmount.toFixed(2)}`;
-            if (unitTotalEl) unitTotalEl.textContent = `৳${unitTotal.toFixed(2)}`;
-            if (lineTotalEl) lineTotalEl.textContent = `৳${lineTotal.toFixed(2)}`;
+            if (billedPriceEl) billedPriceEl.textContent = `৳${formatMoney(billedPrice)}`;
+            if (markupProfitEl) markupProfitEl.textContent = `৳${formatMoney(markupPerUnit)}`;
+            if (rowVatEl) rowVatEl.textContent = `৳${formatMoney(vat)}`;
+            if (rowTaxEl) rowTaxEl.textContent = `৳${formatMoney(taxAmount)}`;
+            if (unitTotalEl) unitTotalEl.textContent = `৳${formatMoney(unitTotal)}`;
+            if (lineTotalEl) lineTotalEl.textContent = `৳${formatMoney(lineTotal)}`;
 
             // Highlight deviations from master price
             const masterBase = parseFloat(row.dataset.masterBase) || 0;
@@ -1095,39 +1284,71 @@ document.addEventListener('DOMContentLoaded', function() {
         grandVat += totalScVat;
         grandTax += totalScTax;
         grandDuty += totalScDuty;
-        grandFinal += totalSc + totalScDuty + totalScTax + totalScVat;
+        
+        const basePrice = grandBilled + totalSc;
+        let totalDiscount = basePrice * (discountPct / 100) + discountFlat;
+        if (totalDiscount > basePrice) totalDiscount = basePrice;
+        const factor = basePrice > 0 ? 1 - (totalDiscount / basePrice) : 1;
+        const priceAfterDeduction = basePrice - totalDiscount;
+        const discountedVat = grandVat * factor;
+        const discountedTax = grandTax * factor;
+        const discountedDuty = grandDuty * factor;
+        grandFinal = priceAfterDeduction + discountedVat + discountedTax + discountedDuty;
 
         // Update Overall Summary
         const baseTotalEl = document.getElementById('grand-base-total');
         const billedTotalEl = document.getElementById('grand-billed-total');
         const vatTotalEl = document.getElementById('grand-vat-total');
         const taxTotalEl = document.getElementById('grand-tax-total');
+        const discountTotalEl = document.getElementById('grand-discount-total');
+        const discountRow = document.getElementById('discount-row');
+        const priceAfterDeductionRow = document.getElementById('price-after-deduction-row');
+        const priceAfterDeductionTotalEl = document.getElementById('grand-price-after-deduction-total');
         const markupTotalEl = document.getElementById('grand-markup-total');
         const finalTotalEl = document.getElementById('grand-final-total');
 
-        if (baseTotalEl) baseTotalEl.textContent = `৳${grandBase.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        if (billedTotalEl) billedTotalEl.textContent = `৳${(grandBilled + totalSc).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        if (vatTotalEl) vatTotalEl.textContent = `৳${grandVat.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        if (taxTotalEl) taxTotalEl.textContent = `৳${grandTax.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        
+        if (baseTotalEl) baseTotalEl.textContent = `৳${formatMoney(grandBase)}`;
+        if (billedTotalEl) billedTotalEl.textContent = `৳${formatMoney(grandBilled + totalSc)}`;
+        if (vatTotalEl) vatTotalEl.textContent = `৳${formatMoney(discountedVat)}`;
+        if (taxTotalEl) taxTotalEl.textContent = `৳${formatMoney(discountedTax)}`;
+        if (discountTotalEl) discountTotalEl.textContent = `৳${formatMoney(totalDiscount)}`;
+        if (discountRow) {
+            if (discountPct > 0 || discountFlat > 0) {
+                discountRow.style.display = 'flex';
+            } else {
+                discountRow.style.display = 'none';
+            }
+        }
+        if (priceAfterDeductionTotalEl) priceAfterDeductionTotalEl.textContent = `৳${formatMoney(priceAfterDeduction)}`;
+        if (priceAfterDeductionRow) {
+            if (discountPct > 0 || discountFlat > 0) {
+                priceAfterDeductionRow.style.display = 'flex';
+            } else {
+                priceAfterDeductionRow.style.display = 'none';
+            }
+        }
+        if (markupTotalEl) markupTotalEl.textContent = `৳${formatMoney(grandMarkup)}`;
+        if (finalTotalEl) finalTotalEl.textContent = `৳${formatMoney(grandFinal)}`;
+
         const dutyRow = document.getElementById('duty-row');
         const dutyTotalEl = document.getElementById('grand-duty-total');
         if (dutyRow && dutyTotalEl) {
-            if (grandDuty > 0) {
+            if (discountedDuty > 0) {
                 dutyRow.style.display = 'flex';
-                dutyTotalEl.textContent = `৳${grandDuty.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+                dutyTotalEl.textContent = `৳${formatMoney(discountedDuty)}`;
             } else {
                 dutyRow.style.display = 'none';
             }
         }
-
-        if (markupTotalEl) markupTotalEl.textContent = `৳${grandMarkup.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-        if (finalTotalEl) finalTotalEl.textContent = `৳${grandFinal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
     }
 
     // Bind event listeners using delegation
     document.addEventListener('input', function(e) {
-        if (e.target.closest('.item-row')) {
+        const row = e.target.closest('.item-row');
+        if (row) {
+            if (e.target.classList.contains('target-input')) {
+                doReverseCalculationApprove(row);
+            }
             calculate();
         }
     });
@@ -1139,9 +1360,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const delCb = row.querySelector('input[name$="-DELETE"]');
         
         if (idInput && idInput.value) {
-            if (delCb) delCb.checked = true;
-            row.style.display = 'none';
-            row.classList.add('deleted-row');
+            if (delCb) {
+                if (delCb.checked) {
+                    delCb.checked = false;
+                    row.style.opacity = '1';
+                    row.style.textDecoration = 'none';
+                    row.style.backgroundColor = '';
+                    row.classList.remove('deleted-row');
+                    btn.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+                    btn.title = "Delete Row";
+                } else {
+                    delCb.checked = true;
+                    row.style.opacity = '0.4';
+                    row.style.textDecoration = 'line-through';
+                    row.style.backgroundColor = '#fef2f2';
+                    row.classList.add('deleted-row');
+                    btn.innerHTML = '<i class="fas fa-undo text-xs"></i>';
+                    btn.title = "Restore Row";
+                }
+            }
         } else {
             row.remove();
         }
@@ -1157,7 +1394,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tbody = document.getElementById(tbodyId);
         if (!tbody) return;
 
-        const template = document.getElementById('empty-form-template').querySelector('tr');
+        const templateId = isSecondary ? 'empty-secondary-form-template' : 'empty-form-template';
+        const template = document.getElementById(templateId).querySelector('tr');
         const newRow = template.cloneNode(true);
         
         newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
@@ -1174,6 +1412,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             newRow.dataset.isSecondary = "false";
+        }
+
+        // Apply current calculation mode settings to the new row
+        const checkedRadio = document.querySelector('input[name="calculation_mode"]:checked');
+        const isReverse = checkedRadio && checkedRadio.value === 'reverse';
+        newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+        
+        const upliftedInput = newRow.querySelector('.uplifted-price-input');
+        if (upliftedInput) {
+            if (isReverse) {
+                upliftedInput.readOnly = true;
+                upliftedInput.style.backgroundColor = '#f3f4f6';
+            } else {
+                const isAccountant = "{{ user.role }}" === "ACCOUNTANT" && !"{{ user.is_superuser }}" === "True";
+                if (!isAccountant) {
+                    upliftedInput.readOnly = false;
+                    upliftedInput.style.backgroundColor = '#fff';
+                }
+            }
         }
 
         tbody.appendChild(newRow);
@@ -1412,8 +1669,155 @@ document.addEventListener('DOMContentLoaded', function() {
         makeTableSortable('secondary-item-formset', updateSortOrders);
     }
 
+    function doReverseCalculationApprove(row) {
+        const isSecondary = row.dataset.isSecondary === 'true';
+        const targetInput = row.querySelector('.target-input');
+        const upliftedInput = row.querySelector('.uplifted-price-input');
+        const baseInput = row.querySelector('.base-cost-input');
+
+        if (!targetInput || !upliftedInput) return;
+
+        const targetTotal = parseFloat(targetInput.value) || 0;
+        
+        const rowVatPct = isSecondary ? secVatPct : vatPct;
+        const rowTaxPct = isSecondary ? secTaxPct : taxPct;
+        const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
+        const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+
+        const dutyMultiplier = 1 + (rowDutyPct / 100.0);
+        const marginMultiplier = 1 + (rowMarginPct / 100.0);
+        const vatMultiplier = 1 + (rowVatPct / 100.0);
+        
+        let taxMultiplier = 1.0;
+        if (rowTaxPct > 0) {
+            taxMultiplier = 100.0 / (100.0 - rowTaxPct);
+        }
+
+        const discountFactor = 1.0 - (discountPct / 100.0);
+        const multiplier = marginMultiplier * dutyMultiplier * taxMultiplier * vatMultiplier * discountFactor;
+        
+        let requiredUplift = 0;
+        if (multiplier > 0) {
+            requiredUplift = targetTotal / multiplier;
+        } else {
+            requiredUplift = targetTotal;
+        }
+
+        upliftedInput.value = requiredUplift.toFixed(3);
+        
+        // If lunch or room mode, supplier cost (base_price) must match uplifted price
+        if (isSamePriceCat && baseInput) {
+            baseInput.value = upliftedInput.value;
+        }
+    }
+
+    function syncTargetInputsFromUpliftedPrices() {
+        document.querySelectorAll('tr.item-row').forEach(row => {
+            if (row.classList.contains('deleted-row') || row.style.display === 'none' || row.closest('#empty-form-template') || row.closest('.hidden')) {
+                return;
+            }
+            const upliftedInput = row.querySelector('.uplifted-price-input');
+            const targetInput = row.querySelector('.target-input');
+            if (upliftedInput && targetInput) {
+                const isSecondary = row.dataset.isSecondary === 'true';
+                const rowVatPct = isSecondary ? secVatPct : vatPct;
+                const rowTaxPct = isSecondary ? secTaxPct : taxPct;
+                const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
+                const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+
+                const dutyMultiplier = 1 + (rowDutyPct / 100.0);
+                const marginMultiplier = 1 + (rowMarginPct / 100.0);
+                const vatMultiplier = 1 + (rowVatPct / 100.0);
+                
+                let taxMultiplier = 1.0;
+                if (rowTaxPct > 0) {
+                    taxMultiplier = 100.0 / (100.0 - rowTaxPct);
+                }
+
+                const discountFactor = 1.0 - (discountPct / 100.0);
+                const multiplier = marginMultiplier * dutyMultiplier * taxMultiplier * vatMultiplier * discountFactor;
+                const uplift = parseFloat(upliftedInput.value) || 0;
+                targetInput.value = (uplift * multiplier).toFixed(3);
+            }
+        });
+    }
+
+    // Calculation Mode Toggle
+    document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const isReverse = this.value === 'reverse';
+            
+            const hintEl = document.getElementById('calc-mode-hint');
+            if (hintEl) {
+                hintEl.textContent = isReverse ? 
+                    "Enter Final Target Total. Base Price will be auto-calculated to hit that total." : 
+                    "Enter base price. Taxes and margins will be added on top to reach final total.";
+            }
+                
+            // Toggle columns
+            document.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
+            
+            if (isReverse) {
+                syncTargetInputsFromUpliftedPrices();
+            }
+            
+            // Update inputs
+            document.querySelectorAll('.uplifted-price-input').forEach(el => {
+                if (isReverse) {
+                    el.readOnly = true;
+                    el.style.backgroundColor = '#f3f4f6';
+                    // Trigger initial calculation
+                    const row = el.closest('tr');
+                    if (row) doReverseCalculationApprove(row);
+                } else {
+                    const isAccountant = "{{ user.role }}" === "ACCOUNTANT" && !"{{ user.is_superuser }}" === "True";
+                    if (!isAccountant) {
+                        el.readOnly = false;
+                        el.style.backgroundColor = '#fff';
+                    }
+                }
+            });
+            calculate();
+        });
+    });
+
+    // Global listener for target input changes
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('target-input')) {
+            const row = e.target.closest('tr');
+            if (row) {
+                doReverseCalculationApprove(row);
+                calculate();
+            }
+        }
+    });
+
+    // Trigger initial calculation mode state on load
+    const checkedRadio = document.querySelector('input[name="calculation_mode"]:checked');
+    if (checkedRadio) {
+        checkedRadio.dispatchEvent(new Event('change'));
+    }
+
     // Initial calculation run
     calculate();
+
+    const roundingSelect = document.getElementById('id_decimal_display_mode');
+    if (roundingSelect) {
+        function updateRoundingExample() {
+            const val = roundingSelect.value;
+            const ex = document.getElementById('rounding-example');
+            if (!ex) return;
+            if (val === 'ROUND_UP') ex.textContent = `Example: 100.56 ৳ becomes 101.00 ৳ (Round Up)`;
+            else if (val === 'TRUNCATE') ex.textContent = `Example: 100.56 ৳ becomes 100.00 ৳ (Truncate)`;
+            else if (val === 'ROUND') ex.textContent = `Example: 100.56 ৳ becomes 101.00 ৳ (Round Nearest)`;
+            else ex.textContent = `Example: 100.56 ৳ becomes 100.56 ৳ (Show Decimals)`;
+        }
+        roundingSelect.addEventListener('change', function() {
+            updateRoundingExample();
+            calculate(); // re-render all amounts with the newly selected rounding mode
+        });
+        updateRoundingExample();
+    }
 });
 </script>
 {% endblock %}

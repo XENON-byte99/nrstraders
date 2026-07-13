@@ -55,10 +55,8 @@
         position: relative;
     }
     .suggestions-list {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        z-index: 1000;
+        position: fixed;
+        z-index: 9999;
         background: white;
         border: 1.5px solid #e2e8f0;
         border-radius: 12px;
@@ -66,7 +64,6 @@
         max-height: 250px;
         overflow-y: auto;
         min-width: 250px;
-        width: 100%;
         display: none;
     }
     .suggestion-item {
@@ -118,7 +115,7 @@
     </div>
     {% endif %}
 
-    <form method="post" class="space-y-4">
+    <form method="post" class="space-y-4" id="bill-form">
         {% csrf_token %}
 
         <!-- ── Supplier & Buyer (side by side on md) ── -->
@@ -174,11 +171,13 @@
             <div class="section-title"><i class="fas fa-percent text-orange-400"></i> Tax &amp; Identifiers</div>
 
             <!-- Financials Row (Calculated Fields) -->
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-5">
+            <div class="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-6 gap-4 mb-5">
                 <div><label class="form-label">VAT (%)</label>{{ form.vat_percentage }}</div>
                 <div><label class="form-label">Duty (%)</label>{{ form.duty_percentage }}</div>
                 <div><label class="form-label">Tax (%)</label>{{ form.tax_percentage }}</div>
                 <div><label class="form-label">S. Charge %</label>{{ form.service_charge_percentage }}</div>
+                <div><label class="form-label text-red-500">Discount (%)</label>{{ form.discount_percentage }}</div>
+                <div><label class="form-label text-red-500">Flat Discount (৳)</label>{{ form.discount_flat }}</div>
             </div>
 
             <!-- Secondary Financials Row (only shown/active if secondary category is selected) -->
@@ -209,12 +208,12 @@
             </div>
 
             <!-- Room Daily Basis Mode Toggle -->
-            <div id="room-daily-basis-toggle" class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl hidden">
+            <div id="room-daily-basis-toggle" class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                 <label class="flex items-center gap-3 cursor-pointer">
                     {{ form.is_daily_basis }}
                     <div>
-                        <span class="text-sm font-semibold text-indigo-900 block">Daily Basis Mode (Date, Unit, Qty, Rate)</span>
-                        <span class="text-[10px] text-indigo-500 font-medium">Toggle this to log stay/service day-by-day instead of a date range.</span>
+                        <span class="text-sm font-semibold text-indigo-900 block">Date Column Mode</span>
+                        <span class="text-[10px] text-indigo-500 font-medium">Toggle this to switch between single-date logging and date-range (From/To) logging.</span>
                     </div>
                 </label>
             </div>
@@ -224,15 +223,25 @@
                 <label class="form-label text-indigo-800">Calculation Mode <i class="fas fa-calculator ml-1"></i></label>
                 <div class="flex gap-4 mt-2">
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="calculation_mode" value="forward" checked class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <input type="radio" name="calculation_mode" value="forward" {% if form.instance.calculation_mode != 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
                         <span class="text-sm font-semibold text-gray-700">Forward (Base &rarr; Total)</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="calculation_mode" value="reverse" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                        <input type="radio" name="calculation_mode" value="reverse" {% if form.instance.calculation_mode == 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
                         <span class="text-sm font-semibold text-gray-700">Reverse (Target Total &rarr; Base)</span>
                     </label>
                 </div>
                 <p class="text-[10px] text-indigo-500 mt-2 font-medium" id="calc-mode-hint">Enter base price. Taxes and margins will be added on top to reach final total.</p>
+            </div>
+
+            <!-- Display Settings -->
+            <div class="mt-4 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                <label class="form-label text-gray-700">Rounding &amp; Display Mode <i class="fas fa-eye ml-1"></i></label>
+                <div class="mt-2">
+                    {{ form.decimal_display_mode }}
+                </div>
+                <p class="text-[10px] text-gray-500 mt-2 font-medium">Choose how amounts should be rounded on final documents.</p>
+                <p id="rounding-example" class="text-[11px] font-bold text-indigo-600 mt-1"></p>
             </div>
 
             <p class="text-[10px] text-gray-400 mt-3 italic flex items-center gap-1.5 opacity-80">
@@ -251,7 +260,34 @@
             <!-- Global Suggestions Container -->
             <div id="product-suggestions" class="suggestions-list"></div>
 
+            <!-- Bulk description fill: type once, apply to every row -->
+            <div id="bulk-desc-tool" class="flex flex-wrap items-center gap-2 mb-3 bg-green-50/60 border border-green-100 rounded-xl px-3 py-2">
+                <i class="fas fa-pen text-green-500 text-xs"></i>
+                <input type="text" id="bulk-desc-input" placeholder="Type one description to apply to all rows..."
+                       class="flex-1 text-sm px-3 py-1.5 rounded-lg border border-green-200 bg-white outline-none focus:ring-1 focus:ring-green-400" style="min-width:140px;">
+                <label class="flex items-center gap-1 text-[11px] text-gray-500 font-semibold whitespace-nowrap cursor-pointer">
+                    <input type="checkbox" id="bulk-desc-empty-only" class="accent-green-500"> empty rows only
+                </label>
+                <button type="button" id="bulk-desc-apply"
+                        class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap">
+                    <i class="fas fa-wand-magic-sparkles mr-1"></i>Apply to all
+                </button>
+                <span id="bulk-desc-feedback" class="text-[11px] text-green-600 font-semibold"></span>
+            </div>
+
             {{ formset.management_form }}
+
+            
+            <!-- Universal Standard Rate Control -->
+            <div id="universal-price-control" class="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row gap-3 items-center">
+                <div class="flex-1">
+                    <label class="block text-xs font-black text-indigo-900 uppercase tracking-wider mb-1">Bulk Price Input (৳)</label>
+                    <p class="text-[10px] text-indigo-500 font-medium">Enter a standard unit price to auto-apply to all rows.</p>
+                </div>
+                <div class="w-full sm:w-48 relative">
+                    <input type="number" id="universal-standard-price" step="0.001" placeholder="0.000" class="w-full px-3.5 py-2.5 rounded-xl border border-indigo-200 font-black text-right text-indigo-700 bg-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
 
             <!-- Normal Items Table (hidden for lunch/room) -->
             <div id="normal-items-table" class="items-scroll border border-gray-100 rounded-xl mb-4 {% if is_lunch or is_room %}hidden{% endif %}">
@@ -259,6 +295,8 @@
                     <thead>
                         <tr>
                             <th class="w-10"></th>
+                            <th class="text-left normal-date-hdr hidden" style="min-width:120px">📅 Date</th>
+                            <th class="text-left normal-checkout-date-hdr hidden" style="min-width:120px">📅 To Date</th>
                             <th class="text-left" style="min-width:180px">Description</th>
                             <th class="text-center" style="width:80px">Unit</th>
                             <th class="text-center" style="width:150px">Qty</th>
@@ -277,6 +315,11 @@
                             <td class="text-center align-middle cursor-move drag-handle text-gray-300">
                                 <i class="fas fa-grip-vertical"></i>
                             </td>
+                            <td class="normal-date-col hidden">
+                                {{ item_form.entry_date }}
+                                <button type="button" class="range-toggle-btn text-[10px] font-bold text-indigo-500 hover:text-indigo-700 mt-1" onclick="toggleRowRange(this)" title="Give this day a to-date (date range)">＋ to-date</button>
+                            </td>
+                            <td class="checkout-date-col hidden">{{ item_form.checkout_date }}</td>
                             <td>
                                 {{ item_form.description }}
                             </td>
@@ -321,6 +364,7 @@
                             <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
                             <th class="text-right" style="width:130px"><span class="price-header-label">💰 Bill Amount (৳)</span></th>
                             <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-center" style="width:100px">📦 Unit</th>
                             <th class="text-center" style="width:150px">🔢 Qty</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
@@ -341,6 +385,7 @@
                                 <td class="target-col hidden">
                                     <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                                 </td>
+                                <td>{{ item_form.unit }}</td>
                                 <td>{{ item_form.quantity }}</td>
                                 <td class="text-center">
                                     <div class="hidden">{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</div>
@@ -348,7 +393,7 @@
                                          <i class="fas fa-trash text-xs"></i>
                                     </button>
                                 </td>
-                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                             </tr>
                             {% endfor %}
                         {% endif %}
@@ -393,7 +438,10 @@
                                 <td class="text-center align-middle cursor-move drag-handle text-gray-300">
                                     <i class="fas fa-grip-vertical"></i>
                                 </td>
-                                <td>{{ item_form.entry_date }}</td>
+                                <td>
+                                    {{ item_form.entry_date }}
+                                    <button type="button" class="range-toggle-btn text-[10px] font-bold text-indigo-500 hover:text-indigo-700 mt-1" onclick="toggleRowRange(this)" title="Give this day a to-date (date range)">＋ to-date</button>
+                                </td>
                                 <td class="checkout-date-col">{{ item_form.checkout_date }}</td>
                                 <td>{{ item_form.description }}</td>
                                 <td class="room-unit-col hidden">{{ item_form.unit }}</td>
@@ -408,7 +456,7 @@
                                          <i class="fas fa-trash text-xs"></i>
                                     </button>
                                 </td>
-                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                                <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                             </tr>
                             {% endfor %}
                         {% endif %}
@@ -427,6 +475,7 @@
                             <input type="date" name="items-__prefix__-entry_date"
                                    id="id_items-__prefix__-entry_date"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                            <button type="button" class="range-toggle-btn text-[10px] font-bold text-indigo-500 hover:text-indigo-700 mt-1" onclick="toggleRowRange(this)" title="Give this day a to-date (date range)">＋ to-date</button>
                         </td>
                         <td class="checkout-date-col">
                             <input type="date" name="items-__prefix__-checkout_date"
@@ -448,7 +497,7 @@
                         <td class="room-qty-col hidden">
                             <input type="number" name="items-__prefix__-quantity"
                                    id="id_items-__prefix__-quantity"
-                                   value="1" min="1"
+                                   value="1" min="0.001" step="any"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:center;">
                         </td>
                         <td class="base-price-cell">
@@ -469,6 +518,7 @@
                             <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
                             <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
                             <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE" class="hidden">
+                            <div class="hidden"><input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary"></div>
                         </td>
                     </tr>
                 </tbody>
@@ -478,6 +528,13 @@
                     <tr class="border-b item-row" draggable="true">
                         <td class="text-center align-middle cursor-move drag-handle text-gray-300">
                             <i class="fas fa-grip-vertical"></i>
+                        </td>
+                        <td class="normal-date-col hidden">
+                            <input type="date" name="items-__prefix__-entry_date" id="id_items-__prefix__-entry_date" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
+                            <button type="button" class="range-toggle-btn text-[10px] font-bold text-indigo-500 hover:text-indigo-700 mt-1" onclick="toggleRowRange(this)" title="Give this day a to-date (date range)">＋ to-date</button>
+                        </td>
+                        <td class="checkout-date-col hidden">
+                            <input type="date" name="items-__prefix__-checkout_date" id="id_items-__prefix__-checkout_date" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
                         </td>
                         <td>
                             {{ formset.empty_form.description }}
@@ -524,9 +581,16 @@
                             <input type="number" class="target-input" value="0.000" step="0.001" min="0" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
                         <td>
+                            <input type="text" name="items-__prefix__-unit"
+                                   id="id_items-__prefix__-unit"
+                                   value="Meal"
+                                   placeholder="Unit..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:center;">
+                        </td>
+                        <td>
                             <input type="number" name="items-__prefix__-quantity"
                                    id="id_items-__prefix__-quantity"
-                                   value="1" min="1"
+                                   value="1" min="0.001" step="any"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;text-align:center;">
                         </td>
                         <td class="text-center">
@@ -538,6 +602,7 @@
                             <input type="hidden" name="items-__prefix__-id" id="id_items-__prefix__-id" value="">
                             <input type="hidden" name="items-__prefix__-sort_order" id="id_items-__prefix__-sort_order" value="__prefix__">
                             <input type="checkbox" name="items-__prefix__-DELETE" id="id_items-__prefix__-DELETE" class="hidden">
+                            <div class="hidden"><input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary"></div>
                         </td>
                     </tr>
                 </tbody>
@@ -554,6 +619,8 @@
                     <thead>
                         <tr>
                             <th class="w-10"></th>
+                            <th class="text-left normal-date-hdr hidden" style="min-width:120px">📅 Date</th>
+                            <th class="text-left normal-checkout-date-hdr hidden" style="min-width:120px">📅 To Date</th>
                             <th class="text-left" style="min-width:180px">Description</th>
                             <th class="text-center" style="width:80px">Unit</th>
                             <th class="text-center" style="width:150px">Qty</th>
@@ -586,6 +653,11 @@
                     <i class="fas fa-file-excel text-xs"></i>
                     <span>Import Excel</span>
                 </button>
+                <button type="button" id="bulk-fill-btn"
+                    class="inline-flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-amber-100 transition w-full sm:w-auto justify-center">
+                    <i class="fas fa-layer-group text-xs"></i>
+                    <span>Bulk Fill</span>
+                </button>
                 <input type="file" id="excel-upload-input" accept=".xlsx, .xls, .csv" class="hidden">
                 <button type="button" id="download-template-btn"
                     class="inline-flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-100 transition w-full sm:w-auto justify-center" title="Download sample template">
@@ -597,6 +669,32 @@
                 <i class="fas fa-info-circle text-xs mr-0.5"></i>
                 {% if is_lunch %}Each row = one day's restaurant bill. Final invoice is generated after approval.{% else %}Prices can be left at 0 — suppliers can fill them later.{% endif %}
             </p>
+
+            <!-- Bulk Fill Panel -->
+            <div id="bulk-fill-panel" class="hidden mt-3 p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                <div>
+                    <label class="block text-xs font-black text-amber-900 uppercase tracking-wider mb-1">Bulk paste items</label>
+                    <p class="text-[10px] text-amber-600 font-medium mb-1.5">One item per line. Optional columns separated by Tab, comma or "|": <b>Description | Qty | Price</b>. Rows are added automatically.</p>
+                    <textarea id="bulk-text-input" rows="4" placeholder="Office chair | 5 | 2500&#10;Ceiling fan | 2 | 3200&#10;Extension cable" class="w-full px-3 py-2 rounded-lg border border-amber-200 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none bg-white"></textarea>
+                    <button type="button" id="bulk-text-apply" class="mt-1.5 bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-amber-700 transition">
+                        <i class="fas fa-paste mr-1"></i> Fill Items
+                    </button>
+                </div>
+                <div class="border-t border-amber-200 pt-3">
+                    <label class="block text-xs font-black text-amber-900 uppercase tracking-wider mb-1">Apply one price to rows</label>
+                    <div class="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                        <input type="number" id="bulk-price-input" step="0.001" min="0" placeholder="Price (৳)" class="w-36 px-3 py-2 rounded-lg border border-amber-200 text-sm font-bold text-right focus:ring-1 focus:ring-amber-400 outline-none bg-white">
+                        <label class="flex items-center gap-1.5 text-xs font-semibold text-amber-800 cursor-pointer">
+                            <input type="checkbox" id="bulk-price-empty-only" checked class="w-3.5 h-3.5 text-amber-600">
+                            Only rows without a price
+                        </label>
+                        <button type="button" id="bulk-price-apply" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-amber-700 transition">
+                            <i class="fas fa-fill-drip mr-1"></i> Apply Price
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-amber-600 font-medium mt-1">In reverse mode this fills the <b>Target Total</b> column and recalculates base prices.</p>
+                </div>
+            </div>
         </div>
 
         <!-- ── Action Buttons ── -->
@@ -626,7 +724,7 @@
 
 <!-- Global suggestion dropdown (removed, now per-row) -->
 
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 function highlightField(el) {
     if (!el) return;
@@ -688,17 +786,58 @@ function setLunchMode(on) {
 
 function syncRoomDailyBasisMode() {
     const isDaily = document.getElementById('id_is_daily_basis')?.checked;
+    
+    // Normal table date toggle
+    const normalTable = document.getElementById('normal-items-table');
+    if (normalTable) {
+        const dateHdr = normalTable.querySelector('.normal-date-hdr');
+        if (dateHdr) dateHdr.classList.toggle('hidden', !isDaily);
+        
+        const rows = normalTable.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            const dateCol = row.querySelector('.normal-date-col');
+            if (dateCol) dateCol.classList.toggle('hidden', !isDaily);
+            
+            const rangeOn = row.classList.contains('range-on');
+            const checkoutCol = row.querySelector('.checkout-date-col');
+            if (checkoutCol) checkoutCol.classList.toggle('hidden', (!isDaily) || (!rangeOn && isDaily));
+        });
+    }
+
+    // Secondary table date toggle (Always show date if secondary category is not Room/Stay)
+    const secTable = document.getElementById('secondary-items-table');
+    if (secTable) {
+        let isSecRoom = false;
+        if (secondaryCategorySelect && secondaryCategorySelect.value && secondaryCategorySelect.selectedIndex >= 0) {
+            const opt = secondaryCategorySelect.options[secondaryCategorySelect.selectedIndex];
+            if (opt) {
+                const secText = opt.text.toLowerCase();
+                isSecRoom = secText.includes('room') || secText.includes('hotel') || secText.includes('resort') || secText.includes('stay');
+            }
+        }
+        const dateHdr = secTable.querySelector('.normal-date-hdr');
+        if (dateHdr) dateHdr.classList.toggle('hidden', isSecRoom);
+        
+        const rows = secTable.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            const dateCol = row.querySelector('.normal-date-col');
+            if (dateCol) dateCol.classList.toggle('hidden', isSecRoom);
+            
+            const checkoutCol = row.querySelector('.checkout-date-col');
+            if (checkoutCol) checkoutCol.classList.add('hidden');
+        });
+    }
+
     const roomTable = document.getElementById('room-items-table');
     const roomCtrl = document.getElementById('room-price-control');
     
     const toggleDiv = document.getElementById('room-daily-basis-toggle');
     if (toggleDiv) {
-        toggleDiv.classList.toggle('hidden', !isRoomMode);
+        // toggleDiv.classList.toggle('hidden', !isRoomMode);
     }
     
     if (!isRoomMode) {
         if (roomCtrl) roomCtrl.classList.add('hidden');
-        return;
     }
     
     // Toggle standard price control
@@ -721,18 +860,58 @@ function syncRoomDailyBasisMode() {
     if (costHdrLabel) costHdrLabel.innerHTML = isDaily ? '💰 Rate (৳)' : '💰 Cost (৳)';
     
     // Toggle column inputs in all rows
-    const rows = roomTable ? roomTable.querySelectorAll('.item-row') : [];
+    let rows = roomTable ? Array.from(roomTable.querySelectorAll('.item-row')) : [];
+    
+    // Also include room rows inside the secondary items table if secondary category is Room
+    let isSecRoom = false;
+    if (secondaryCategorySelect && secondaryCategorySelect.value && secondaryCategorySelect.selectedIndex >= 0) {
+        const opt = secondaryCategorySelect.options[secondaryCategorySelect.selectedIndex];
+        if (opt) {
+            const secText = opt.text.toLowerCase();
+            isSecRoom = secText.includes('room') || secText.includes('hotel') || secText.includes('resort') || secText.includes('stay');
+        }
+    }
+    if (isSecRoom) {
+        const secRows = document.querySelectorAll('#secondary-item-formset tr.item-row');
+        secRows.forEach(r => rows.push(r));
+    }
+    
     rows.forEach(row => {
+        // In daily mode a row's checkout (to-date) is hidden UNLESS the user
+        // opted this individual row into range mode. In range mode it's always shown.
+        const rangeOn = row.classList.contains('range-on');
         const checkoutCol = row.querySelector('.checkout-date-col');
-        if (checkoutCol) checkoutCol.classList.toggle('hidden', isDaily);
-        
+        if (checkoutCol) checkoutCol.classList.toggle('hidden', isDaily && !rangeOn);
+
+        // The per-row "+ to-date" button only makes sense in daily mode.
+        const rangeBtn = row.querySelector('.range-toggle-btn');
+        if (rangeBtn) rangeBtn.classList.toggle('hidden', !isDaily);
+
         const unitCol = row.querySelector('.room-unit-col');
         if (unitCol) unitCol.classList.toggle('hidden', !isDaily);
-        
+
         const qtyCol = row.querySelector('.room-qty-col');
         if (qtyCol) qtyCol.classList.toggle('hidden', !isDaily);
     });
 }
+
+// Feature: let an individual daily row become a date range (from/to).
+function toggleRowRange(btn) {
+    const row = btn.closest('tr');
+    const on = !row.classList.contains('range-on');
+    row.classList.toggle('range-on', on);
+    const checkoutCol = row.querySelector('.checkout-date-col');
+    if (checkoutCol) {
+        checkoutCol.classList.toggle('hidden', !on);
+        if (!on) {
+            const ci = checkoutCol.querySelector('input');
+            if (ci) ci.value = '';   // clear the to-date when leaving range mode
+        }
+    }
+    btn.textContent = on ? '－ single day' : '＋ to-date';
+    btn.classList.toggle('text-indigo-700', on);
+}
+window.toggleRowRange = toggleRowRange;
 
 function setRoomMode(on) {
     isRoomMode = on;
@@ -787,6 +966,8 @@ document.getElementById('add-item').addEventListener('click', function() {
                     const stdPrice = document.getElementById('lunch-standard-price').value;
                     input.value = stdPrice || '0.000';
                 }
+                else if (input.name.includes('unit')) input.value = 'Meal';
+                else if (input.name.includes('entry_date') || input.name.includes('checkout_date')) { /* leave blank for user to fill */ }
                 else input.value = '';
             }
         });
@@ -842,18 +1023,12 @@ document.getElementById('add-item').addEventListener('click', function() {
             }
         });
 
-        // Hide/show daily basis columns for this new row
-        const isDaily = document.getElementById('id_is_daily_basis')?.checked;
-        const checkoutCol = newRow.querySelector('.checkout-date-col');
-        if (checkoutCol) checkoutCol.classList.toggle('hidden', isDaily);
-        const unitCol = newRow.querySelector('.room-unit-col');
-        if (unitCol) unitCol.classList.toggle('hidden', !isDaily);
-        const qtyCol = newRow.querySelector('.room-qty-col');
-        if (qtyCol) qtyCol.classList.toggle('hidden', !isDaily);
+        // Sync column/date visibility for new row
+        syncRoomDailyBasisMode();
 
         const dateInput = newRow.querySelector('input[name$="-entry_date"]');
         if (dateInput) dateInput.focus();
-    } else {
+     } else {
         // Add normal row
         const tbody = document.getElementById('item-formset');
         const template = document.getElementById('empty-form-template').querySelector('tr');
@@ -872,6 +1047,9 @@ document.getElementById('add-item').addEventListener('click', function() {
         tbody.appendChild(newRow);
         totalForms.value = count + 1;
 
+        // Sync column/date visibility for new row
+        syncRoomDailyBasisMode();
+
         // Sync Calculation Mode visibility for the new row
         const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
         newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
@@ -884,19 +1062,51 @@ document.getElementById('add-item').addEventListener('click', function() {
 
         const desc = newRow.querySelector('input[name$="-description"]');
         if (desc) { desc.focus(); desc.select(); }
-    }
+     }
 });
 
 // ── Remove Row ──
 window.removeRow = function(btn) {
     const row = btn.closest('tr');
     const delCb = row.querySelector('input[name$="-DELETE"]');
-    if (delCb) { delCb.checked = true; row.style.display = 'none'; }
-    else {
+    if (delCb) {
+        if (delCb.checked) {
+            delCb.checked = false;
+            row.style.opacity = '1';
+            row.style.textDecoration = 'none';
+            row.style.backgroundColor = '';
+            btn.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+            btn.title = "Delete row";
+        } else {
+            delCb.checked = true;
+            row.style.opacity = '0.4';
+            row.style.textDecoration = 'line-through';
+            row.style.backgroundColor = '#fef2f2';
+            btn.innerHTML = '<i class="fas fa-undo text-xs"></i>';
+            btn.title = "Restore row";
+        }
+    } else {
         row.querySelectorAll('input').forEach(i => { if (i.type !== 'hidden') i.value = ''; });
         row.style.display = 'none';
     }
 };
+
+
+// ── Universal Standard Price Sync ──
+const uniPriceInput = document.getElementById('universal-standard-price');
+if (uniPriceInput) {
+    uniPriceInput.addEventListener('input', function() {
+        const val = this.value;
+        const catId = categorySelect ? categorySelect.value : 'default';
+        if (catId) localStorage.setItem('uni_std_price_' + catId, val);
+        
+        document.querySelectorAll('input[name$="-base_price"]').forEach(inp => {
+            if (inp.offsetParent !== null) {
+                inp.value = val;
+            }
+        });
+    });
+}
 
 // ── Lunch Standard Price Sync ──
 const stdPriceInput = document.getElementById('lunch-standard-price');
@@ -948,6 +1158,11 @@ const fieldMap = {
     next_challan:   '[name="challan_number"]',
 };
 
+// When the page load fires a synthetic category "change" (to backfill a missing
+// invoice number / supplier), it must only fill EMPTY fields — overwriting the
+// saved VAT/tax/etc. with category defaults silently reverts the user's edits.
+let categorySyncFillMissingOnly = false;
+
 const secondaryFieldMap = {
     vat:            '[name="secondary_vat_percentage"]',
     tax:            '[name="secondary_tax_percentage"]',
@@ -956,10 +1171,30 @@ const secondaryFieldMap = {
     profit_margin:  '[name="secondary_profit_margin"]',
 };
 
-let currentPrimaryPrefix = "";
-let currentSecondaryPrefix = "";
+let currentPrimaryPrefix = "{{ transaction.transaction_category.invoice_prefix|default:''|escapejs }}";
+let currentSecondaryPrefix = "{{ transaction.secondary_category.invoice_prefix|default:''|escapejs }}";
 let currentInvoiceSuffix = "";
 let currentChallanSuffix = "";
+
+{% if transaction.invoice_number %}
+(function() {
+    const fullInv = "{{ transaction.invoice_number|escapejs }}";
+    const dashIdx = fullInv.indexOf('-');
+    if (dashIdx !== -1) {
+        currentInvoiceSuffix = fullInv.substring(dashIdx);
+    }
+})();
+{% endif %}
+
+{% if transaction.challan_number %}
+(function() {
+    const fullChl = "{{ transaction.challan_number|escapejs }}";
+    const parts = fullChl.split('-');
+    if (parts.length >= 3) {
+        currentChallanSuffix = "-" + parts[parts.length - 2] + "-" + parts[parts.length - 1];
+    }
+})();
+{% endif %}
 
 function updateInvoiceNumbers() {
     let combinedPrefix = currentPrimaryPrefix;
@@ -984,6 +1219,72 @@ function updateInvoiceNumbers() {
     }
 }
 
+function syncSecondaryTableHeaders() {
+    if (!secondaryCategorySelect || !secondaryCategorySelect.value || secondaryCategorySelect.selectedIndex < 0) return;
+    const opt = secondaryCategorySelect.options[secondaryCategorySelect.selectedIndex];
+    if (!opt) return;
+    const secText = opt.text.toLowerCase();
+    const isSecLunch = secText.includes('tiffin') || secText.includes('dinner') || secText.includes('iftar') || secText.includes('seheri') || secText.includes('lunch');
+    const isSecRoom = secText.includes('room') || secText.includes('hotel') || secText.includes('resort') || secText.includes('stay');
+    
+    const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+    const isDaily = document.getElementById('id_is_daily_basis')?.checked;
+    
+    const thead = document.querySelector('#secondary-items-table thead');
+    if (!thead) return;
+    
+    let html = '';
+    if (isSecLunch) {
+        html = `
+            <tr>
+                <th class="w-10"></th>
+                <th class="text-left" style="min-width:120px">📅 Entry Date</th>
+                <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
+                <th class="text-right" style="width:130px"><span class="price-header-label">${isReverse ? 'Base Price (Auto)' : '💰 Cost (৳)'}</span></th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-center" style="width:100px">📦 Unit</th>
+                <th class="text-center" style="width:150px">🔢 Qty</th>
+                <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                    <i class="fas fa-trash text-xs"></i>
+                </th>
+            </tr>
+        `;
+    } else if (isSecRoom) {
+        html = `
+            <tr>
+                <th class="w-10"></th>
+                <th class="text-left date-hdr-label" style="min-width:120px">${isDaily ? '📅 Date' : '📅 From Date'}</th>
+                <th class="text-left checkout-date-hdr ${isDaily ? 'hidden' : ''}" style="min-width:120px">📅 To Date</th>
+                <th class="text-left" style="min-width:180px">🏷 Description</th>
+                <th class="text-center room-unit-hdr ${isDaily ? '' : 'hidden'}" style="width:80px">Unit</th>
+                <th class="text-center room-qty-hdr ${isDaily ? '' : 'hidden'}" style="width:100px">Qty</th>
+                <th class="text-right room-cost-hdr" style="width:130px"><span class="price-header-label">${isDaily ? '💰 Rate (৳)' : '💰 Cost (৳)'}</span></th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                    <i class="fas fa-trash text-xs"></i>
+                </th>
+            </tr>
+        `;
+    } else {
+        html = `
+            <tr>
+                <th class="w-10"></th>
+                <th class="text-left normal-date-hdr ${isDaily ? '' : 'hidden'}" style="min-width:120px">📅 Date</th>
+                <th class="text-left normal-checkout-date-hdr ${isDaily ? '' : 'hidden'}" style="min-width:120px">📅 To Date</th>
+                <th class="text-left" style="min-width:180px">Description</th>
+                <th class="text-center" style="width:80px">Unit</th>
+                <th class="text-center" style="width:150px">Qty</th>
+                <th class="text-right" style="width:120px"><span class="price-header-label">${isReverse ? 'Base Price (Auto)' : 'Display Price (৳)'}</span></th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
+                    <i class="fas fa-trash text-xs"></i>
+                </th>
+            </tr>
+        `;
+    }
+    thead.innerHTML = html;
+}
+
 function toggleSecondarySection() {
     if (!secondaryCategorySelect) return;
     const hasSecondary = !!secondaryCategorySelect.value;
@@ -996,6 +1297,7 @@ function toggleSecondarySection() {
 if (secondaryCategorySelect) {
     secondaryCategorySelect.addEventListener('change', function() {
         toggleSecondarySection();
+        syncSecondaryTableHeaders();
         const catId = this.value;
         if (!catId) {
             currentSecondaryPrefix = "";
@@ -1034,7 +1336,8 @@ if (secondaryCategorySelect) {
 document.addEventListener('DOMContentLoaded', function() {
     if (secondaryCategorySelect) {
         toggleSecondarySection();
-        const rows = document.querySelectorAll('#item-formset tr.item-row');
+        syncSecondaryTableHeaders();
+        const rows = document.querySelectorAll('#item-formset tr.item-row, #lunch-formset tr.item-row, #room-formset tr.item-row');
         const secondaryTbody = document.getElementById('secondary-item-formset');
         rows.forEach(row => {
             const isSecondaryCheckbox = row.querySelector('input[name$="-is_secondary"]');
@@ -1042,8 +1345,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 secondaryTbody.appendChild(row);
             }
         });
+        updateInvoiceNumbers();
     }
+
+
+    // Existing daily rows that already carry a to-date are range rows: mark them
+    // so their checkout stays visible after syncRoomDailyBasisMode() runs.
+    document.querySelectorAll('#room-formset tr.item-row').forEach(row => {
+        const co = row.querySelector('.checkout-date-col input');
+        if (co && co.value) {
+            row.classList.add('range-on');
+            const btn = row.querySelector('.range-toggle-btn');
+            if (btn) { btn.textContent = '－ single day'; btn.classList.add('text-indigo-700'); }
+        }
+    });
+
     syncRoomDailyBasisMode();
+
+    // ── Bulk description fill ──
+    const bulkApply = document.getElementById('bulk-desc-apply');
+    if (bulkApply) {
+        bulkApply.addEventListener('click', function() {
+            const val = (document.getElementById('bulk-desc-input').value || '').trim();
+            const emptyOnly = document.getElementById('bulk-desc-empty-only').checked;
+            let count = 0;
+            // Only touch description inputs that are actually visible (this skips
+            // the hidden <template> rows and inactive category tables).
+            document.querySelectorAll('input[name$="-description"]').forEach(inp => {
+                if (inp.offsetParent === null) return;
+                if (emptyOnly && inp.value.trim() !== '') return;
+                inp.value = val;
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                count++;
+            });
+            const fb = document.getElementById('bulk-desc-feedback');
+            if (fb) {
+                fb.textContent = count ? `Applied to ${count} row${count > 1 ? 's' : ''}` : 'No rows to fill';
+                setTimeout(() => { fb.textContent = ''; }, 2500);
+            }
+        });
+    }
 });
 
 // Add secondary item button click handler
@@ -1053,7 +1394,18 @@ if (addSecondaryItemBtn) {
         const totalForms = document.getElementById('id_items-TOTAL_FORMS');
         const count = parseInt(totalForms.value);
         const tbody = document.getElementById('secondary-item-formset');
-        const template = document.getElementById('empty-form-template').querySelector('tr');
+        let templateId = 'empty-form-template';
+        if (secondaryCategorySelect && secondaryCategorySelect.value && secondaryCategorySelect.selectedIndex >= 0) {
+            const opt = secondaryCategorySelect.options[secondaryCategorySelect.selectedIndex];
+            if (opt) {
+                const secText = opt.text.toLowerCase();
+                const isSecLunch = secText.includes('tiffin') || secText.includes('dinner') || secText.includes('iftar') || secText.includes('seheri') || secText.includes('lunch');
+                const isSecRoom = secText.includes('room') || secText.includes('hotel') || secText.includes('resort') || secText.includes('stay');
+                if (isSecLunch) templateId = 'empty-lunch-template';
+                else if (isSecRoom) templateId = 'empty-room-template';
+            }
+        }
+        const template = document.getElementById(templateId).querySelector('tr');
         const newRow = template.cloneNode(true);
         newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, count);
         newRow.querySelectorAll('input').forEach(input => {
@@ -1074,6 +1426,9 @@ if (addSecondaryItemBtn) {
         tbody.appendChild(newRow);
         totalForms.value = count + 1;
         
+        // Sync column/date visibility for new row
+        syncRoomDailyBasisMode();
+        
         // Sync Calculation Mode visibility for the new row
         const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
         newRow.querySelectorAll('.target-col').forEach(el => el.classList.toggle('hidden', !isReverse));
@@ -1086,6 +1441,10 @@ if (addSecondaryItemBtn) {
 
         const desc = newRow.querySelector('input[name$="-description"]');
         if (desc) { desc.focus(); desc.select(); }
+        else {
+            const firstInput = newRow.querySelector('input:not([type="hidden"])');
+            if (firstInput) { firstInput.focus(); firstInput.select(); }
+        }
     });
 }
 
@@ -1095,6 +1454,22 @@ if (categorySelect) {
     categorySelect.addEventListener('change', function() {
         const catId = this.value;
         if (!catId) return;
+        // Capture (and reset) the load-sync flag synchronously so the async
+        // fetch below knows whether this was a real user change.
+        const fillMissingOnly = categorySyncFillMissingOnly;
+        categorySyncFillMissingOnly = false;
+
+        const savedUniPrice2 = localStorage.getItem('uni_std_price_' + catId);
+        if (savedUniPrice2 && document.getElementById('universal-standard-price')) {
+            document.getElementById('universal-standard-price').value = savedUniPrice2;
+            setTimeout(() => {
+                document.querySelectorAll('input[name$="-base_price"]').forEach(inp => {
+                    if (inp.offsetParent !== null && (!inp.value || inp.value === '0.000' || inp.value === '0.00')) {
+                        inp.value = savedUniPrice2;
+                    }
+                });
+            }, 150);
+        }
         
         const savedPrice = localStorage.getItem('std_price_' + catId);
         if (savedPrice && stdPriceInput) {
@@ -1125,7 +1500,7 @@ if (categorySelect) {
         }
 
 
-        const selectedText = catOptions[catOptions.selectedIndex].text.toLowerCase();
+        const selectedText = categorySelect.options[categorySelect.selectedIndex].text.toLowerCase();
         const lunchOn = selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar') || selectedText.includes('seheri') || selectedText.includes('lunch');
         const roomOn = selectedText.includes('room') || selectedText.includes('hotel') || selectedText.includes('resort') || selectedText.includes('stay');
         setLunchMode(lunchOn && !roomOn);
@@ -1134,7 +1509,8 @@ if (categorySelect) {
         fetch(`/api/category/${catId}/defaults/`)
             .then(r => r.json())
             .then(data => {
-                if (data.prefix && data.next_invoice) {
+                const invEl = document.querySelector('[name="invoice_number"]');
+                if (data.prefix && data.next_invoice && (!fillMissingOnly || !invEl || !invEl.value)) {
                     currentPrimaryPrefix = data.prefix;
                     currentInvoiceSuffix = data.next_invoice.substring(data.prefix.length);
                     currentChallanSuffix = data.next_challan.substring(4 + data.prefix.length);
@@ -1146,26 +1522,35 @@ if (categorySelect) {
                     if (key === 'next_invoice' || key === 'next_challan') continue;
                     const el = document.querySelector(sel);
                     if (el && data[key] !== undefined) {
-                        console.log(`Auto-filling ${key}: ${data[key]}`);
+                        // On load-sync, never clobber a value that came from the DB
+                        if (fillMissingOnly && el.value !== '') continue;
                         el.value = data[key];
                         highlightField(el);
                     }
                 }
-                
+
+                const maybeFill = (sel, val) => {
+                    const el = document.querySelector(sel);
+                    if (!el) return;
+                    if (fillMissingOnly && el.value !== '') return;
+                    el.value = val;
+                    highlightField(el);
+                };
+
                 // --- Auto-fill Supplier Details ---
                 if (data.supplier && data.supplier.name) {
-                    fillField('[name="supplier_name"]', data.supplier.name);
-                    fillField('[name="supplier_bin"]', data.supplier.bin);
-                    fillField('[name="supplier_address"]', data.supplier.address);
-                    fillField('[name="supplier_contact"]', data.supplier.contact);
+                    maybeFill('[name="supplier_name"]', data.supplier.name);
+                    maybeFill('[name="supplier_bin"]', data.supplier.bin);
+                    maybeFill('[name="supplier_address"]', data.supplier.address);
+                    maybeFill('[name="supplier_contact"]', data.supplier.contact);
                 }
-                
+
                 // --- Auto-fill Buyer Details ---
                 if (data.buyer && data.buyer.name) {
-                    fillField('[name="buyer_name"]', data.buyer.name);
-                    fillField('[name="buyer_bin"]', data.buyer.bin);
-                    fillField('[name="buyer_address"]', data.buyer.address);
-                    fillField('[name="buyer_contact"]', data.buyer.contact);
+                    maybeFill('[name="buyer_name"]', data.buyer.name);
+                    maybeFill('[name="buyer_bin"]', data.buyer.bin);
+                    maybeFill('[name="buyer_address"]', data.buyer.address);
+                    maybeFill('[name="buyer_contact"]', data.buyer.contact);
                 }
             })
             .catch(() => {});
@@ -1178,12 +1563,28 @@ if (categorySelect) {
         const sName = document.querySelector('[name="supplier_name"]');
         const sBin = document.querySelector('[name="supplier_bin"]');
         
-        // Trigger if number is missing OR if party details are missing
+        // Trigger if number is missing OR if party details are missing.
+        // Fill-missing-only mode: never overwrite saved percentages/parties.
         if (!inv?.value || !sName?.value || !sBin?.value) {
-            setTimeout(() => categorySelect.dispatchEvent(new Event('change')), 100);
+            setTimeout(() => {
+                categorySyncFillMissingOnly = true;
+                categorySelect.dispatchEvent(new Event('change'));
+            }, 100);
         } else {
             // Just load standard price
             const catId = categorySelect.value;
+            const savedUniPrice = localStorage.getItem('uni_std_price_' + catId);
+            if (savedUniPrice && document.getElementById('universal-standard-price')) {
+                document.getElementById('universal-standard-price').value = savedUniPrice;
+                setTimeout(() => {
+                    document.querySelectorAll('input[name$="-base_price"]').forEach(inp => {
+                        if (inp.offsetParent !== null && (!inp.value || inp.value === '0.000' || inp.value === '0.00')) {
+                            inp.value = savedUniPrice;
+                        }
+                    });
+                }, 200);
+            }
+
             const savedPrice = localStorage.getItem('std_price_' + catId);
             if (savedPrice && stdPriceInput) {
                 stdPriceInput.value = savedPrice;
@@ -1237,7 +1638,16 @@ function showSuggestions(input) {
         return;
     }
 
-    const categoryId = categorySelect ? categorySelect.value : '';
+    const row = input.closest('tr');
+    const isSecondary = row && (row.querySelector('input[name$="-is_secondary"]')?.checked || row.closest('#secondary-item-formset') !== null);
+    
+    let categoryId = '';
+    if (isSecondary && secondaryCategorySelect) {
+        categoryId = secondaryCategorySelect.value;
+    } else if (categorySelect) {
+        categoryId = categorySelect.value;
+    }
+    
     activeDescInput = input;
 
     fetch(`/api/products/search/?q=${encodeURIComponent(query)}&category_id=${categoryId}`)
@@ -1254,8 +1664,8 @@ function showSuggestions(input) {
 
 function renderSuggestions(products, input) {
     const rect = input.getBoundingClientRect();
-    suggestionBox.style.left = `${rect.left + window.scrollX}px`;
-    suggestionBox.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    suggestionBox.style.left = `${rect.left}px`;
+    suggestionBox.style.top = `${rect.bottom + 4}px`;
     suggestionBox.style.width = `${Math.max(rect.width, 300)}px`;
     suggestionBox.style.display = 'block';
     
@@ -1278,12 +1688,17 @@ function selectProduct(product) {
     if (!row) return;
 
     const descInput = row.querySelector('input[name$="-description"]');
+    const restInput = row.querySelector('input[name$="-restaurant_name"]');
     const unitField = row.querySelector('input[name$="-unit"]');
     const priceField = row.querySelector('input[name$="-base_price"]');
     
     if (descInput) {
         descInput.value = product.name;
         highlightField(descInput);
+    }
+    if (restInput) {
+        restInput.value = product.name;
+        highlightField(restInput);
     }
     if (unitField) {
         unitField.value = product.unit;
@@ -1300,7 +1715,10 @@ function selectProduct(product) {
 function initSuggestionListeners() {
     // Delegation for dynamic rows
     document.addEventListener('input', function(e) {
-        if (e.target.name && e.target.name.endsWith('-description') && !isLunchMode) {
+        if (!e.target.name) return;
+        const isDesc = e.target.name.endsWith('-description');
+        const isRest = e.target.name.endsWith('-restaurant_name');
+        if (isDesc || isRest) {
             showSuggestions(e.target);
         }
     });
@@ -1337,6 +1755,15 @@ function initSuggestionListeners() {
             }
         }
     });
+
+    // Reposition suggestions on scroll so it stays aligned with the input
+    window.addEventListener('scroll', function() {
+        if (activeDescInput && suggestionBox && suggestionBox.style.display !== 'none') {
+            const rect = activeDescInput.getBoundingClientRect();
+            suggestionBox.style.left = `${rect.left}px`;
+            suggestionBox.style.top = `${rect.bottom + 4}px`;
+        }
+    }, true);
 }
 
 function updateActiveSuggestion(items) {
@@ -1413,128 +1840,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize correct layout mode on load
     setLunchMode(isLunchMode);
     setRoomMode(isRoomMode);
-
-    // --- Form Auto-Save / Restore Logic ---
-    const AUTO_SAVE_KEY = 'draft_transaction_{{ form.instance.pk|default:"new" }}';
-
-    function saveFormState() {
-        const form = document.querySelector('form');
-        if (!form) return;
-        
-        // Don't save if form has immutable warning (locked)
-        {% if form.instance.status != 'DRAFT' and user.role != 'OWNER' and not user.is_superuser and form.instance.pk %}
-        return;
-        {% endif %}
-
-        const formData = new FormData(form);
-        const data = {};
-        for (let [key, value] of formData.entries()) {
-            if (key === 'csrfmiddlewaretoken') continue;
-            if (data[key] !== undefined) {
-                if (!Array.isArray(data[key])) {
-                    data[key] = [data[key]];
-                }
-                data[key].push(value);
-            } else {
-                data[key] = value;
-            }
-        }
-        localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+    if (typeof syncTargetInputsFromBasePrices === 'function') {
+        syncTargetInputsFromBasePrices();
     }
 
-    function restoreFormState() {
-        const saved = localStorage.getItem(AUTO_SAVE_KEY);
-        if (!saved) return;
-        
-        try {
-            const data = JSON.parse(saved);
-            const form = document.querySelector('form');
-            if (!form) return;
-            
-            // 1. Ensure enough formset rows exist
-            const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
-            if (totalFormsInput && data['items-TOTAL_FORMS']) {
-                const targetCount = parseInt(data['items-TOTAL_FORMS'], 10);
-                let currentCount = parseInt(totalFormsInput.value, 10);
-                const addButton = document.getElementById('add-item');
-                
-                while (currentCount < targetCount && addButton) {
-                    addButton.click();
-                    currentCount++;
-                }
-            }
-            
-            // 2. Populate fields
-            for (const [key, value] of Object.entries(data)) {
-                const inputs = form.querySelectorAll(`[name="${key}"]`);
-                if (!inputs.length) continue;
-                
-                if (Array.isArray(value)) {
-                    inputs.forEach((input, index) => {
-                        if (input.type === 'checkbox' || input.type === 'radio') {
-                            input.checked = value.includes(input.value);
-                        } else if (value[index] !== undefined) {
-                            input.value = value[index];
-                        }
-                    });
-                } else {
-                    const input = inputs[0];
-                    if (input.type === 'checkbox' || input.type === 'radio') {
-                        input.checked = (input.value === value || value === 'on' || value === 'true');
-                    } else {
-                        input.value = value;
-                    }
-                }
-            }
-            
-            // 3. Category layout update
-            const categorySelect = document.querySelector('[name="transaction_category"]');
-            if (categorySelect && categorySelect.value) {
-                const catOptions = categorySelect.options;
-                const selectedText = catOptions[categorySelect.selectedIndex].text.toLowerCase();
-                const lunchOn = selectedText.includes('tiffin') || selectedText.includes('dinner') || selectedText.includes('iftar') || selectedText.includes('seheri') || selectedText.includes('lunch');
-                const roomOn = selectedText.includes('room') || selectedText.includes('hotel') || selectedText.includes('resort') || selectedText.includes('stay');
-                setLunchMode(lunchOn && !roomOn);
-                setRoomMode(roomOn && !lunchOn);
-                toggleSecondarySection();
-            }
-            
-            // 4. Move secondary items
-            const secondaryTbody = document.getElementById('secondary-item-formset');
-            if (secondaryTbody) {
-                const rows = document.querySelectorAll('#item-formset tr.item-row');
-                rows.forEach(row => {
-                    const isSecondaryCheckbox = row.querySelector('input[name$="-is_secondary"]');
-                    if (isSecondaryCheckbox && isSecondaryCheckbox.checked) {
-                        secondaryTbody.appendChild(row);
-                    }
-                });
-            }
-            
-        } catch (e) {
-            console.error("Failed to restore form state", e);
-        }
+    // NOTE: the old silent auto-restore ("draft_transaction_*") was removed.
+    // The banner-based auto-save at the bottom of this file ("autosave_bill_*")
+    // is the single source of truth for unsaved-work recovery.
+    localStorage.removeItem('draft_transaction_{{ form.instance.pk|default:"new" }}');
+
+    // Trigger initial calculation mode state on load
+    const checkedRadio = document.querySelector('input[name="calculation_mode"]:checked');
+    if (checkedRadio) {
+        checkedRadio.dispatchEvent(new Event('change'));
     }
-
-    let saveTimeout;
-    const form = document.querySelector('form');
-    if (form) {
-        const handleInput = () => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(saveFormState, 800);
-        };
-        form.addEventListener('input', handleInput);
-        form.addEventListener('change', handleInput);
-        form.addEventListener('submit', function() {
-            localStorage.removeItem(AUTO_SAVE_KEY);
-        });
-    }
-
-    // Only restore if this is likely a fresh GET request (no errors shown)
-    {% if not form.errors %}
-    restoreFormState();
-    {% endif %}
-
 });
 // ── Reverse Calculation Logic ──
 function getMultiplier(isSecondary) {
@@ -1569,7 +1888,12 @@ function getMultiplier(isSecondary) {
     // Formula: Total = P * (1 + sc) * (1 + duty_pct + tax_multiplier) * (1 + vat_pct)
     // where P = BasePrice * (1 + Margin)
     const factor = (1 + scMultiplier) * (1 + dutyMultiplier + taxMultiplier) * (1 + (vatPct / 100.0));
-    return factor * marginMultiplier;
+    
+    // Account for global discount percentage scaling
+    const discountPct = valPrimary('discount_percentage');
+    const discountFactor = 1.0 - (discountPct / 100.0);
+    
+    return factor * marginMultiplier * discountFactor;
 }
 
 function doReverseCalculation(row) {
@@ -1594,6 +1918,27 @@ function doReverseCalculation(row) {
         const requiredBasePrice = targetPerUnit / multiplier;
         basePriceInput.value = requiredBasePrice.toFixed(3);
     }
+}
+
+function syncTargetInputsFromBasePrices() {
+    document.querySelectorAll('tr.item-row').forEach(row => {
+        if (row.closest('.hidden') || row.style.display === 'none') return;
+        
+        const basePriceInput = row.querySelector('input[name$="-base_price"]');
+        const targetInput = row.querySelector('.target-input');
+        const qtyInput = row.querySelector('input[name$="-quantity"]');
+        if (basePriceInput && targetInput) {
+            const basePrice = parseFloat(basePriceInput.value) || 0;
+            const quantity = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) || 1 : 1;
+            if (basePrice > 0) {
+                const isSecondary = row.querySelector('input[name$="-is_secondary"]')?.checked || false;
+                const multiplier = getMultiplier(isSecondary);
+                targetInput.value = (basePrice * multiplier * quantity).toFixed(3);
+            } else {
+                targetInput.value = "0.000";
+            }
+        }
+    });
 }
 
 // Global listener for target input changes
@@ -1648,6 +1993,10 @@ document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
             el.textContent = isReverse ? 'Base Price (Auto)' : (el.closest('#lunch-items-table') || el.closest('#room-items-table') ? '💰 Cost (৳)' : 'Display Price (৳)');
         });
         
+        if (isReverse) {
+            syncTargetInputsFromBasePrices();
+        }
+        
         // Update inputs
         document.querySelectorAll('input[name$="-base_price"]').forEach(el => {
             if (isReverse) {
@@ -1663,6 +2012,94 @@ document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
         });
     });
 });
+
+// ── Bulk Fill Logic ──
+(function() {
+    const btn = document.getElementById('bulk-fill-btn');
+    const panel = document.getElementById('bulk-fill-panel');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', () => panel.classList.toggle('hidden'));
+
+    const isReverse = () => document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+
+    function activeRows() {
+        return [...document.querySelectorAll('#item-formset tr.item-row, #secondary-item-formset tr.item-row, #lunch-formset tr.item-row, #room-formset tr.item-row')]
+            .filter(r => r.offsetParent !== null);
+    }
+
+    function setRowPrice(row, val) {
+        if (isReverse()) {
+            const t = row.querySelector('.target-input');
+            if (t) { t.value = val; if (typeof doReverseCalculation === 'function') doReverseCalculation(row); }
+        } else {
+            const p = row.querySelector('input[name$="-base_price"]');
+            if (p) { p.value = val; p.dispatchEvent(new Event('input', {bubbles: true})); }
+        }
+    }
+
+    document.getElementById('bulk-price-apply').addEventListener('click', () => {
+        const val = parseFloat(document.getElementById('bulk-price-input').value);
+        if (isNaN(val) || val < 0) { alert('Enter a valid price first.'); return; }
+        const emptyOnly = document.getElementById('bulk-price-empty-only').checked;
+        let n = 0;
+        activeRows().forEach(row => {
+            const p = row.querySelector(isReverse() ? '.target-input' : 'input[name$="-base_price"]');
+            if (!p) return;
+            if (emptyOnly && (parseFloat(p.value) || 0) > 0) return;
+            setRowPrice(row, val);
+            n++;
+        });
+        alert(`Applied ৳${val} to ${n} row(s).`);
+    });
+
+    document.getElementById('bulk-text-apply').addEventListener('click', () => {
+        const raw = document.getElementById('bulk-text-input').value.trim();
+        if (!raw) { alert('Paste some lines first.'); return; }
+        const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+        const addBtn = document.getElementById('add-item');
+
+        // Rows of the currently visible primary table (normal / lunch / room)
+        const primaryRows = () => [...document.querySelectorAll('#item-formset tr.item-row, #lunch-formset tr.item-row, #room-formset tr.item-row')]
+            .filter(r => r.offsetParent !== null);
+
+        let rows = primaryRows();
+        let guard = 0;
+        while (rows.length < lines.length && addBtn && guard < 300) {
+            addBtn.click();
+            rows = primaryRows();
+            guard++;
+        }
+
+        let filled = 0;
+        lines.forEach((line, i) => {
+            const row = rows[i];
+            if (!row) return;
+            // Prefer Tab, then pipe; fall back to comma only if neither present
+            const sep = line.includes('\t') ? '\t' : (line.includes('|') ? '|' : ',');
+            const parts = line.split(sep).map(s => s.trim());
+
+            const descInput = row.querySelector('input[name$="-description"], input[name$="-restaurant_name"]');
+            if (descInput && parts[0]) {
+                descInput.value = parts[0];
+                descInput.dispatchEvent(new Event('input', {bubbles: true}));
+            }
+            if (parts.length > 1 && parts[1] !== '') {
+                const q = parseFloat(parts[1]);
+                const qtyInput = row.querySelector('input[name$="-quantity"]');
+                if (qtyInput && !isNaN(q)) {
+                    qtyInput.value = q;
+                    qtyInput.dispatchEvent(new Event('input', {bubbles: true}));
+                }
+            }
+            if (parts.length > 2 && parts[2] !== '') {
+                const p = parseFloat(parts[2]);
+                if (!isNaN(p)) setRowPrice(row, p);
+            }
+            filled++;
+        });
+        alert(`Filled ${filled} item row(s).`);
+    });
+})();
 
 // ── Excel Import Logic ──
 document.getElementById('download-template-btn').addEventListener('click', function() {
@@ -1690,35 +2127,101 @@ document.getElementById('import-excel-btn').addEventListener('click', function()
     document.getElementById('excel-upload-input').click();
 });
 
+function parseCSV(text) {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i+1];
+        
+        if (c === '"') {
+            if (inQuotes && next === '"') {
+                row[row.length - 1] += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c === ',' && !inQuotes) {
+            row.push("");
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') {
+                i++;
+            }
+            lines.push(row);
+            row = [""];
+        } else {
+            row[row.length - 1] += c;
+        }
+    }
+    if (row.length > 1 || row[0] !== "") {
+        lines.push(row);
+    }
+    return lines;
+}
+
 document.getElementById('excel-upload-input').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
+    
     reader.onload = function(e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+        let rows = [];
+        try {
+            if (isCSV) {
+                const text = e.target.result;
+                rows = parseCSV(text);
+            } else {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error reading file: " + err.message);
+            return;
+        }
         
-        // Convert to array of arrays first to find headers properly
-        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
         if (rows.length < 2) {
-            alert("No data found in the Excel file.");
+            alert("No data found in the file.");
             return;
         }
 
         // Try to identify header row (first non-empty row)
-        let headerRowIdx = 0;
+        let headerRowIdx = -1;
         for (let i = 0; i < rows.length; i++) {
-            if (rows[i] && rows[i].length > 0) {
+            if (rows[i] && rows[i].length > 0 && rows[i].some(cell => String(cell).trim() !== "")) {
                 headerRowIdx = i;
                 break;
             }
         }
         
-        const headers = rows[headerRowIdx].map(h => String(h).toLowerCase().trim());
-        const dataRows = XLSX.utils.sheet_to_json(worksheet, {range: headerRowIdx + 1});
+        if (headerRowIdx === -1) {
+            alert("No valid header row found.");
+            return;
+        }
+        
+        const originalHeaders = rows[headerRowIdx].map(h => String(h).trim());
+        const headers = originalHeaders.map(h => h.toLowerCase());
+        
+        // Convert to array of objects
+        const dataRows = [];
+        for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const rowData = rows[i];
+            if (!rowData || rowData.length === 0) continue;
+            // Check if row has any non-empty cells
+            if (!rowData.some(cell => String(cell).trim() !== "")) continue;
+            const obj = {};
+            originalHeaders.forEach((header, colIdx) => {
+                obj[header] = rowData[colIdx] !== undefined ? rowData[colIdx] : "";
+            });
+            dataRows.push(obj);
+        }
         
         let importedCount = 0;
         
@@ -1740,7 +2243,6 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
                 addButton = document.getElementById('add-item');
             }
             if (!addButton || addButton.classList.contains('hidden')) {
-                // If secondary button is hidden, fallback to primary if not lunch/room mode limits
                 addButton = document.getElementById('add-item'); 
             }
             if (addButton) {
@@ -1748,11 +2250,10 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             }
 
             // Find the newly added row
-            // Depending on mode, the row is added to different formsets
             let targetFormset;
-            if (isRoomMode) targetFormset = 'room-formset';
+            if (isSec) targetFormset = 'secondary-item-formset';
+            else if (isRoomMode) targetFormset = 'room-formset';
             else if (isLunchMode) targetFormset = 'lunch-formset';
-            else if (isSec) targetFormset = 'secondary-item-formset';
             else targetFormset = 'item-formset';
 
             const formsetTbody = document.getElementById(targetFormset);
@@ -1783,14 +2284,69 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             // Handle date parsing safely (Excel dates might be numbers or strings)
             const parseExcelDate = (d) => {
                 if (!d) return '';
+                let date = null;
                 if (typeof d === 'number') {
-                    // Excel serial date to JS date
-                    const date = new Date((d - (25567 + 2)) * 86400 * 1000);
-                    return date.toISOString().split('T')[0];
+                    // Excel serialized date
+                    date = new Date((d - (25567 + 2)) * 86400 * 1000);
+                } else {
+                    let str = String(d).trim();
+                    if (!str) return '';
+
+                    // Try default parsing first
+                    let pd = new Date(str);
+                    if (!isNaN(pd.getTime())) {
+                        date = pd;
+                    } else {
+                        // Match DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+                        const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+                        if (dmyMatch) {
+                            const day = parseInt(dmyMatch[1], 10);
+                            const month = parseInt(dmyMatch[2], 10) - 1;
+                            const year = parseInt(dmyMatch[3], 10);
+                            date = new Date(year, month, day);
+                        } else {
+                            // Match YYYY/MM/DD, YYYY-MM-DD, YYYY.MM.DD
+                            const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+                            if (ymdMatch) {
+                                const year = parseInt(ymdMatch[1], 10);
+                                const month = parseInt(ymdMatch[2], 10) - 1;
+                                const day = parseInt(ymdMatch[3], 10);
+                                date = new Date(year, month, day);
+                            } else {
+                                // Match textual dates like "24 Jun 2026"
+                                const months = {
+                                    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+                                    january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+                                };
+                                const words = str.toLowerCase().replace(/,/g, '').split(/\s+/);
+                                if (words.length >= 3) {
+                                    let day = null, month = null, year = null;
+                                    words.forEach(w => {
+                                        if (months[w] !== undefined) {
+                                            month = months[w];
+                                        } else if (/^\d{4}$/.test(w)) {
+                                            year = parseInt(w, 10);
+                                        } else if (/^\d{1,2}(st|nd|rd|th)?$/.test(w)) {
+                                            day = parseInt(w, 10);
+                                        }
+                                    });
+                                    if (day !== null && month !== null && year !== null) {
+                                        date = new Date(year, month, day);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                // Try direct parsing if string
-                const pd = new Date(d);
-                return isNaN(pd.getTime()) ? '' : pd.toISOString().split('T')[0];
+
+                if (date && !isNaN(date.getTime())) {
+                    // Extract local date components to prevent timezone shift issues
+                    const y = date.getFullYear();
+                    const m = String(date.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(date.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${dayStr}`;
+                }
+                return '';
             };
 
             const entryInput = newRow.querySelector('input[name$="-entry_date"]');
@@ -1805,15 +2361,30 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             const targetInput = newRow.querySelector('.target-input');
 
             if (isReverse) {
+                // Reverse mode: prefer target total, fall back to base price
                 if (targetInput && targetTotal > 0) {
                     targetInput.value = targetTotal;
                     highlightField(targetInput);
-                    doReverseCalculation(newRow); // trigger reverse math
-                }
-            } else {
-                if (basePriceInput) {
+                    doReverseCalculation(newRow);
+                } else if (basePriceInput && basePrice > 0) {
                     basePriceInput.value = basePrice;
                     highlightField(basePriceInput);
+                }
+            } else {
+                // Forward mode
+                if (basePrice > 0) {
+                    if (basePriceInput) {
+                        basePriceInput.value = basePrice;
+                        highlightField(basePriceInput);
+                    }
+                } else if (targetTotal > 0) {
+                    const isSecRow = newRow.querySelector('input[name$="-is_secondary"]')?.checked || false;
+                    const multiplier = getMultiplier(isSecRow);
+                    const derivedBase = multiplier > 0 ? ((targetTotal / qty) / multiplier) : (targetTotal / qty);
+                    if (basePriceInput) {
+                        basePriceInput.value = derivedBase.toFixed(3);
+                        highlightField(basePriceInput);
+                    }
                 }
             }
             
@@ -1829,8 +2400,140 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             alert("Could not find any valid rows to import.");
         }
     };
-    reader.readAsArrayBuffer(file);
+
+    if (isCSV) {
+        reader.readAsText(file, 'utf-8');
+    } else {
+        reader.readAsArrayBuffer(file);
+    }
 });
+
+
+
+const roundingSelect = document.getElementById('id_decimal_display_mode');
+if (roundingSelect) {
+    function updateRoundingExample() {
+        const val = roundingSelect.value;
+        const ex = document.getElementById('rounding-example');
+        if (!ex) return;
+        const sample = 100.56;
+        if (val === 'ROUND_UP') ex.textContent = `Example: 100.56 ৳ becomes 101.00 ৳ (Round Up)`;
+        else if (val === 'TRUNCATE') ex.textContent = `Example: 100.56 ৳ becomes 100.00 ৳ (Truncate)`;
+        else if (val === 'ROUND') ex.textContent = `Example: 100.56 ৳ becomes 101.00 ৳ (Round Nearest)`;
+        else ex.textContent = `Example: 100.56 ৳ becomes 100.56 ৳ (Show Decimals)`;
+    }
+    roundingSelect.addEventListener('change', updateRoundingExample);
+    updateRoundingExample();
+}
+
+// ── LocalStorage Auto-save ──
+(function() {
+    const autosaveKey = 'autosave_bill_{{ form.instance.pk|default:"new" }}';
+    // Must target the bill form by id — querySelector('form') matches the sidebar logout form first.
+    const formEl = document.getElementById('bill-form');
+    if (!formEl) return;
+
+    function saveToLocalStorage() {
+        const formData = new FormData(formEl);
+        const data = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'csrfmiddlewaretoken') continue;
+            data[key] = value;
+        }
+        const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+        if (totalForms) {
+            data['items-TOTAL_FORMS'] = totalForms.value;
+        }
+        localStorage.setItem(autosaveKey, JSON.stringify(data));
+    }
+
+    let autosaveTimeout;
+    formEl.addEventListener('input', () => {
+        clearTimeout(autosaveTimeout);
+        autosaveTimeout = setTimeout(saveToLocalStorage, 1000);
+    });
+    formEl.addEventListener('change', () => {
+        clearTimeout(autosaveTimeout);
+        autosaveTimeout = setTimeout(saveToLocalStorage, 500);
+    });
+
+    formEl.addEventListener('submit', () => {
+        localStorage.removeItem(autosaveKey);
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedData = localStorage.getItem(autosaveKey);
+        if (savedData) {
+            let data;
+            try { data = JSON.parse(savedData); } catch(e) { return; }
+            
+            const banner = document.createElement('div');
+            banner.className = 'bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-2xl shadow-sm flex justify-between items-center';
+            banner.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                        <i class="fas fa-save"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-black text-blue-800">Unsaved Draft Found</h3>
+                        <p class="text-xs text-blue-600 font-medium">Your browser has unsaved work for this bill.</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" id="restore-draft-btn" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-blue-700 shadow-sm transition"><i class="fas fa-undo mr-1"></i> Restore</button>
+                    <button type="button" id="discard-draft-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs hover:bg-gray-300 transition">Discard</button>
+                </div>
+            `;
+            formEl.parentElement.insertBefore(banner, formEl);
+
+            document.getElementById('discard-draft-btn').addEventListener('click', () => {
+                localStorage.removeItem(autosaveKey);
+                banner.remove();
+            });
+
+            document.getElementById('restore-draft-btn').addEventListener('click', () => {
+                const requiredTotal = parseInt(data['items-TOTAL_FORMS'] || '0');
+                const currentTotalEl = document.getElementById('id_items-TOTAL_FORMS');
+                if (currentTotalEl) {
+                    let currentTotal = parseInt(currentTotalEl.value);
+                    const addItemBtn = document.getElementById('add-item');
+                    while (currentTotal < requiredTotal && addItemBtn) {
+                        addItemBtn.click();
+                        currentTotal++;
+                    }
+                }
+
+                for (let key in data) {
+                    const el = formEl.elements[key];
+                    if (el) {
+                        if (el instanceof NodeList) {
+                            el.forEach(e => {
+                                if (e.type === 'radio' || e.type === 'checkbox') {
+                                    e.checked = (e.value === data[key]);
+                                }
+                            });
+                        } else {
+                            if (el.type === 'checkbox') {
+                                el.checked = (data[key] === 'on' || data[key] === true);
+                            } else {
+                                el.value = data[key];
+                            }
+                        }
+                    }
+                }
+                
+                // Trigger change event to update calculation totals etc.
+                const firstInput = formEl.querySelector('input');
+                if (firstInput) {
+                    const event = new Event('change', { bubbles: true });
+                    firstInput.dispatchEvent(event);
+                }
+                
+                banner.remove();
+            });
+        }
+    });
+})();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 {% endblock %}

@@ -95,6 +95,7 @@
                             <th class="text-left" style="min-width:140px">🏷️ Custom Description</th>
                             <th class="text-left" style="min-width:140px">🏪 Restaurant</th>
                             <th class="text-right w-36">💰 Bill Amount (৳)</th>
+                            <th class="text-center w-24">Unit</th>
                             <th class="text-center w-16">🔢 Qty</th>
                             <th class="text-center w-10 !bg-red-500/80"><i class="fas fa-trash text-xs"></i></th>
                             <th class="text-center w-10">PDF</th>
@@ -109,6 +110,7 @@
                             </td>
                             <td>{{ item_form.restaurant_name }}</td>
                             <td>{{ item_form.base_price }}</td>
+                            <td>{{ item_form.unit }}</td>
                             <td>{{ item_form.quantity }}</td>
                             <td class="text-center">
                                 <div class="hidden">{{ item_form.DELETE }}</div>
@@ -128,7 +130,7 @@
                                 {% endwith %}
                                 {% endif %}
                             </td>
-                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -158,9 +160,16 @@
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:right;">
                         </td>
                         <td>
+                            <input type="text" name="items-__prefix__-unit"
+                                   id="id_items-__prefix__-unit"
+                                   value="Meal"
+                                   placeholder="Unit..."
+                                   style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:center;">
+                        </td>
+                        <td>
                             <input type="number" name="items-__prefix__-quantity"
                                    id="id_items-__prefix__-quantity"
-                                   value="1" min="1"
+                                   value="1" min="0.001" step="any"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;padding:7px 9px;font-size:12px;background:#fff;box-sizing:border-box;text-align:center;">
                         </td>
                         <td class="text-center">
@@ -253,7 +262,7 @@
                                     <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </td>
-                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -387,7 +396,7 @@
                                 </a>
                                 {% endif %}
                             </td>
-                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}</td>
+                            <td class="hidden">{{ item_form.id }} {{ item_form.sort_order }}<div class="hidden">{{ item_form.is_secondary }}</div></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -619,8 +628,8 @@
                             const stdPrice = document.getElementById('lunch-standard-price').value;
                             inp.value = stdPrice || '0.000';
                         }
+                        else if (inp.name.includes('unit')) inp.value = 'Meal';
                         else inp.value = '';
-
                     } else if (inp.name.includes('sort_order')) inp.value = count;
                 });
                 tbody.appendChild(newRow);
@@ -632,8 +641,23 @@
         window.removeRow = function(btn) {
             const row = btn.closest('tr');
             const delCb = row.querySelector('input[name$="-DELETE"]');
-            if (delCb) { delCb.checked = true; row.style.display = 'none'; }
-            else {
+            if (delCb) {
+                if (delCb.checked) {
+                    delCb.checked = false;
+                    row.style.opacity = '1';
+                    row.style.textDecoration = 'none';
+                    row.style.backgroundColor = '';
+                    btn.innerHTML = '<i class="fas fa-trash text-xs"></i>';
+                    btn.title = "Delete Row";
+                } else {
+                    delCb.checked = true;
+                    row.style.opacity = '0.4';
+                    row.style.textDecoration = 'line-through';
+                    row.style.backgroundColor = '#fef2f2';
+                    btn.innerHTML = '<i class="fas fa-undo text-xs"></i>';
+                    btn.title = "Restore Row";
+                }
+            } else {
                 row.querySelectorAll('input').forEach(i => { if (i.type !== 'hidden') i.value = ''; });
                 row.style.display = 'none';
             }
