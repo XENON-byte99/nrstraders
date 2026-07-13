@@ -172,10 +172,53 @@ def home(request):
 
 @login_required
 def transaction_list(request):
+    from django.db.models import Q
     transactions = Transaction.objects.select_related(
         'transaction_category', 'secondary_category'
-    ).prefetch_related('items').order_by('-created_at')
-    return render(request, 'documents/transaction_list.html', {'transactions': transactions})
+    ).prefetch_related('items')
+
+    # ── Filters ──
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    category_id = request.GET.get('category', '').strip()
+    date_from = parse_date(request.GET.get('date_from', '')) if request.GET.get('date_from') else None
+    date_to = parse_date(request.GET.get('date_to', '')) if request.GET.get('date_to') else None
+
+    if q:
+        transactions = transactions.filter(
+            Q(invoice_number__icontains=q) |
+            Q(challan_number__icontains=q) |
+            Q(supplier_name__icontains=q) |
+            Q(buyer_name__icontains=q) |
+            Q(items__description__icontains=q)
+        ).distinct()
+    if status:
+        transactions = transactions.filter(status=status)
+    if category_id:
+        transactions = transactions.filter(
+            Q(transaction_category_id=category_id) | Q(secondary_category_id=category_id)
+        )
+    if date_from:
+        transactions = transactions.filter(created_at__date__gte=date_from)
+    if date_to:
+        transactions = transactions.filter(created_at__date__lte=date_to)
+
+    transactions = transactions.order_by('-created_at')
+
+    filters_active = bool(q or status or category_id or date_from or date_to)
+    context = {
+        'transactions': transactions,
+        'categories': TransactionCategory.objects.order_by('name'),
+        'status_choices': Transaction.STATUS_CHOICES,
+        'filter_q': q,
+        'filter_status': status,
+        'filter_category': category_id,
+        'filter_date_from': request.GET.get('date_from', ''),
+        'filter_date_to': request.GET.get('date_to', ''),
+        'filters_active': filters_active,
+        'result_count': transactions.count(),
+    }
+    return render(request, 'documents/transaction_list.html', context)
 
 @login_required
 @permission_required('p_create_bill')
