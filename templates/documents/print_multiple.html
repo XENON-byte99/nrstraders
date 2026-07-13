@@ -20,6 +20,7 @@
         }
         #controls { position: fixed; top: 20px; right: 20px; z-index: 9999; display: none; gap: 10px; flex-direction: column; }
     </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div id="loading">
@@ -37,6 +38,33 @@
             <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
                 <input type="radio" name="amount_toggle" value="target" onchange="toggleAmountDisplay(this.value)"> 
                 Show Target Amount (Incl. VAT/Tax)
+            </label>
+        </div>
+        <div id="totals-toggle-box" style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; flex-direction: column; gap: 8px;">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Totals Rows Toggle</div>
+            <label id="lbl-show-service-charge" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-service-charge" checked onchange="toggleTotalsRow('service-charge', this.checked)"> 
+                Show Service Charge
+            </label>
+            <label id="lbl-show-discount" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-discount" checked onchange="toggleTotalsRow('discount', this.checked)"> 
+                Show Discount
+            </label>
+            <label id="lbl-show-price-after-deduction" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-price-after-deduction" checked onchange="toggleTotalsRow('price-after-deduction', this.checked)"> 
+                Show Price After Deduction
+            </label>
+            <label id="lbl-show-duty" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-duty" checked onchange="toggleTotalsRow('duty', this.checked)"> 
+                Show Duty
+            </label>
+            <label id="lbl-show-vat" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-vat" checked onchange="toggleTotalsRow('vat', this.checked)"> 
+                Show VAT
+            </label>
+            <label id="chk-show-tax-lbl" style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="chk-show-tax" checked onchange="toggleTotalsRow('tax', this.checked)"> 
+                Show TAX
             </label>
         </div>
         <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
@@ -73,6 +101,26 @@
                     container.classList.add('mode-base');
                 }
             });
+        }
+
+        function toggleTotalsRow(type, show) {
+            let selector = '';
+            if (type === 'service-charge') {
+                selector = '[data-amount-row-id="service-charge"], [data-amount-row-id="service-charge-0"], [data-amount-row-id="service-charge-1"]';
+            } else {
+                selector = `[data-amount-row-id="${type}"]`;
+            }
+            
+            document.querySelectorAll(selector).forEach(row => {
+                if (show) {
+                    row.classList.remove('hidden-row');
+                } else {
+                    row.classList.add('hidden-row');
+                }
+            });
+            
+            const keyPrefix = docType === 'quotation' ? 'hide_totals_row_q_' : 'hide_totals_row_';
+            localStorage.setItem(keyPrefix + type, show ? '1' : '0');
         }
 
         async function loadDocuments() {
@@ -130,8 +178,46 @@
             container.style.display = 'flex';
             controls.style.display = 'flex';
             
-            // Hide amount toggles if it's a challan or mushok which don't use them
-            if (docType === 'challan' || docType === 'mushok') {
+            // Show/hide appropriate checkboxes based on docType
+            const toggleBox = document.getElementById('totals-toggle-box');
+            if (toggleBox) {
+                if (docType === 'invoice' || docType === 'quotation') {
+                    toggleBox.style.display = 'flex';
+                    if (docType === 'invoice') {
+                        document.getElementById('lbl-show-service-charge').style.display = 'flex';
+                        document.getElementById('lbl-show-discount').style.display = 'none';
+                        document.getElementById('lbl-show-price-after-deduction').style.display = 'none';
+                        document.getElementById('lbl-show-duty').style.display = 'flex';
+                        document.getElementById('lbl-show-vat').style.display = 'flex';
+                        document.getElementById('chk-show-tax-lbl').style.display = 'flex';
+                    } else {
+                        document.getElementById('lbl-show-service-charge').style.display = 'flex';
+                        document.getElementById('lbl-show-discount').style.display = 'flex';
+                        document.getElementById('lbl-show-price-after-deduction').style.display = 'flex';
+                        document.getElementById('lbl-show-duty').style.display = 'none';
+                        document.getElementById('lbl-show-vat').style.display = 'none';
+                        document.getElementById('chk-show-tax-lbl').style.display = 'none';
+                    }
+                }
+            }
+
+            // Apply persistent visibility states
+            const keyPrefix = docType === 'quotation' ? 'hide_totals_row_q_' : 'hide_totals_row_';
+            const rowTypes = docType === 'quotation' ? ['service-charge', 'discount', 'price-after-deduction'] : ['service-charge', 'duty', 'vat', 'tax'];
+            rowTypes.forEach(type => {
+                const val = localStorage.getItem(keyPrefix + type);
+                const chk = document.getElementById('chk-show-' + type);
+                if (val === '0') {
+                    if (chk) chk.checked = false;
+                    toggleTotalsRow(type, false);
+                } else {
+                    if (chk) chk.checked = true;
+                    toggleTotalsRow(type, true);
+                }
+            });
+            
+            // Hide amount toggles if it's a challan which doesn't use them
+            if (docType === 'challan') {
                 controls.children[0].style.display = 'none';
             }
 
@@ -276,22 +362,107 @@
                 totalSubtotal += tableSub;
             });
 
+            // Update subtotal
             const amountRows = container.querySelectorAll('.amount-row');
-            let grandTotal = totalSubtotal;
+            
+            // Get discount percentage from the Discount row
+            let discountPct = 0;
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                if (labelEl && labelEl.innerText.toLowerCase().includes('discount')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        discountPct = parseFloat(pctMatches[0][1]);
+                    }
+                }
+            });
 
+            // Keep track of base, service charge, discount, price after deduction, and tax amounts per category
+            // We support up to 2 categories (Primary = index 0, Secondary = index 1)
+            let serviceCharges = [0, 0];
+            let discounts = [0, 0];
+            let priceAfterDeductions = [0, 0];
+
+            // 1. Calculate Service Charge for each category
             amountRows.forEach(row => {
                 const labelEl = row.querySelector('.amount-label');
                 const valueEl = row.querySelector('.amount-value');
                 if (!labelEl || !valueEl) return;
-                
                 const label = labelEl.innerText.toLowerCase();
                 const baseSpan = valueEl.querySelector('.display-base') || valueEl;
 
                 if (label.includes('subtotal')) {
                     baseSpan.innerText = '৳' + totalSubtotal.toFixed(3);
-                } else if (label.includes('grand total')) {
-                    baseSpan.innerText = '৳' + grandTotal.toFixed(3);
-                } else {
+                } else if (label.includes('service charge')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        const pct = parseFloat(pctMatches[0][1]);
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
+                            serviceCharges[catIdx] = (subtotals[catIdx] || 0) * (pct / 100);
+                            valueEl.innerText = '৳' + serviceCharges[catIdx].toFixed(3);
+                        } else {
+                            serviceCharges[0] = totalSubtotal * (pct / 100);
+                            valueEl.innerText = '৳' + serviceCharges[0].toFixed(3);
+                        }
+                    }
+                }
+            });
+
+            // 2. Calculate Discount (percentage + flat) and Price After Deduction per category
+            const flatHost = container.hasAttribute && container.hasAttribute('data-discount-flat') ? container : (container.closest ? container.closest('[data-discount-flat]') : null);
+            const discountFlat = flatHost ? (parseFloat(flatHost.getAttribute('data-discount-flat')) || 0) : 0;
+            if (subtotals.length > 1) {
+                const base0 = subtotals[0] + serviceCharges[0];
+                const base1 = subtotals[1] + serviceCharges[1];
+                const baseAll = base0 + base1;
+                // Split the flat discount across categories proportionally to their base
+                discounts[0] = base0 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base0 / baseAll) : 0);
+                priceAfterDeductions[0] = base0 - discounts[0];
+
+                discounts[1] = base1 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base1 / baseAll) : 0);
+                priceAfterDeductions[1] = base1 - discounts[1];
+            } else {
+                discounts[0] = (totalSubtotal + serviceCharges[0]) * (discountPct / 100) + discountFlat;
+                priceAfterDeductions[0] = (totalSubtotal + serviceCharges[0]) - discounts[0];
+            }
+
+            // Update discount row in UI
+            let totalDiscountAmt = discounts[0] + discounts[1];
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('discount')) {
+                    baseSpan.innerText = '৳' + totalDiscountAmt.toFixed(3);
+                }
+            });
+
+            const totalPriceAfterDeduction = priceAfterDeductions[0] + priceAfterDeductions[1];
+
+            // 3. Update Price After Deduction row, and calculate taxes
+            let grandTotal = totalPriceAfterDeduction;
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('price after deduction')) {
+                    const displayBaseSpan = valueEl.querySelector('.display-base');
+                    if (displayBaseSpan) {
+                        displayBaseSpan.innerText = '৳' + totalPriceAfterDeduction.toFixed(3);
+                    } else {
+                        valueEl.innerText = '৳' + totalPriceAfterDeduction.toFixed(3);
+                    }
+                } else if (!label.includes('subtotal') && !label.includes('service charge') && !label.includes('discount') && !label.includes('grand total')) {
+                    // Tax / VAT / Duty / AIT
                     const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
                     if (pctMatches.length > 0) {
                         let taxAmt = 0;
@@ -299,15 +470,14 @@
                         if (catIdxStr !== null) {
                             const catIdx = parseInt(catIdxStr);
                             const pct = parseFloat(pctMatches[0][1]);
-                            taxAmt = (subtotals[catIdx] || 0) * (pct / 100);
+                            taxAmt = priceAfterDeductions[catIdx] * (pct / 100);
                         } else if (pctMatches.length === 1 || subtotals.length === 1) {
                             const pct = parseFloat(pctMatches[0][1]);
-                            taxAmt = totalSubtotal * (pct / 100);
+                            taxAmt = priceAfterDeductions[0] * (pct / 100);
                         } else {
                             pctMatches.forEach((match, idx) => {
                                 const pct = parseFloat(match[1]);
-                                const sub = subtotals[idx] || 0;
-                                taxAmt += sub * (pct / 100);
+                                taxAmt += priceAfterDeductions[idx] * (pct / 100);
                             });
                         }
                         
@@ -316,9 +486,12 @@
                     }
                 }
             });
-            
+
+            // 4. Update Grand Total & target spans
             amountRows.forEach(row => {
-                const label = row.querySelector('.amount-label').innerText.toLowerCase();
+                const labelEl = row.querySelector('.amount-label');
+                if (!labelEl) return;
+                const label = labelEl.innerText.toLowerCase();
                 if (label.includes('grand total')) {
                     const val = row.querySelector('.amount-value');
                     const baseSpan = val.querySelector('.display-base');
@@ -329,6 +502,10 @@
                     } else {
                         val.innerText = '৳' + grandTotal.toFixed(3);
                     }
+                } else if (label.includes('price after deduction')) {
+                    const val = row.querySelector('.amount-value');
+                    const targetSpan = val.querySelector('.display-target');
+                    if (targetSpan) targetSpan.innerText = '৳' + grandTotal.toFixed(3);
                 }
             });
         }
@@ -381,5 +558,206 @@
 
         window.onload = loadDocuments;
     </script>
+
+    <!-- Print Template Auto-loader & Editor Logic -->
+    <style>
+        th.resizable { position: relative; }
+        .resizer {
+            width: 5px; height: 100%; position: absolute; right: 0; top: 0; cursor: col-resize; z-index: 1;
+        }
+        .hide-col-btn {
+            position: absolute; left: 5px; top: 5px; cursor: pointer; color: #ffcccc; font-size: 10px; display: none; z-index: 2;
+        }
+        th:hover .hide-col-btn { display: inline-block; }
+        .hidden-col { display: none !important; }
+        .edit-mode-active th.resizable { outline: 1px dashed #ccc; }
+        .hide-row-btn {
+            margin-left: 8px; cursor: pointer; color: #ef4444; font-size: 10px; display: none; z-index: 2;
+        }
+        .amount-row:hover .hide-row-btn { display: inline-block; }
+        .hidden-row { display: none !important; }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const templateKey = 'print_template_v2_' + ('{{ transaction.transaction_category.id }}' || 'default') + '_' + window.location.pathname.split('/').filter(Boolean).pop();
+            
+            function reattachRowEditControls(row, rowId) {
+                if (rowId === 'grand-total' || rowId === 'subtotal') return;
+                if (!row.querySelector('.hide-row-btn')) {
+                    const hbtn = document.createElement('i');
+                    hbtn.className = 'fas fa-eye-slash hide-row-btn no-print';
+                    hbtn.contentEditable = "false";
+                    row.appendChild(hbtn);
+                    hbtn.addEventListener('click', function(e) {
+                        document.querySelectorAll(`.amount-row[data-amount-row-id="${rowId}"]`).forEach(r => {
+                            r.classList.add('hidden-row');
+                        });
+                        saveTemplateState();
+                        e.stopPropagation();
+                    });
+                }
+            }
+
+            // 1. Auto-load template state
+            const savedStateStr = localStorage.getItem(templateKey);
+            if (savedStateStr) {
+                try {
+                    const state = JSON.parse(savedStateStr);
+                    document.querySelectorAll('table').forEach((table, tableIdx) => {
+                        const tState = state.tables[tableIdx];
+                        if (!tState) return;
+                        
+                        const ths = Array.from(table.querySelectorAll('th'));
+                        const trs = Array.from(table.querySelectorAll('tbody tr'));
+                        
+                        if (tState.cols && tState.cols.length === ths.length) {
+                            tState.cols.forEach((colState, colIdx) => {
+                                const th = ths[colIdx];
+                                
+                                if (colState.text) {
+                                    th.innerHTML = colState.text;
+                                }
+                                if (colState.width) th.style.width = colState.width;
+                                if (colState.hidden) {
+                                    th.classList.add('hidden-col');
+                                    trs.forEach(tr => {
+                                        if (tr.children[colIdx]) tr.children[colIdx].classList.add('hidden-col');
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    if (state.hiddenRows) {
+                        state.hiddenRows.forEach(rowId => {
+                            document.querySelectorAll(`.amount-row[data-amount-row-id="${rowId}"]`).forEach(row => {
+                                row.classList.add('hidden-row');
+                            });
+                        });
+                    }
+                } catch(e) { console.error('Error loading template state', e); }
+            }
+
+            // 2. Setup Editing Controls
+            const editToggle = document.querySelector('input[onchange*="toggleEditMode"]');
+            if (editToggle) {
+                const origToggle = editToggle.onchange;
+                editToggle.onchange = function(e) {
+                    origToggle.call(this, e);
+                    const isEdit = this.checked;
+                    document.body.classList.toggle('edit-mode-active', isEdit);
+                    
+                    document.querySelectorAll('table').forEach(table => {
+                        const ths = table.querySelectorAll('th');
+                        ths.forEach((th, idx) => {
+                            if (isEdit) {
+                                th.classList.add('resizable');
+                                th.contentEditable = "true";
+                                
+                                // Add resizer
+                                if (!th.querySelector('.resizer')) {
+                                    const resizer = document.createElement('div');
+                                    resizer.className = 'resizer no-print';
+                                    resizer.contentEditable = "false";
+                                    th.appendChild(resizer);
+                                    
+                                    let startX, startW;
+                                    resizer.addEventListener('mousedown', function(e) {
+                                        startX = e.clientX;
+                                        startW = th.offsetWidth;
+                                        const onMove = e => { th.style.width = (startW + e.clientX - startX) + 'px'; };
+                                        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveTemplateState(); };
+                                        document.addEventListener('mousemove', onMove);
+                                        document.addEventListener('mouseup', onUp);
+                                        e.stopPropagation();
+                                    });
+                                }
+                                
+                                // Add hide button
+                                if (!th.querySelector('.hide-col-btn')) {
+                                    const hbtn = document.createElement('i');
+                                    hbtn.className = 'fas fa-eye-slash hide-col-btn no-print';
+                                    hbtn.contentEditable = "false";
+                                    th.appendChild(hbtn);
+                                    
+                                    hbtn.addEventListener('click', function(e) {
+                                        th.classList.add('hidden-col');
+                                        Array.from(table.querySelectorAll('tbody tr')).forEach(tr => {
+                                            if (tr.children[idx]) tr.children[idx].classList.add('hidden-col');
+                                        });
+                                        saveTemplateState();
+                                        e.stopPropagation();
+                                    });
+                                }
+                            } else {
+                                th.contentEditable = "false";
+                                th.classList.remove('resizable');
+                                const rs = th.querySelector('.resizer'); if(rs) rs.remove();
+                                const hb = th.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                            }
+                        });
+                    });
+
+                    document.querySelectorAll('.amount-row').forEach(row => {
+                        const rowId = row.dataset.amountRowId;
+                        if (isEdit) {
+                            reattachRowEditControls(row, rowId);
+                        } else {
+                            const hb = row.querySelector('.hide-row-btn'); if(hb) hb.remove();
+                        }
+                    });
+                };
+            }
+            
+            // Add restore button in the floating panel
+            const floatingPanel = document.querySelector('.no-print');
+            if (floatingPanel && !document.getElementById('restoreTemplateBtn')) {
+                const btnDiv = document.createElement('div');
+                btnDiv.innerHTML = '<button id="restoreTemplateBtn" style="padding:6px 10px; background:#475569; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; width:100%; font-size:11px;">Reset Template Layout</button>';
+                floatingPanel.appendChild(btnDiv);
+                document.getElementById('restoreTemplateBtn').addEventListener('click', function() {
+                    localStorage.removeItem(templateKey);
+                    location.reload();
+                });
+            }
+
+            // Save state on any edits
+            document.addEventListener('input', function(e) {
+                if (e.target.tagName === 'TH' && document.body.classList.contains('edit-mode-active')) {
+                    saveTemplateState();
+                }
+            });
+
+            function saveTemplateState() {
+                const state = { tables: [], hiddenRows: [] };
+                document.querySelectorAll('table').forEach(table => {
+                    const tState = { cols: [] };
+                    table.querySelectorAll('th').forEach((th, idx) => {
+                        // strip out elements that are resizer/hider
+                        let clone = th.cloneNode(true);
+                        const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
+                        const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                        
+                        tState.cols.push({
+                            text: clone.innerHTML,
+                            width: th.style.width,
+                            hidden: th.classList.contains('hidden-col')
+                        });
+                    });
+                    state.tables.push(tState);
+                });
+
+                document.querySelectorAll('.amount-row').forEach(row => {
+                    const rowId = row.dataset.amountRowId;
+                    if (rowId && row.classList.contains('hidden-row') && !state.hiddenRows.includes(rowId)) {
+                        state.hiddenRows.push(rowId);
+                    }
+                });
+
+                localStorage.setItem(templateKey, JSON.stringify(state));
+            }
+        });
+    </script>
+
 </body>
 </html>

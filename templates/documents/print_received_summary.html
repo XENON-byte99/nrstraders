@@ -1,0 +1,249 @@
+{% load static %}
+{% load billing_tags %}
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <title>Bill Receiving Summary Sheet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&amp;family=Poppins:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { font-family: 'Poppins', sans-serif; background: #f0f4f8; }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        @media print {
+            @page { size: A4 portrait; margin: 0; }
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .a4-invoice { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            html, body { width: 8.27in; height: 11.69in; }
+        }
+        .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
+        .a4-invoice { width: 8.27in; height: 11.69in; background: white; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+        .invoice-header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 32px 28px 24px; position: relative; overflow: hidden; }
+        .invoice-title { font-size: 32px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
+        .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
+        .invoice-body { padding: 28px 36px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
+        .section-title { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 8px; }
+        .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
+        .info-block { line-height: 1.6; }
+        .info-value { font-size: 11px; font-weight: 500; color: #1e293b; }
+        .company-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: #059669; margin-bottom: 2px; }
+        .divider { height: 1px; background: linear-gradient(to right, transparent, #059669, transparent); margin: 12px 0; }
+        .invoice-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; }
+        .detail-item { border-left: 2px solid #059669; padding-left: 8px; }
+        .detail-label { font-size: 8px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 2px; }
+        .detail-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; }
+        th { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
+        td { padding: 8px 6px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
+        tbody tr:nth-child(odd) { background: #f8fafc; }
+        .amount-section { display: grid; grid-template-columns: 1fr 240px; gap: 16px; margin-bottom: 8px; }
+        .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 6px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #059669; margin-bottom: 4px; }
+        .amount-row.total { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 800; border: none; }
+        .signature-box { padding: 0; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; height: 90px; margin-top: 30px; }
+        .signature-line { height: 50px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 180px; }
+        .signature-label { font-size: 8px; font-weight: bold; text-align: left; padding-left: 5px; }
+    </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body class="h-full">
+    <div class="a4-container">
+        <div class="no-print" style="position:fixed; top:20px; right:20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999;">
+            <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                    Enable Edit Mode
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#059669; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print</button>
+                <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+            </div>
+        </div>
+        
+        <div class="a4-invoice" id="receivedContent">
+            <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1 class="invoice-title">RECEIVED COPY</h1>
+                    <p class="invoice-subtitle">Acknowledgement of Bill Receipts</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Total Documents</div>
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 700; margin-bottom: 8px;">{{ transactions.count }} Bill(s)</div>
+                    <div style="font-size: 9px; opacity: 0.8;">Date: {% now "d M Y" %}</div>
+                </div>
+            </div>
+            
+            <div class="invoice-body">
+                <div class="info-row">
+                    <div class="info-block">
+                        <div class="section-title">From (Supplier)</div>
+                        <div class="company-name">{{ transactions.first.supplier_name }}</div>
+                        <div class="info-value">BIN: {{ transactions.first.supplier_bin }}</div>
+                        <div class="info-value" style="max-width: 250px;">{{ transactions.first.supplier_address }}</div>
+                        <div class="info-value">Contact: {{ transactions.first.supplier_contact }}</div>
+                    </div>
+                    <div class="info-block">
+                        <div class="section-title">Received By (Company)</div>
+                        <div class="company-name">{{ transactions.first.buyer_name }}</div>
+                        <div class="info-value">BIN: {{ transactions.first.buyer_bin }}</div>
+                        <div class="info-value" style="max-width: 250px;">{{ transactions.first.buyer_address }}</div>
+                        <div class="info-value">Contact: {{ transactions.first.buyer_contact }}</div>
+                    </div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="section-title">Bills Summary Table</div>
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 6%; text-align: center;">SL</th>
+                            <th style="width: 15%; text-align: center;">Bill Date</th>
+                            <th style="width: 20%; text-align: left;">Invoice Number</th>
+                            <th style="width: 18%; text-align: left;">Challan Number</th>
+                            <th style="width: 25%; text-align: left;">Description</th>
+                            <th style="width: 16%; text-align: right;">Amount (BDT)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tx in transactions %}
+                        <tr>
+                            <td style="text-align: center;">{{ forloop.counter|stringformat:"02d" }}</td>
+                            <td style="text-align: center;">{{ tx.created_at|date:"d M Y" }}</td>
+                            <td style="font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: #059669;">{{ tx.invoice_number }}</td>
+                            <td style="font-family: 'IBM Plex Mono', monospace; color: #475569;">{{ tx.challan_number|default:"&mdash;" }}</td>
+                            <td>
+                                {% with item=tx.items.first %}
+                                    {% if item %}
+                                        {{ item.display_description }} {% if tx.items.count > 1 %}(+{{ tx.items.count|add:"-1" }} item{{ tx.items.count|add:"-1"|pluralize }}){% endif %}
+                                    {% else %}
+                                        {{ tx.transaction_category.name }} Supply
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td style="text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 700;">৳{{ tx.grand_total|format_billing:tx }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <div class="amount-section" style="margin-top: auto;">
+                    <div style="padding: 10px; background: #f8fafc; border-radius: 4px; border-left: 2px solid #059669;">
+                        <div style="font-size: 8px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 4px;">Total In Words</div>
+                        <div id="wordsContainer" style="font-size: 11px; font-weight: 700; color: #1e293b; line-height: 1.4;">Calculating amount words...</div>
+                    </div>
+                    <div>
+                        <div class="amount-row total">
+                            <span style="font-size: 10px;">GRAND TOTAL</span>
+                            <span class="mono" style="font-size: 12px;">৳{{ total_amount|format_billing:transactions.first }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 40px; padding: 0 10px;">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Prepared By (Supplier)</div>
+                    </div>
+                    <div class="signature-box" style="align-items: flex-end;">
+                        <div class="signature-line"></div>
+                        <div class="signature-label" style="padding-right: 5px;">Received By & Seal (Lintas)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleEditMode(enabled) {
+            const container = document.getElementById('receivedContent');
+            if (container) {
+                container.contentEditable = enabled ? "true" : "false";
+            }
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('receivedContent');
+            if (!element) return;
+            
+            const opt = {
+                margin: 0,
+                filename: 'Received_Copy_Summary.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // Numbers to words converter
+        function numberToWords(amount) {
+            const words = {
+                0: 'Zero', 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine',
+                10: 'Ten', 11: 'Eleven', 12: 'Twelve', 13: 'Thirteen', 14: 'Fourteen', 15: 'Fifteen', 16: 'Sixteen',
+                17: 'Seventeen', 18: 'Eighteen', 19: 'Nineteen', 20: 'Twenty', 30: 'Thirty', 40: 'Forty', 50: 'Fifty',
+                60: 'Sixty', 70: 'Seventy', 80: 'Eighty', 90: 'Ninety'
+            };
+
+            function convertGroup(n) {
+                let str = '';
+                if (n >= 100) {
+                    str += words[Math.floor(n / 100)] + ' Hundred ';
+                    n %= 100;
+                }
+                if (n >= 20) {
+                    str += words[Math.floor(n / 10) * 10] + ' ';
+                    n %= 10;
+                }
+                if (n > 0) {
+                    str += words[n] + ' ';
+                }
+                return str;
+            }
+
+            if (amount === 0) return 'Zero Taka Only';
+
+            let integerPart = Math.floor(amount);
+            let decimalPart = Math.round((amount - integerPart) * 100);
+
+            let result = '';
+            
+            if (integerPart >= 10000000) {
+                result += convertGroup(Math.floor(integerPart / 10000000)) + 'Crore ';
+                integerPart %= 10000000;
+            }
+            if (integerPart >= 100000) {
+                result += convertGroup(Math.floor(integerPart / 100000)) + 'Lakh ';
+                integerPart %= 100000;
+            }
+            if (integerPart >= 1000) {
+                result += convertGroup(Math.floor(integerPart / 1000)) + 'Thousand ';
+                integerPart %= 1000;
+            }
+            if (integerPart > 0) {
+                result += convertGroup(integerPart);
+            }
+            
+            result = result.trim() + ' Taka';
+            
+            if (decimalPart > 0) {
+                result += ' and ' + convertGroup(decimalPart).trim() + ' Poisha';
+            }
+            
+            return result + ' Only';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const total = parseFloat("{{ total_amount }}") || 0;
+            const container = document.getElementById('wordsContainer');
+            if (container) {
+                container.textContent = numberToWords(total);
+            }
+        });
+    </script>
+</body>
+</html>

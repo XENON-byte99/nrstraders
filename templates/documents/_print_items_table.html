@@ -1,0 +1,50 @@
+{% load billing_tags %}
+{# Universal items table — same columns for every category so print layouts   #}
+{# (column hide/rename/resize, saved layouts) work identically on all bills.  #}
+{# Params: table_items, transaction, th_style (optional header css),          #}
+{#         date_color (optional), show_sec_badge (optional bool)              #}
+<table>
+    <thead>
+        <tr>
+            <th style="width:5%;text-align:center;{{ th_style|default:'' }}">SL</th>
+            <th style="width:12%;text-align:center;{{ th_style|default:'' }}">Date</th>
+            <th style="{{ th_style|default:'' }}">Description</th>
+            <th style="width:7%;text-align:center;{{ th_style|default:'' }}">Unit</th>
+            <th style="width:7%;text-align:center;{{ th_style|default:'' }}">Qty</th>
+            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Rate</th>
+            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Rate (Incl. Tax)</th>
+            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Amount</th>
+            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Total (Incl. Tax)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in table_items %}
+        <tr>
+            <td style="text-align:center;">{{ forloop.counter|stringformat:"02d" }}</td>
+            <td style="text-align:center;font-weight:600;color:{{ date_color|default:'#059669' }};">
+                {% if item.entry_date %}{{ item.entry_date|date:'d M Y' }}{% if item.checkout_date %} &ndash; {{ item.checkout_date|date:'d M Y' }}{% endif %}{% else %}&mdash;{% endif %}
+            </td>
+            <td style="text-align:left;">
+                {{ item.display_description }}
+                {% if show_sec_badge and item.is_secondary %}
+                <span class="category-badge" style="margin-top:0;margin-left:4px;font-size:7px;padding:0px 3px;">{{ transaction.secondary_category.name|default:"Sec" }}</span>
+                {% endif %}
+            </td>
+            <td style="text-align:center;">{{ item.unit }}</td>
+            <td style="text-align:center;">{{ item.quantity }}</td>
+            <td style="text-align:right;">
+                ৳{{ item.billed_unit_price|format_billing:transaction }}
+            </td>
+            <td style="text-align:right;">
+                ৳{{ item.unit_billed_total|format_billing_2:transaction }}
+            </td>
+            <td style="text-align:right;">
+                ৳{{ item.billed_total|format_billing:transaction }}
+            </td>
+            <td style="text-align:right;">
+                ৳{{ item.total_with_tax|format_billing:transaction }}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

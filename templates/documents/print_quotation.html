@@ -1,4 +1,5 @@
 {% load static %}
+{% load billing_tags %}
 <!doctype html>
 <html lang="en" class="h-full">
 <head>
@@ -37,9 +38,15 @@
         th { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
         td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
         tbody tr:nth-child(odd) { background: #f8fafc; }
-        .amount-section { display: grid; grid-template-columns: 1fr 220px; gap: 16px; margin-bottom: 8px; }
-        .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #059669; margin-bottom: 4px; }
-        .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border: none; }
+        .amount-section { display: grid; grid-template-columns: 1fr 250px; gap: 16px; margin-bottom: 8px; }
+        /* One merged totals box: rows share a single border/radius, no gaps */
+        .amount-box { border: 1.5px solid #059669; border-radius: 8px; overflow: hidden; background: #f8fafc; align-self: start; }
+        .amount-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; padding: 5px 8px; background: transparent; border-bottom: 1px solid #e2e8f0; margin: 0; }
+        .amount-row .amount-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .amount-row .amount-value { white-space: nowrap; flex-shrink: 0; }
+        .amount-box .amount-row:last-child { border-bottom: none; }
+        .display-base { margin: 0; padding: 0; border: none; }
+        .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border-bottom: none; }
         .signature-box { padding: 0; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; height: 90px; margin-top: 30px; z-index: 50; cursor: grab; }
         .official-signature { height: 70px; position: absolute; bottom: 12px; left: 10px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
         .signature-line { height: 50px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
@@ -60,6 +67,7 @@
         .mode-target .display-base { display: none !important; }
         .mode-base .display-target { display: none !important; }
     </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body class="h-full">
     <div class="a4-container">
@@ -75,6 +83,21 @@
                 </label>
             </div>
             <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Totals Rows Toggle</div>
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="chk-show-service-charge" checked onchange="toggleTotalsRow('service-charge', this.checked)"> 
+                    Show Service Charge
+                </label>
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="chk-show-discount" checked onchange="toggleTotalsRow('discount', this.checked)"> 
+                    Show Discount
+                </label>
+                <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="chk-show-price-after-deduction" checked onchange="toggleTotalsRow('price-after-deduction', this.checked)"> 
+                    Show Price After Deduction
+                </label>
+            </div>
+            <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
                 <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
                     <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
                     Enable Edit & Live Calculation
@@ -85,7 +108,7 @@
                 <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
             </div>
         </div>
-        <div class="a4-invoice mode-base" id="quotationContent">
+        <div class="a4-invoice mode-base" id="quotationContent" data-decimal-mode="{{ transaction.decimal_display_mode }}" data-discount-flat="{{ transaction.discount_flat }}">
             <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <h1 class="invoice-title">QUOTATION</h1>
@@ -116,55 +139,15 @@
                         <div class="info-value">{{ transaction.buyer_contact }}</div>
                     </div>
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width:8%;text-align:center;">SL</th>
-                            <th>Description</th>
-                            <th style="width:12%;text-align:center;">Unit</th>
-                            <th style="width:12%;text-align:center;">Qty</th>
-                            {% if 'lunch' not in transaction.transaction_category.name|lower %}
-                            <th style="width:16%;text-align:right;">Rate</th>
-                            {% endif %}
-                            <th style="width:16%;text-align:right;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% with cat_name=transaction.transaction_category.name|lower %}
-                        {% if 'lunch' in cat_name %}
-                            {% for item in transaction.grouped_lunch_items %}
-                            <tr>
-                                <td style="text-align:center;">{{ forloop.counter|stringformat:"02d" }}</td>
-                                <td style="text-align:left;">{{ item.description }}</td>
-                                <td style="text-align:center;">{{ item.unit }}</td>
-                                <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">
-                                        <span class="display-base">৳{{ item.billed_total|floatformat:3 }}</span>
-                                        <span class="display-target">৳{{ item.total_with_tax|floatformat:3 }}</span>
-                                    </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            {% for item in transaction.items.all %}
-                            <tr>
-                                <td style="text-align:center;">{{ forloop.counter|stringformat:"02d" }}</td>
-                                <td style="text-align:left;">{{ item.description }}</td>
-                                <td style="text-align:center;">{{ item.unit }}</td>
-                                <td style="text-align:center;">{{ item.quantity }}</td>
-                                <td style="text-align:right;">
-                                    <span class="display-base">৳{{ item.billed_unit_price|floatformat:3 }}</span>
-                                        <span class="display-target">৳{{ item.unit_billed_total|floatformat:2 }}</span>
-                                </td>
-                                <td style="text-align:right;">
-                                        <span class="display-base">৳{{ item.billed_total|floatformat:3 }}</span>
-                                        <span class="display-target">৳{{ item.total_with_tax|floatformat:3 }}</span>
-                                    </td>
-                            </tr>
-                            {% endfor %}
-                        {% endif %}
-                        {% endwith %}
-                    </tbody>
-                </table>
+                {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                    <!-- Primary + Secondary sections (universal columns; secondary items were previously missing from quotations) -->
+                    <div style="font-size:10px; font-weight:700; color:#667eea; text-transform:uppercase; margin-top:10px; margin-bottom:6px;">{{ transaction.transaction_category.name }}</div>
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items %}
+                    <div style="font-size:10px; font-weight:700; color:#764ba2; text-transform:uppercase; margin-top:16px; margin-bottom:6px;">{{ transaction.secondary_category.name }}</div>
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.secondary_items th_style="background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);" date_color="#7c3aed" %}
+                {% else %}
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.items.all show_sec_badge=True %}
+                {% endif %}
                 <div class="amount-section">
                     <div class="terms">
                         <div style="font-weight:700;margin-bottom:4px;">Quote Terms</div>
@@ -185,32 +168,46 @@
                             </div>
                         </div>
                     </div>
-                    <div>
-                        <div class="amount-row">
+                    <div class="amount-box">
+                        <div class="amount-row" data-amount-row-id="subtotal">
                             <span class="amount-label">Subtotal</span>
                             <span class="amount-value mono">
-                                <span class="display-base">৳{{ transaction.display_subtotal|floatformat:3 }}</span>
-                                <span class="display-target">৳{{ transaction.grand_total|floatformat:3 }}</span>
+                                <span class="display-base">৳{{ transaction.display_subtotal|format_billing:transaction }}</span>
+                                <span class="display-target">৳{{ transaction.grand_total|format_billing:transaction }}</span>
                             </span>
                         </div>
                         <div class="display-base">
                         {% if transaction.total_service_charge > 0 %}
-                        <div class="amount-row">
+                        <div class="amount-row" data-amount-row-id="service-charge">
                             <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_service_charge|floatformat:3 }}</span>
+                            <span class="amount-value mono">৳{{ transaction.total_service_charge|format_billing:transaction }}</span>
                         </div>
                         {% endif %}
+                        {% if transaction.discount_percentage > 0 or transaction.discount_flat > 0 %}
+                        <div class="amount-row" data-amount-row-id="discount">
+                            <span class="amount-label text-red-500">Discount{% if transaction.discount_percentage %} ({{ transaction.discount_percentage }}%){% endif %}{% if transaction.discount_flat %} + ৳{{ transaction.discount_flat }} flat{% endif %}</span>
+                            <span class="amount-value mono text-red-500">
+                                <span class="display-base">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                                <span class="display-target">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                            </span>
                         </div>
-                        <div class="amount-row total" style="flex-direction:column;align-items:flex-start;padding:8px 10px;gap:4px;">
+                        <div class="amount-row" data-amount-row-id="price-after-deduction">
+                            <span class="amount-label" style="font-weight: 600; color: #334155;">Price After Deduction</span>
+                            <span class="amount-value mono" style="font-weight: 600; color: #334155;">
+                                <span class="display-base">৳{{ transaction.price_after_discount_base|format_billing:transaction }}</span>
+                                <span class="display-target">৳{{ transaction.price_after_discount_target|format_billing:transaction }}</span>
+                            </span>
+                        </div>
+                        {% endif %}
+                        </div><div class="amount-row total" data-amount-row-id="grand-total" style="flex-direction:column;align-items:flex-start;padding:8px 10px;gap:4px;">
                             <div style="display:flex;justify-content:space-between;width:100%;">
                                 <span class="amount-label" style="font-size:12px;">Grand Total</span>
-                                <span class="amount-value mono" style="font-size:14px;">৳{{ transaction.grand_total|floatformat:3 }}</span>
+                                <span class="amount-value mono" style="font-size:14px;">৳{{ transaction.grand_total|format_billing:transaction }}</span>
                             </div>
                             <div style="font-size:8px;opacity:0.85;font-weight:500;background:rgba(255,255,255,0.15);border-radius:3px;padding:2px 6px;">
                                 ✓ VAT &amp; Tax Included
                             </div>
-                        </div>
-                    </div>
+                        </div></div>
                 </div>
                 <!-- Removed quotation-footer, signature moved under terms -->
             </div>
@@ -283,6 +280,14 @@
             return match ? parseFloat(match[0]) : 0;
         }
 
+        function formatVal(val, mode) {
+            const near = Math.round(val); if (Math.abs(val - near) < 0.01) val = near;
+            if (mode === 'ROUND_UP') return Math.ceil(val).toString();
+            if (mode === 'TRUNCATE') return Math.floor(val).toString();
+            if (mode === 'ROUND') return Math.round(val).toString();
+            return val.toFixed(3);
+        }
+
         function bindLiveCalculations() {
             const container = document.getElementById('quotationContent');
             if (!container) return;
@@ -304,6 +309,7 @@
                 const cellIdx = tds.indexOf(td);
 
                 if (cellIdx === qtyIdx || cellIdx === rateIdx || cellIdx === amountIdx) {
+                    const decimalMode = container.getAttribute('data-decimal-mode') || 'DEFAULT';
                     if (qtyIdx !== -1 && rateIdx !== -1 && cellIdx !== amountIdx) {
                         const qty = extractNum(tds[qtyIdx].innerText);
                         const rate = extractNum(tds[rateIdx].innerText);
@@ -312,20 +318,20 @@
                         const amountTd = tds[amountIdx];
                         const baseSpan = amountTd.querySelector('.display-base');
                         if (baseSpan) {
-                            baseSpan.innerText = '৳' + amount.toFixed(3);
+                            baseSpan.innerText = '৳' + formatVal(amount, decimalMode);
                             const targetSpan = amountTd.querySelector('.display-target');
                             if (targetSpan) targetSpan.innerText = '৳' + amount.toFixed(2);
                         } else {
-                            amountTd.innerText = '৳' + amount.toFixed(3);
+                            amountTd.innerText = '৳' + formatVal(amount, decimalMode);
                         }
                     }
                     
-                    recalculateQuotationTotals();
+                    recalculateQuotationTotals(decimalMode);
                 }
             });
         }
 
-        function recalculateQuotationTotals() {
+        function recalculateQuotationTotals(decimalMode) {
             let subtotals = [];
             let totalSubtotal = 0;
 
@@ -349,60 +355,180 @@
 
             // Update subtotal
             const amountRows = document.querySelectorAll('.amount-row');
-            let grandTotal = totalSubtotal;
+            
+            // Get discount percentage from the Discount row
+            let discountPct = 0;
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                if (labelEl && labelEl.innerText.toLowerCase().includes('discount')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        discountPct = parseFloat(pctMatches[0][1]);
+                    }
+                }
+            });
+
+            // Keep track of base, service charge, discount, price after deduction, and tax amounts per category
+            let serviceCharges = [0, 0];
+            let discounts = [0, 0];
+            let priceAfterDeductions = [0, 0];
+
+            // 1. Calculate Service Charge for each category
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('subtotal')) {
+                    baseSpan.innerText = '৳' + formatVal(totalSubtotal, decimalMode);
+                } else if (label.includes('service charge')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        const pct = parseFloat(pctMatches[0][1]);
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
+                            serviceCharges[catIdx] = (subtotals[catIdx] || 0) * (pct / 100);
+                            valueEl.innerText = '৳' + formatVal(serviceCharges[catIdx], decimalMode);
+                        } else {
+                            serviceCharges[0] = totalSubtotal * (pct / 100);
+                            valueEl.innerText = '৳' + formatVal(serviceCharges[0], decimalMode);
+                        }
+                    }
+                }
+            });
+
+            // 2. Calculate Discount (percentage + flat) and Price After Deduction per category
+            const flatContainer = document.getElementById('quotationContent') || document.getElementById('invoiceContent');
+            const discountFlat = flatContainer ? (parseFloat(flatContainer.getAttribute('data-discount-flat')) || 0) : 0;
+            if (subtotals.length > 1) {
+                const base0 = subtotals[0] + serviceCharges[0];
+                const base1 = subtotals[1] + serviceCharges[1];
+                const baseAll = base0 + base1;
+                // Split the flat discount across categories proportionally to their base
+                discounts[0] = base0 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base0 / baseAll) : 0);
+                priceAfterDeductions[0] = base0 - discounts[0];
+
+                discounts[1] = base1 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base1 / baseAll) : 0);
+                priceAfterDeductions[1] = base1 - discounts[1];
+            } else {
+                discounts[0] = (totalSubtotal + serviceCharges[0]) * (discountPct / 100) + discountFlat;
+                priceAfterDeductions[0] = (totalSubtotal + serviceCharges[0]) - discounts[0];
+            }
+
+            // Update discount row in UI
+            let totalDiscountAmt = discounts[0] + discounts[1];
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('discount')) {
+                    baseSpan.innerText = '৳' + formatVal(totalDiscountAmt, decimalMode);
+                }
+            });
+
+            const totalPriceAfterDeduction = priceAfterDeductions[0] + priceAfterDeductions[1];
+
+            // 3. Update Price After Deduction row, and calculate taxes
+            let grandTotal = totalPriceAfterDeduction;
 
             amountRows.forEach(row => {
                 const labelEl = row.querySelector('.amount-label');
                 const valueEl = row.querySelector('.amount-value');
                 if (!labelEl || !valueEl) return;
-                
                 const label = labelEl.innerText.toLowerCase();
                 const baseSpan = valueEl.querySelector('.display-base') || valueEl;
 
-                if (label.includes('subtotal')) {
-                    baseSpan.innerText = '৳' + totalSubtotal.toFixed(3);
-                } else if (label.includes('grand total')) {
-                    // Skip here, will update at the end
-                } else {
-                    // Tax / VAT / Duty / Service Charge
+                if (label.includes('price after deduction')) {
+                    const displayBaseSpan = valueEl.querySelector('.display-base');
+                    if (displayBaseSpan) {
+                        displayBaseSpan.innerText = '৳' + formatVal(totalPriceAfterDeduction, decimalMode);
+                    } else {
+                        valueEl.innerText = '৳' + formatVal(totalPriceAfterDeduction, decimalMode);
+                    }
+                } else if (!label.includes('subtotal') && !label.includes('service charge') && !label.includes('discount') && !label.includes('grand total')) {
+                    // Tax / VAT / Duty / AIT
                     const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
                     if (pctMatches.length > 0) {
                         let taxAmt = 0;
-                        if (pctMatches.length === 1 || subtotals.length === 1) {
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
                             const pct = parseFloat(pctMatches[0][1]);
-                            taxAmt = totalSubtotal * (pct / 100);
+                            taxAmt = priceAfterDeductions[catIdx] * (pct / 100);
+                        } else if (pctMatches.length === 1 || subtotals.length === 1) {
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = priceAfterDeductions[0] * (pct / 100);
                         } else {
                             pctMatches.forEach((match, idx) => {
                                 const pct = parseFloat(match[1]);
-                                const sub = subtotals[idx] || 0;
-                                taxAmt += sub * (pct / 100);
+                                taxAmt += priceAfterDeductions[idx] * (pct / 100);
                             });
                         }
                         
-                        valueEl.innerText = '৳' + taxAmt.toFixed(3);
+                        valueEl.innerText = '৳' + formatVal(taxAmt, decimalMode);
                         grandTotal += taxAmt;
                     }
                 }
             });
-            
+
+            // 4. Update Grand Total & target spans
             amountRows.forEach(row => {
-                const label = row.querySelector('.amount-label').innerText.toLowerCase();
+                const labelEl = row.querySelector('.amount-label');
+                if (!labelEl) return;
+                const label = labelEl.innerText.toLowerCase();
                 if (label.includes('grand total')) {
                     const val = row.querySelector('.amount-value');
                     const baseSpan = val.querySelector('.display-base');
                     if (baseSpan) {
-                        baseSpan.innerText = '৳' + grandTotal.toFixed(3);
+                        baseSpan.innerText = '৳' + formatVal(grandTotal, decimalMode);
                         const targetSpan = val.querySelector('.display-target');
-                        if (targetSpan) targetSpan.innerText = '৳' + grandTotal.toFixed(3);
+                        if (targetSpan) targetSpan.innerText = '৳' + formatVal(grandTotal, decimalMode);
                     } else {
-                        val.innerText = '৳' + grandTotal.toFixed(3);
+                        val.innerText = '৳' + formatVal(grandTotal, decimalMode);
                     }
+                } else if (label.includes('price after deduction')) {
+                    const val = row.querySelector('.amount-value');
+                    const targetSpan = val.querySelector('.display-target');
+                    if (targetSpan) targetSpan.innerText = '৳' + formatVal(grandTotal, decimalMode);
                 }
             });
         }
+
+        function toggleTotalsRow(type, show) {
+            const selector = `[data-amount-row-id="${type}"]`;
+            document.querySelectorAll(selector).forEach(row => {
+                if (show) {
+                    row.classList.remove('hidden-row');
+                } else {
+                    row.classList.add('hidden-row');
+                }
+            });
+            localStorage.setItem('hide_totals_row_q_' + type, show ? '1' : '0');
+        }
     </script>
+    <style>
+        .hidden-row { display: none !important; }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            ['service-charge', 'discount', 'price-after-deduction'].forEach(type => {
+                const val = localStorage.getItem('hide_totals_row_q_' + type);
+                const chk = document.getElementById('chk-show-' + type);
+                if (val === '0') {
+                    if (chk) chk.checked = false;
+                    toggleTotalsRow(type, false);
+                } else {
+                    if (chk) chk.checked = true;
+                    toggleTotalsRow(type, true);
+                }
+            });
+
             const signatureBoxes = document.querySelectorAll('.signature-box');
             signatureBoxes.forEach(box => {
                 let isDragging = false;
@@ -448,5 +574,8 @@
             });
         });
     </script>
+
+    {% include 'documents/print_template_manager.html' %}
+
 </body>
 </html>

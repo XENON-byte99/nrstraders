@@ -1,3 +1,4 @@
+{% load billing_tags %}
 <!doctype html>
 <html lang="en" class="h-full">
 <head>
@@ -50,6 +51,7 @@
         .watermark { position: absolute; opacity: 0.05; font-size: 60px; font-weight: 700; transform: rotate(-45deg); pointer-events: none; top: 30%; left: 10%; }
         .wrapper { width:100%; max-width:1400px; margin: 0 auto; padding: 20px; }
     </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="wrapper">
@@ -154,7 +156,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <strong>{{ item.description|default:"Lunch" }}</strong>
                                 <div style="font-size:8px;color:#064e3b;">Bill — {{ challan_date|date:"d M Y" }}</div>
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
@@ -166,12 +168,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">1</td>
                             <td>
-                                {% if single_item.restaurant_name %}
-                                    {{ single_item.restaurant_name }}
-                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#064e3b;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                                {% else %}
-                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
-                                {% endif %}
+                                {{ single_item.description }}{% if single_item.entry_date %} ({{ single_item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
@@ -182,7 +179,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                                {{ item.description }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
@@ -282,7 +279,7 @@
                             <td style="text-align:center;font-weight:700;">{{ item.entry_date|date:"d M Y" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.checkout_date|date:"d M Y" }}</td>
                             {% endif %}
-                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_total|floatformat:3 }}</td>
+                            <td style="text-align:center;font-weight:700;color:#1e3a8a;">৳{{ item.billed_total|format_billing:transaction }}</td>
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -291,15 +288,15 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <strong>{{ item.description|default:"Lunch" }}</strong>
                                 <div style="font-size:8px;color:#1e3a8a;">{{ challan_date|date:"d M Y" }}</div>
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
                             <td style="text-align:center;font-weight:700;color:#1e3a8a;">
                                 {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
-                                    ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
-                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                    ৳{{ item.unit_billed_total|format_billing_2:transaction }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|format_billing:transaction }}</div>
                                 {% else %}
                                     ৳{{ item.billed_unit_price }}
                                 {% endif %}
@@ -310,12 +307,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">1</td>
                             <td>
-                                {% if single_item.restaurant_name %}
-                                    {{ single_item.restaurant_name }}
-                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#1e3a8a;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                                {% else %}
-                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
-                                {% endif %}
+                                {{ single_item.description }}{% if single_item.entry_date %} ({{ single_item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
@@ -326,14 +318,14 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                                {{ item.description }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
                             <td style="text-align:center;font-weight:700;color:#1e3a8a;">
                                 {% if transaction.transaction_category.name|upper == 'TIFFIN' or transaction.transaction_category.name|upper == 'LUNCH' %}
-                                    ৳{{ item.unit_billed_total|floatformat:2 }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
-                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|floatformat:3 }}</div>
+                                    ৳{{ item.unit_billed_total|format_billing_2:transaction }} <span style="font-size:7px;font-weight:400;">(with VAT/Tax)</span>
+                                    <div style="font-size:7px;font-weight:500;margin-top:2px;opacity:0.8;">Base: ৳{{ item.billed_unit_price|format_billing:transaction }}</div>
                                 {% else %}
                                     ৳{{ item.billed_unit_price }}
                                 {% endif %}
@@ -356,6 +348,16 @@
                       <div style="flex:1;">
                         <span style="font-weight:700;color:#1e3a8a;font-size:7.5px;text-transform:uppercase;">SER. CHARGE ({{ transaction.service_charge_percentage }}%):</span>
                         <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#1e3a8a;">৳{{ transaction.total_service_charge }}</div>
+                      </div>
+                      {% endif %}
+                      {% if transaction.discount_percentage > 0 or transaction.discount_flat > 0 %}
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#ef4444;font-size:7.5px;text-transform:uppercase;">DISCOUNT{% if transaction.discount_percentage %} ({{ transaction.discount_percentage }}%){% endif %}{% if transaction.discount_flat %} +৳{{ transaction.discount_flat }} FLAT{% endif %}:</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#ef4444;">৳{{ transaction.discount_amount }}</div>
+                      </div>
+                      <div style="flex:1;">
+                        <span style="font-weight:700;color:#334155;font-size:7.5px;text-transform:uppercase;">AFTER DEDUCTION:</span>
+                        <div style="border-bottom:1px solid #93c5fd;padding-top:2px;text-align:right;font-weight:600;color:#334155;">৳{{ transaction.price_after_discount_base }}</div>
                       </div>
                       {% endif %}
                       <div style="flex:1;">
@@ -469,7 +471,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                <strong>{{ item.restaurant_name|default:"Lunch" }}</strong>
+                                <strong>{{ item.description|default:"Lunch" }}</strong>
                                 <div style="font-size:8px;color:#764ba2;">{{ challan_date|date:"d M Y" }}</div>
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit|default:"Day" }}</td>
@@ -481,12 +483,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">1</td>
                             <td>
-                                {% if single_item.restaurant_name %}
-                                    {{ single_item.restaurant_name }}
-                                    {% if single_item.entry_date %}<br><span style="font-size:8px;color:#764ba2;">{{ single_item.entry_date|date:"d M Y" }}</span>{% endif %}
-                                {% else %}
-                                    {{ transaction.transaction_category.name|title|default:single_item.description }}
-                                {% endif %}
+                                {{ single_item.description }}{% if single_item.entry_date %} ({{ single_item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.unit|default:"Days" }}</td>
                             <td style="text-align:center;font-weight:700;">{{ single_item.quantity }}</td>
@@ -497,7 +494,7 @@
                         <tr>
                             <td style="text-align:center;font-weight:700;">{{ forloop.counter }}</td>
                             <td>
-                                {% if item.restaurant_name %}{{ item.restaurant_name }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}{% else %}{{ item.description }}{% endif %}
+                                {{ item.description }}{% if item.entry_date %} ({{ item.entry_date|date:"d M Y" }}){% endif %}
                             </td>
                             <td style="text-align:center;font-weight:700;">{{ item.unit }}</td>
                             <td style="text-align:center;font-weight:700;">{{ item.quantity }}</td>
@@ -558,6 +555,16 @@
             return match ? parseFloat(match[0]) : 0;
         }
 
+        const DECIMAL_MODE = '{{ transaction.decimal_display_mode }}';
+        const DISCOUNT_FLAT = parseFloat('{{ transaction.discount_flat }}') || 0;
+        function formatVal(val) {
+            const near = Math.round(val); if (Math.abs(val - near) < 0.01) val = near;
+            if (DECIMAL_MODE === 'ROUND_UP') return Math.ceil(val).toString();
+            if (DECIMAL_MODE === 'TRUNCATE') return Math.floor(val).toString();
+            if (DECIMAL_MODE === 'ROUND') return Math.round(val).toString();
+            return val.toFixed(3);
+        }
+
         function bindLiveCalculations() {
             const container = document.getElementById('challanContent');
             if (!container) return;
@@ -597,26 +604,62 @@
             const receiverCopy = table.closest('.challan-copy');
             if (!receiverCopy) return;
             
-            let currentSubtotal = subtotal;
-            let grandTotal = subtotal;
-            
             // Subtotal container relies on specific styling in the template
             const amounts = receiverCopy.querySelectorAll('div[style*="border-bottom:1px solid #93c5fd"]');
+            
+            let serviceChargeAmt = 0;
+            let discountAmt = 0;
+
+            // 1. Calculate Service Charge
             amounts.forEach(el => {
-                const parent = el.parentElement;
-                const labelSpan = parent.querySelector('span');
+                const labelSpan = el.parentElement.querySelector('span');
                 if (!labelSpan) return;
-                
                 const label = labelSpan.innerText.toLowerCase();
                 
                 if (label.includes('subtotal')) {
-                    el.innerText = '৳' + subtotal.toFixed(3);
-                } else {
+                    el.innerText = '৳' + formatVal(subtotal);
+                } else if (label.includes('charge')) {
                     const pctMatch = label.match(/([\d\.]+)%/);
                     if (pctMatch) {
                         const pct = parseFloat(pctMatch[1]);
-                        const taxAmt = currentSubtotal * (pct / 100);
-                        el.innerText = '৳' + taxAmt.toFixed(3);
+                        serviceChargeAmt = subtotal * (pct / 100);
+                        el.innerText = '৳' + formatVal(serviceChargeAmt);
+                    }
+                }
+            });
+
+            // 2. Calculate Discount
+            amounts.forEach(el => {
+                const labelSpan = el.parentElement.querySelector('span');
+                if (!labelSpan) return;
+                const label = labelSpan.innerText.toLowerCase();
+                
+                if (label.includes('discount')) {
+                    const pctMatch = label.match(/([\d\.]+)%/);
+                    const pct = pctMatch ? parseFloat(pctMatch[1]) : 0;
+                    discountAmt = (subtotal + serviceChargeAmt) * (pct / 100) + DISCOUNT_FLAT;
+                    el.innerText = '৳' + formatVal(discountAmt);
+                }
+            });
+
+            const priceAfterDeduction = subtotal + serviceChargeAmt - discountAmt;
+            let grandTotal = priceAfterDeduction;
+
+            // 3. Calculate Price After Deduction and Taxes
+            amounts.forEach(el => {
+                const labelSpan = el.parentElement.querySelector('span');
+                if (!labelSpan) return;
+                const label = labelSpan.innerText.toLowerCase();
+                
+                if (label.includes('after deduction')) {
+                    el.innerText = '৳' + formatVal(priceAfterDeduction);
+                } else if (!label.includes('subtotal') && !label.includes('charge') && !label.includes('discount')) {
+                    // Taxes (VAT, Tax, etc.) calculated on priceAfterDeduction
+                    const pctMatch = label.match(/([\d\.]+)%/);
+                    if (pctMatch) {
+                        const pct = parseFloat(pctMatch[1]);
+                        const taxAmt = priceAfterDeduction * (pct / 100);
+                        el.innerText = '৳' + formatVal(taxAmt);
                         grandTotal += taxAmt;
                     }
                 }
@@ -624,9 +667,12 @@
             
             const grandTotalEl = receiverCopy.querySelector('div[style*="border:2px solid #1e3a8a"]');
             if (grandTotalEl) {
-                grandTotalEl.innerText = '৳' + grandTotal.toFixed(3);
+                grandTotalEl.innerText = '৳' + formatVal(grandTotal);
             }
         }
     </script>
+
+    {% include 'documents/print_template_manager.html' %}
+
 </body>
 </html>
