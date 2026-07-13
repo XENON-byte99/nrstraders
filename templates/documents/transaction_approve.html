@@ -400,13 +400,25 @@
                                 <span class="markup-profit">৳0.00</span>
                             </td>
 
-                            <!-- VAT -->
+                            <!-- VAT (amount + optional per-item % override) -->
                             <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                                <input type="number" step="0.01" min="0" max="99.99" name="{{ form.override_vat.html_name }}"
+                                       value="{{ form.override_vat.value|default_if_none:'' }}"
+                                       placeholder="{% if form.instance.is_secondary %}{{ transaction.secondary_vat_percentage }}{% else %}{{ transaction.vat_percentage }}{% endif %}%"
+                                       title="Item-specific VAT %. Leave blank to use the bill's rate."
+                                       class="override-vat-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-red-600 bg-white border border-red-100 rounded outline-none focus:ring-1 focus:ring-red-300"
+                                       {% if is_locked %}disabled{% endif %}>
                                 <span class="row-vat">৳0.00</span>
                             </td>
 
-                            <!-- Tax -->
+                            <!-- Tax (amount + optional per-item % override) -->
                             <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                                <input type="number" step="0.01" min="0" max="99.99" name="{{ form.override_tax.html_name }}"
+                                       value="{{ form.override_tax.value|default_if_none:'' }}"
+                                       placeholder="{% if form.instance.is_secondary %}{{ transaction.secondary_tax_percentage }}{% else %}{{ transaction.tax_percentage }}{% endif %}%"
+                                       title="Item-specific TAX %. Leave blank to use the bill's rate."
+                                       class="override-tax-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-orange-600 bg-white border border-orange-100 rounded outline-none focus:ring-1 focus:ring-orange-300"
+                                       {% if is_locked %}disabled{% endif %}>
                                 <span class="row-tax">৳0.00</span>
                             </td>
 
@@ -590,13 +602,25 @@
                                 <span class="markup-profit">৳0.00</span>
                             </td>
 
-                            <!-- VAT -->
+                            <!-- VAT (amount + optional per-item % override) -->
                             <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                                <input type="number" step="0.01" min="0" max="99.99" name="{{ form.override_vat.html_name }}"
+                                       value="{{ form.override_vat.value|default_if_none:'' }}"
+                                       placeholder="{% if form.instance.is_secondary %}{{ transaction.secondary_vat_percentage }}{% else %}{{ transaction.vat_percentage }}{% endif %}%"
+                                       title="Item-specific VAT %. Leave blank to use the bill's rate."
+                                       class="override-vat-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-red-600 bg-white border border-red-100 rounded outline-none focus:ring-1 focus:ring-red-300"
+                                       {% if is_locked %}disabled{% endif %}>
                                 <span class="row-vat">৳0.00</span>
                             </td>
 
-                            <!-- Tax -->
+                            <!-- Tax (amount + optional per-item % override) -->
                             <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                                <input type="number" step="0.01" min="0" max="99.99" name="{{ form.override_tax.html_name }}"
+                                       value="{{ form.override_tax.value|default_if_none:'' }}"
+                                       placeholder="{% if form.instance.is_secondary %}{{ transaction.secondary_tax_percentage }}{% else %}{{ transaction.tax_percentage }}{% endif %}%"
+                                       title="Item-specific TAX %. Leave blank to use the bill's rate."
+                                       class="override-tax-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-orange-600 bg-white border border-orange-100 rounded outline-none focus:ring-1 focus:ring-orange-300"
+                                       {% if is_locked %}disabled{% endif %}>
                                 <span class="row-tax">৳0.00</span>
                             </td>
 
@@ -738,12 +762,18 @@
                         <td class="py-2 px-4 text-right font-mono font-bold text-emerald-600 bg-emerald-50/30 border-l border-gray-100">
                             <span class="markup-profit">৳0.00</span>
                         </td>
-                        <!-- VAT -->
+                        <!-- VAT (amount + optional per-item % override) -->
                         <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-red-50/20 border-l border-gray-100">
+                            <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_vat" id="id_items-__prefix__-override_vat"
+                                   placeholder="%" title="Item-specific VAT %. Leave blank to use the bill's rate."
+                                   class="override-vat-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-red-600 bg-white border border-red-100 rounded outline-none focus:ring-1 focus:ring-red-300" disabled>
                             <span class="row-vat">৳0.00</span>
                         </td>
-                        <!-- Tax -->
+                        <!-- Tax (amount + optional per-item % override) -->
                         <td class="py-2 px-2 text-right font-mono text-[11px] text-gray-600 bg-orange-50/20 border-l border-gray-100">
+                            <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_tax" id="id_items-__prefix__-override_tax"
+                                   placeholder="%" title="Item-specific TAX %. Leave blank to use the bill's rate."
+                                   class="override-tax-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-orange-600 bg-white border border-orange-100 rounded outline-none focus:ring-1 focus:ring-orange-300" disabled>
                             <span class="row-tax">৳0.00</span>
                         </td>
                         <!-- Full Price -->
@@ -833,9 +863,15 @@
                         
                         <!-- VAT & Tax Display -->
                         <td class="py-2 px-1 text-right text-[10px] text-gray-500 border-l border-gray-100">
+                            <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_vat" id="id_items-__prefix__-override_vat"
+                                   placeholder="%" title="Item-specific VAT %. Leave blank to use the bill's rate."
+                                   class="override-vat-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-red-600 bg-white border border-red-100 rounded outline-none focus:ring-1 focus:ring-red-300" disabled>
                             <span class="row-vat font-mono">???0.00</span>
                         </td>
                         <td class="py-2 px-1 text-right text-[10px] text-gray-500 border-l border-gray-100">
+                            <input type="number" step="0.01" min="0" max="99.99" name="items-__prefix__-override_tax" id="id_items-__prefix__-override_tax"
+                                   placeholder="%" title="Item-specific TAX %. Leave blank to use the bill's rate."
+                                   class="override-tax-input w-full px-1 py-0.5 mb-0.5 text-right font-mono text-[10px] text-orange-600 bg-white border border-orange-100 rounded outline-none focus:ring-1 focus:ring-orange-300" disabled>
                             <span class="row-tax font-mono">???0.00</span>
                         </td>
                         
@@ -1178,8 +1214,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 manualUplift = base;
             }
 
-            const rowVatPct = isSecondary ? secVatPct : vatPct;
-            const rowTaxPct = isSecondary ? secTaxPct : taxPct;
+            // Per-item overrides beat the bill/category rates (blank = inherit)
+            const ovVatEl = row.querySelector('.override-vat-input');
+            const ovTaxEl = row.querySelector('.override-tax-input');
+            const rowVatPct = (ovVatEl && ovVatEl.value !== '') ? (parseFloat(ovVatEl.value) || 0) : (isSecondary ? secVatPct : vatPct);
+            const rowTaxPct = (ovTaxEl && ovTaxEl.value !== '') ? (parseFloat(ovTaxEl.value) || 0) : (isSecondary ? secTaxPct : taxPct);
             const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
             const rowMarginPct = isSecondary ? secMarginPct : marginPct;
 
@@ -1189,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Layer 4: Government Taxes (Duty + Tax + VAT)
             const duty = billedPrice * (rowDutyPct / 100);
             const baseForTax = billedPrice + duty;
-            const grossBeforeVat = (rowTaxPct > 0) ? (baseForTax * 100) / (100 - rowTaxPct) : baseForTax;
+            const grossBeforeVat = (rowTaxPct > 0 && rowTaxPct < 100) ? (baseForTax * 100) / (100 - rowTaxPct) : baseForTax;
             const taxAmount = grossBeforeVat - baseForTax;
             const vat = grossBeforeVat * (rowVatPct / 100);
             const unitTotal = grossBeforeVat + vat;

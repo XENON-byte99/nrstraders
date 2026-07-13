@@ -524,6 +524,11 @@ class TransactionItem(SyncableModel):
     checkout_date = models.DateField(null=True, blank=True)
     restaurant_name = models.CharField(max_length=255, blank=True)
     is_secondary = models.BooleanField(default=False)
+
+    # Per-item tax overrides. Blank = inherit the bill/category percentage.
+    override_vat = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Item-specific VAT %; leave blank to use the bill's rate")
+    override_tax = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Item-specific TAX %; leave blank to use the bill's rate")
+    override_duty = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Item-specific Duty %; leave blank to use the bill's rate")
     
     class Meta:
         ordering = ['sort_order', 'id']
@@ -606,15 +611,36 @@ class TransactionItem(SyncableModel):
         return self.quantity * self.billed_unit_price
 
     @property
+    def effective_vat_percentage(self):
+        if self.override_vat is not None:
+            return self.override_vat
+        return self.transaction.secondary_vat_percentage if self.is_secondary else self.transaction.vat_percentage
+
+    @property
+    def effective_tax_percentage(self):
+        if self.override_tax is not None:
+            return self.override_tax
+        return self.transaction.secondary_tax_percentage if self.is_secondary else self.transaction.tax_percentage
+
+    @property
+    def effective_duty_percentage(self):
+        if self.override_duty is not None:
+            return self.override_duty
+        return self.transaction.secondary_duty_percentage if self.is_secondary else self.transaction.duty_percentage
+
+    @property
+    def has_tax_override(self):
+        return self.override_vat is not None or self.override_tax is not None or self.override_duty is not None
+
+    @property
     def duty_amount(self):
         import decimal
-        duty_pct = self.transaction.secondary_duty_percentage if self.is_secondary else self.transaction.duty_percentage
-        return round(self.billed_total * (duty_pct / decimal.Decimal('100.0')), 3)
-        
+        return round(self.billed_total * (self.effective_duty_percentage / decimal.Decimal('100.0')), 3)
+
     @property
     def tax_amount(self):
         import decimal
-        tax_pct = self.transaction.secondary_tax_percentage if self.is_secondary else self.transaction.tax_percentage
+        tax_pct = self.effective_tax_percentage
         # The gross-up formula divides by (100 - pct): invalid at or above 100%.
         if tax_pct <= 0 or tax_pct >= 100:
             return decimal.Decimal('0.000')
@@ -624,8 +650,7 @@ class TransactionItem(SyncableModel):
     @property
     def vat_amount(self):
         import decimal
-        vat_pct = self.transaction.secondary_vat_percentage if self.is_secondary else self.transaction.vat_percentage
-        return round((self.billed_total + self.duty_amount + self.tax_amount) * (vat_pct / decimal.Decimal('100.0')), 3)
+        return round((self.billed_total + self.duty_amount + self.tax_amount) * (self.effective_vat_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def total_with_tax(self):

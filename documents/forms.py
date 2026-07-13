@@ -108,7 +108,9 @@ class SupplierPricingFormSet(inlineformset_factory(
 class ApprovalPricingForm(forms.ModelForm):
     class Meta:
         model = TransactionItem
-        fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'unit_price_uplifted', 'sort_order', 'is_secondary']
+        # override_vat/override_tax: per-item rates that beat the bill's
+        # category defaults (blank = inherit).
+        fields = ['entry_date', 'checkout_date', 'description', 'unit', 'quantity', 'base_price', 'unit_price_uplifted', 'sort_order', 'is_secondary', 'override_vat', 'override_tax']
         widgets = {
             'entry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'checkout_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
