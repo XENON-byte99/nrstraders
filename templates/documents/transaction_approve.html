@@ -1172,6 +1172,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return val.toLocaleString(undefined, {minimumFractionDigits: 2});
     }
 
+    // Resolve a row's effective VAT/TAX/duty %, honoring per-item overrides
+    // (blank override = inherit the bill/category rate). Shared by the forward
+    // and reverse calculators so both agree.
+    function rowRates(row, isSecondary) {
+        const ovVatEl = row.querySelector('.override-vat-input');
+        const ovTaxEl = row.querySelector('.override-tax-input');
+        return {
+            vat: (ovVatEl && ovVatEl.value !== '') ? (parseFloat(ovVatEl.value) || 0) : (isSecondary ? secVatPct : vatPct),
+            tax: (ovTaxEl && ovTaxEl.value !== '') ? (parseFloat(ovTaxEl.value) || 0) : (isSecondary ? secTaxPct : taxPct),
+            duty: isSecondary ? secDutyPct : dutyPct,
+            margin: isSecondary ? secMarginPct : marginPct,
+        };
+    }
+
     function calculate() {
         let grandBase = 0;
         let grandBilled = 0;
@@ -1215,12 +1229,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Per-item overrides beat the bill/category rates (blank = inherit)
-            const ovVatEl = row.querySelector('.override-vat-input');
-            const ovTaxEl = row.querySelector('.override-tax-input');
-            const rowVatPct = (ovVatEl && ovVatEl.value !== '') ? (parseFloat(ovVatEl.value) || 0) : (isSecondary ? secVatPct : vatPct);
-            const rowTaxPct = (ovTaxEl && ovTaxEl.value !== '') ? (parseFloat(ovTaxEl.value) || 0) : (isSecondary ? secTaxPct : taxPct);
-            const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
-            const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+            const _r = rowRates(row, isSecondary);
+            const rowVatPct = _r.vat, rowTaxPct = _r.tax, rowDutyPct = _r.duty, rowMarginPct = _r.margin;
 
             // Layer 3: Apply margin on the manual uplift
             const billedPrice = manualUplift * (1 + rowMarginPct / 100);
@@ -1385,7 +1395,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('input', function(e) {
         const row = e.target.closest('.item-row');
         if (row) {
-            if (e.target.classList.contains('target-input')) {
+            const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+            const changedOverride = e.target.classList.contains('override-vat-input') || e.target.classList.contains('override-tax-input');
+            // In reverse mode, changing a rate (or the target) must re-derive the base
+            if (e.target.classList.contains('target-input') || (isReverse && changedOverride)) {
                 doReverseCalculationApprove(row);
             }
             calculate();
@@ -1717,24 +1730,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!targetInput || !upliftedInput) return;
 
         const targetTotal = parseFloat(targetInput.value) || 0;
-        
-        const rowVatPct = isSecondary ? secVatPct : vatPct;
-        const rowTaxPct = isSecondary ? secTaxPct : taxPct;
-        const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
-        const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+
+        const _r = rowRates(row, isSecondary);
+        const rowVatPct = _r.vat, rowTaxPct = _r.tax, rowDutyPct = _r.duty, rowMarginPct = _r.margin;
 
         const dutyMultiplier = 1 + (rowDutyPct / 100.0);
         const marginMultiplier = 1 + (rowMarginPct / 100.0);
         const vatMultiplier = 1 + (rowVatPct / 100.0);
-        
+
         let taxMultiplier = 1.0;
-        if (rowTaxPct > 0) {
+        if (rowTaxPct > 0 && rowTaxPct < 100) {
             taxMultiplier = 100.0 / (100.0 - rowTaxPct);
         }
 
         const discountFactor = 1.0 - (discountPct / 100.0);
         const multiplier = marginMultiplier * dutyMultiplier * taxMultiplier * vatMultiplier * discountFactor;
-        
+
         let requiredUplift = 0;
         if (multiplier > 0) {
             requiredUplift = targetTotal / multiplier;
@@ -1759,17 +1770,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetInput = row.querySelector('.target-input');
             if (upliftedInput && targetInput) {
                 const isSecondary = row.dataset.isSecondary === 'true';
-                const rowVatPct = isSecondary ? secVatPct : vatPct;
-                const rowTaxPct = isSecondary ? secTaxPct : taxPct;
-                const rowDutyPct = isSecondary ? secDutyPct : dutyPct;
-                const rowMarginPct = isSecondary ? secMarginPct : marginPct;
+                const _r = rowRates(row, isSecondary);
+                const rowVatPct = _r.vat, rowTaxPct = _r.tax, rowDutyPct = _r.duty, rowMarginPct = _r.margin;
 
                 const dutyMultiplier = 1 + (rowDutyPct / 100.0);
                 const marginMultiplier = 1 + (rowMarginPct / 100.0);
                 const vatMultiplier = 1 + (rowVatPct / 100.0);
-                
+
                 let taxMultiplier = 1.0;
-                if (rowTaxPct > 0) {
+                if (rowTaxPct > 0 && rowTaxPct < 100) {
                     taxMultiplier = 100.0 / (100.0 - rowTaxPct);
                 }
 
