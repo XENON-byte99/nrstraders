@@ -18,7 +18,6 @@ sftp.close()
 
 commands = [
     "unzip -o /tmp/deploy.zip -d /var/www/nrs-software",
-    "mv /var/www/nrs-software/db_deploy.sqlite3 /var/www/nrs-software/db.sqlite3",
     "chown -R www-data:www-data /var/www/nrs-software",
     "chmod 666 /var/www/nrs-software/db.sqlite3",
     "cd /var/www/nrs-software && venv/bin/pip install -r requirements.txt",

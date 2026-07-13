@@ -15,7 +15,7 @@ set CF_CONFIG="C:\Users\RONAN\.cloudflared\config.yml"
 
 :: ---- Step 1: Start Django Production Server (Waitress) ----
 echo  [1/2] Starting Django Production Server (Waitress)...
-start "NRS Server - Django (Waitress)" cmd /k "cd /d c:\Users\RONAN\OneDrive - East West University\NAHID EXCEL\NRS SOFTWARE && .venv\Scripts\activate && python run_waitress.py"
+start "NRS Server - Django (Waitress)" cmd /k "cd /d "E:\NRS SOFTWARE" && .venv\Scripts\activate && python run_waitress.py"
 
 :: Wait 3 seconds for the Django server to fully start
 timeout /t 3 /nobreak >nul
