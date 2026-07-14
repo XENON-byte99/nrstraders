@@ -3,6 +3,18 @@
 {# (column hide/rename/resize, saved layouts) work identically on all bills.  #}
 {# Params: table_items, transaction, th_style (optional header css),          #}
 {#         date_color (optional), show_sec_badge (optional bool)              #}
+<style>
+    /* Soft column grouping colors */
+    .col-group-base {
+        background-color: rgba(239, 246, 255, 0.45) !important; /* Light blue tint */
+    }
+    .col-group-tax {
+        background-color: rgba(240, 253, 244, 0.45) !important; /* Light emerald green tint */
+    }
+    .col-group-vat {
+        background-color: rgba(245, 243, 255, 0.45) !important; /* Light violet purple tint */
+    }
+</style>
 <table>
     <thead>
         <tr>
@@ -11,10 +23,12 @@
             <th style="{{ th_style|default:'' }}">Description</th>
             <th style="width:7%;text-align:center;{{ th_style|default:'' }}">Unit</th>
             <th style="width:7%;text-align:center;{{ th_style|default:'' }}">Qty</th>
-            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Rate</th>
-            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Rate (Incl. Tax)</th>
-            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Amount</th>
-            <th style="width:13%;text-align:right;{{ th_style|default:'' }}">Total (Incl. Tax)</th>
+            <th style="width:8%;text-align:right;{{ th_style|default:'' }}">Base</th>
+            <th style="width:8%;text-align:right;{{ th_style|default:'' }}">Amount</th>
+            <th style="width:10%;text-align:right;{{ th_style|default:'' }}">Unit price Incl. Tax</th>
+            <th style="width:10%;text-align:right;{{ th_style|default:'' }}">Amount (Incl. Tax)</th>
+            <th style="width:10%;text-align:right;{{ th_style|default:'' }}">Unit price Incl. VAT</th>
+            <th style="width:10%;text-align:right;{{ th_style|default:'' }}">Total Amount</th>
         </tr>
     </thead>
     <tbody>
@@ -32,16 +46,22 @@
             </td>
             <td style="text-align:center;">{{ item.unit }}</td>
             <td style="text-align:center;">{{ item.quantity }}</td>
-            <td style="text-align:right;">
+            <td class="col-group-base" style="text-align:right;">
                 ৳{{ item.billed_unit_price|format_billing:transaction }}
             </td>
-            <td style="text-align:right;">
-                ৳{{ item.unit_billed_total|format_billing_2:transaction }}
-            </td>
-            <td style="text-align:right;">
+            <td class="col-group-base" style="text-align:right;">
                 ৳{{ item.billed_total|format_billing:transaction }}
             </td>
-            <td style="text-align:right;">
+            <td class="col-group-tax" style="text-align:right;">
+                ৳{{ item.unit_base_plus_tax|format_billing_2:transaction }}
+            </td>
+            <td class="col-group-tax" style="text-align:right;">
+                ৳{{ item.total_base_plus_tax|format_billing_2:transaction }}
+            </td>
+            <td class="col-group-vat" style="text-align:right;">
+                ৳{{ item.unit_billed_total|format_billing_2:transaction }}
+            </td>
+            <td class="col-group-vat" style="text-align:right;">
                 ৳{{ item.total_with_tax|format_billing:transaction }}
             </td>
         </tr>

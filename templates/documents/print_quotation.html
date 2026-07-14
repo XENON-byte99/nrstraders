@@ -108,7 +108,15 @@
                 <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
             </div>
         </div>
-        <div class="a4-invoice mode-base" id="quotationContent" data-decimal-mode="{{ transaction.decimal_display_mode }}" data-discount-flat="{{ transaction.discount_flat }}">
+        <div class="a4-invoice mode-base" id="quotationContent"
+             data-decimal-mode="{{ transaction.decimal_display_mode }}"
+             data-discount-flat="{{ transaction.discount_flat }}"
+             data-vat-0="{{ transaction.vat_percentage }}"
+             data-vat-1="{{ transaction.secondary_vat_percentage }}"
+             data-tax-0="{{ transaction.tax_percentage }}"
+             data-tax-1="{{ transaction.secondary_tax_percentage }}"
+             data-duty-0="{{ transaction.duty_percentage }}"
+             data-duty-1="{{ transaction.secondary_duty_percentage }}">
             <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <h1 class="invoice-title">QUOTATION</h1>
@@ -300,9 +308,9 @@
                 const table = tr.closest('table');
                 if (!table) return;
 
-                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.toLowerCase());
                 const qtyIdx = headers.findIndex(h => h === 'qty');
-                const rateIdx = headers.findIndex(h => h === 'rate');
+                const rateIdx = headers.findIndex(h => h === 'rate' || h === 'price' || h === 'base');
                 const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
 
                 const tds = Array.from(tr.children);
@@ -320,9 +328,30 @@
                         if (baseSpan) {
                             baseSpan.innerText = '৳' + formatVal(amount, decimalMode);
                             const targetSpan = amountTd.querySelector('.display-target');
-                            if (targetSpan) targetSpan.innerText = '৳' + amount.toFixed(2);
+                            if (targetSpan) targetSpan.innerText = '৳' + formatVal(amount, decimalMode);
                         } else {
                             amountTd.innerText = '৳' + formatVal(amount, decimalMode);
+                        }
+
+                        // Keep the "Unit Price" and "Total (Incl. Tax)" columns in sync using this table's category percentages
+                        const unitPriceIdx = headers.findIndex(h => h.startsWith('unit price incl. tax'));
+                        const amtInclTaxIdx = headers.findIndex(h => h.startsWith('amount (incl. tax)'));
+                        const unitPriceInclVatIdx = headers.findIndex(h => h.startsWith('unit price incl. vat'));
+                        const totalAmountIdx = headers.findIndex(h => h === 'total amount' || h.startsWith('total (incl'));
+                        if (totalAmountIdx !== -1) {
+                            const tables = [...container.querySelectorAll('table')];
+                            const catIdx = Math.max(0, tables.indexOf(table));
+                            const attrPct = n => parseFloat(container.getAttribute(n) || '0');
+                            const duty = amount * (attrPct('data-duty-' + catIdx) / 100);
+                            const taxPct = attrPct('data-tax-' + catIdx);
+                            const taxAmt = (taxPct > 0 && taxPct < 100) ? (amount * 100 / (100 - taxPct)) - amount : 0;
+                            const vat = (amount + duty + taxAmt) * (attrPct('data-vat-' + catIdx) / 100);
+                            const totalWithTax = amount + duty + taxAmt + vat;
+                            const basePlusTax = amount + duty + taxAmt;
+                            tds[totalAmountIdx].innerText = '৳' + formatVal(totalWithTax, decimalMode);
+                            if (unitPriceIdx !== -1 && qty > 0) tds[unitPriceIdx].innerText = '৳' + formatVal(basePlusTax / qty, decimalMode);
+                            if (amtInclTaxIdx !== -1) tds[amtInclTaxIdx].innerText = '৳' + formatVal(basePlusTax, decimalMode);
+                            if (unitPriceInclVatIdx !== -1 && qty > 0) tds[unitPriceInclVatIdx].innerText = '৳' + formatVal(totalWithTax / qty, decimalMode);
                         }
                     }
                     

@@ -344,9 +344,9 @@
                 const table = tr.closest('table');
                 if (!table) return;
 
-                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.toLowerCase());
                 const qtyIdx = headers.findIndex(h => h === 'qty');
-                const rateIdx = headers.findIndex(h => h === 'rate');
+                const rateIdx = headers.findIndex(h => h === 'rate' || h === 'price' || h === 'base');
                 const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
 
                 const tds = Array.from(tr.children);
@@ -370,10 +370,12 @@
                             amountTd.innerText = '৳' + formatVal(amount, decimalMode);
                         }
 
-                        // Keep the "(Incl. Tax)" columns in sync using this table's category percentages
-                        const rateInclIdx = headers.findIndex(h => h.startsWith('rate (incl'));
-                        const totalInclIdx = headers.findIndex(h => h.startsWith('total (incl'));
-                        if (totalInclIdx !== -1) {
+                        // Keep the "Unit Price" and "Total (Incl. Tax)" columns in sync using this table's category percentages
+                        const unitPriceIdx = headers.findIndex(h => h.startsWith('unit price incl. tax'));
+                        const amtInclTaxIdx = headers.findIndex(h => h.startsWith('amount (incl. tax)'));
+                        const unitPriceInclVatIdx = headers.findIndex(h => h.startsWith('unit price incl. vat'));
+                        const totalAmountIdx = headers.findIndex(h => h === 'total amount' || h.startsWith('total (incl'));
+                        if (totalAmountIdx !== -1) {
                             const tables = [...container.querySelectorAll('table')];
                             const catIdx = Math.max(0, tables.indexOf(table));
                             const attrPct = n => parseFloat(container.getAttribute(n) || '0');
@@ -382,8 +384,11 @@
                             const taxAmt = (taxPct > 0 && taxPct < 100) ? (amount * 100 / (100 - taxPct)) - amount : 0;
                             const vat = (amount + duty + taxAmt) * (attrPct('data-vat-' + catIdx) / 100);
                             const totalWithTax = amount + duty + taxAmt + vat;
-                            tds[totalInclIdx].innerText = '৳' + formatVal(totalWithTax, decimalMode);
-                            if (rateInclIdx !== -1 && qty > 0) tds[rateInclIdx].innerText = '৳' + formatVal(totalWithTax / qty, decimalMode);
+                            const basePlusTax = amount + duty + taxAmt;
+                            tds[totalAmountIdx].innerText = '৳' + formatVal(totalWithTax, decimalMode);
+                            if (unitPriceIdx !== -1 && qty > 0) tds[unitPriceIdx].innerText = '৳' + formatVal(basePlusTax / qty, decimalMode);
+                            if (amtInclTaxIdx !== -1) tds[amtInclTaxIdx].innerText = '৳' + formatVal(basePlusTax, decimalMode);
+                            if (unitPriceInclVatIdx !== -1 && qty > 0) tds[unitPriceInclVatIdx].innerText = '৳' + formatVal(totalWithTax / qty, decimalMode);
                         }
                     }
 

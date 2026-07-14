@@ -195,6 +195,60 @@
             return null;
         }
 
+        function syncColspans(table) {
+            const ths = Array.from(table.querySelectorAll('thead th'));
+            if (ths.length === 0) return;
+            const isColHidden = ths.map(th => th.classList.contains('hidden-col'));
+
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                let visualColCount = 0;
+                Array.from(tr.children).forEach(cell => {
+                    visualColCount += parseInt(cell.getAttribute('colspan') || '1', 10);
+                });
+                if (visualColCount !== ths.length) return;
+
+                let hasColspan = false;
+                Array.from(tr.children).forEach(cell => {
+                    let origColspan = cell.dataset.origColspan;
+                    if (!origColspan) {
+                        origColspan = cell.getAttribute('colspan') || '1';
+                        cell.dataset.origColspan = origColspan;
+                    }
+                    if (parseInt(origColspan) > 1) {
+                        hasColspan = true;
+                    }
+                });
+
+                if (!hasColspan) {
+                    Array.from(tr.children).forEach((cell, colIdx) => {
+                        if (isColHidden[colIdx]) {
+                            cell.classList.add('hidden-col');
+                        } else {
+                            cell.classList.remove('hidden-col');
+                        }
+                    });
+                    return;
+                }
+
+                let currentColIdx = 0;
+                Array.from(tr.children).forEach(cell => {
+                    let origColspan = parseInt(cell.dataset.origColspan || '1');
+                    let hiddenCount = 0;
+                    for (let c = currentColIdx; c < currentColIdx + origColspan; c++) {
+                        if (isColHidden[c]) hiddenCount++;
+                    }
+                    let newColspan = origColspan - hiddenCount;
+                    if (newColspan > 0) {
+                        cell.setAttribute('colspan', newColspan);
+                        cell.classList.remove('hidden-col');
+                    } else {
+                        cell.classList.add('hidden-col');
+                    }
+                    currentColIdx += origColspan;
+                });
+            });
+        }
+
         // Apply state to DOM
         function applyTemplateState(state) {
             // First reset all columns to default (remove hidden-col classes and innerHTML overrides)
@@ -205,7 +259,12 @@
                     th.style.width = '';
                 });
                 table.querySelectorAll('tbody tr').forEach(tr => {
-                    Array.from(tr.children).forEach(td => td.classList.remove('hidden-col'));
+                    Array.from(tr.children).forEach(td => {
+                        td.classList.remove('hidden-col');
+                        if (td.dataset.origColspan) {
+                            td.setAttribute('colspan', td.dataset.origColspan);
+                        }
+                    });
                 });
             });
 
@@ -266,6 +325,19 @@
                     const ths = Array.from(table.querySelectorAll('th'));
                     const trs = Array.from(table.querySelectorAll('tbody tr'));
 
+                    if (tState.fingerprint) {
+                        const currentFingerprint = ths.map(th => {
+                            let clone = th.cloneNode(true);
+                            const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
+                            const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                            return clone.innerHTML.replace(/<[^>]*>/g, '').trim();
+                        }).join('|');
+                        if (tState.fingerprint !== currentFingerprint) {
+                            console.warn('Column layout mismatch, resetting layout for table', tableIdx);
+                            return;
+                        }
+                    }
+
                     if (tState.cols && tState.cols.length === ths.length) {
                         tState.cols.forEach((colState, colIdx) => {
                             const th = ths[colIdx];
@@ -285,14 +357,11 @@
                                 }
                             }
                             if (colState.width) th.style.width = colState.width;
-                             if (colState.hidden) {
-                                 th.classList.add('hidden-col');
-                                 trs.forEach(tr => {
-                                     const cell = getCellAtColIndex(tr, colIdx);
-                                     if (cell) cell.classList.add('hidden-col');
-                                 });
-                             }
+                            if (colState.hidden) {
+                                th.classList.add('hidden-col');
+                            }
                         });
+                        syncColspans(table);
                     }
                 });
             } catch(e) { console.error('Error loading template state', e); }
@@ -344,10 +413,7 @@
                 th.appendChild(hbtn);
                  hbtn.addEventListener('click', function(e) {
                      th.classList.add('hidden-col');
-                     Array.from(table.querySelectorAll('tbody tr')).forEach(tr => {
-                         const cell = getCellAtColIndex(tr, idx);
-                         if (cell) cell.classList.add('hidden-col');
-                     });
+                     syncColspans(table);
                      saveCurrentState();
                      updateHiddenColumnsUI();
                      e.stopPropagation();
@@ -443,10 +509,7 @@
 
                          item.querySelector('button').addEventListener('click', function() {
                              th.classList.remove('hidden-col');
-                             table.querySelectorAll('tbody tr').forEach(tr => {
-                                 const cell = getCellAtColIndex(tr, colIdx);
-                                 if (cell) cell.classList.remove('hidden-col');
-                             });
+                             syncColspans(table);
                              saveCurrentState();
                              updateHiddenColumnsUI();
                          });
@@ -859,8 +922,16 @@
             });
 
             document.querySelectorAll('table').forEach(table => {
-                const tState = { cols: [] };
-                table.querySelectorAll('th').forEach((th, idx) => {
+                const ths = Array.from(table.querySelectorAll('th'));
+                const fingerprint = ths.map(th => {
+                    let clone = th.cloneNode(true);
+                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
+                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                    return (th.dataset.origText || clone.innerHTML).replace(/<[^>]*>/g, '').trim();
+                }).join('|');
+
+                const tState = { fingerprint: fingerprint, cols: [] };
+                ths.forEach((th, idx) => {
                     let clone = th.cloneNode(true);
                     const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
                     const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();

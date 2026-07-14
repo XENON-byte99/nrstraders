@@ -235,6 +235,22 @@ class Transaction(SyncableModel):
         return self.total_service_charge + self.service_charge_duty + self.service_charge_vat + self.service_charge_tax
 
     @property
+    def service_charge_base_plus_tax(self):
+        return self.total_service_charge + self.service_charge_duty + self.service_charge_tax
+
+    @property
+    def grand_base_plus_tax(self):
+        return self.price_after_discount_base + self.total_duty + self.total_tax
+
+    @property
+    def service_charge_with_tax_only(self):
+        return self.total_service_charge + self.service_charge_tax
+
+    @property
+    def grand_total_with_tax_only(self):
+        return self.price_after_discount_base + self.total_tax
+
+    @property
     def discount_amount(self):
         import decimal
         # Discount is applied to the base price (subtotal + service charge):
@@ -570,6 +586,31 @@ class TransactionItem(SyncableModel):
         import decimal
         if self.quantity == 0: return self.total_with_tax
         return self.total_with_tax / decimal.Decimal(str(self.quantity))
+
+    @property
+    def unit_base_plus_tax(self):
+        import decimal
+        if self.quantity == 0:
+            return self.billed_total + self.duty_amount + self.tax_amount
+        return (self.billed_total + self.duty_amount + self.tax_amount) / decimal.Decimal(str(self.quantity))
+
+    @property
+    def total_base_plus_tax(self):
+        return self.billed_total + self.duty_amount + self.tax_amount
+
+    @property
+    def unit_tax_amount(self):
+        import decimal
+        if self.quantity == 0: return self.tax_amount
+        return self.tax_amount / decimal.Decimal(str(self.quantity))
+
+    @property
+    def unit_price_with_tax(self):
+        return self.billed_unit_price + self.unit_tax_amount
+
+    @property
+    def total_with_tax_only(self):
+        return self.billed_total + self.tax_amount
 
     def get_master_product(self):
         cat = self.transaction.secondary_category if (self.is_secondary and self.transaction.secondary_category) else self.transaction.transaction_category
