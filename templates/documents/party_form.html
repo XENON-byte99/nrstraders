@@ -65,6 +65,19 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="form-field">
+                    <label class="form-label">Signatory Designation</label>
+                    {{ form.designation }}
+                    <p class="text-[10px] text-gray-400 mt-1">Shown under the signature on invoices, e.g. "Proprietor &amp; CEO"</p>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Invoice Colour Theme</label>
+                    {{ form.color_theme }}
+                    <p class="text-[10px] text-gray-400 mt-1">Colour used on this supplier's printed invoices &amp; quotations</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-field">
                     <label class="form-label">BIN Number</label>
                     {{ form.bin_number }}
                 </div>

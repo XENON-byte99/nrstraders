@@ -139,7 +139,7 @@ class ApprovalPricingFormSet(inlineformset_factory(
 class BusinessPartyForm(forms.ModelForm):
     class Meta:
         model = BusinessParty
-        fields = ['party_type', 'name', 'ceo_name', 'bin_number', 'address', 'contact', 'whatsapp_number', 'signature_image', 'seal_image']
+        fields = ['party_type', 'name', 'ceo_name', 'designation', 'bin_number', 'address', 'contact', 'whatsapp_number', 'color_theme', 'signature_image', 'seal_image']
 
 class TransactionCategoryForm(forms.ModelForm):
     class Meta:

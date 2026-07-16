@@ -705,17 +705,25 @@ class BusinessParty(SyncableModel):
         ('SUPPLIER', 'Supplier'),
         ('BUYER', 'Buyer'),
     ]
+    # Print colour theme for invoices/quotations issued by this supplier.
+    PRINT_THEMES = [
+        ('blue', 'Blue'),
+        ('claude', 'Claude (Clay)'),
+        ('crimson', 'Crimson'),
+    ]
     party_type = models.CharField(max_length=20, choices=PARTY_TYPES)
     name = models.CharField(max_length=255)
     ceo_name = models.CharField(max_length=255, blank=True, help_text="Name of the person in charge / CEO")
+    designation = models.CharField(max_length=120, blank=True, help_text="Signatory's designation, e.g. Proprietor & CEO")
     bin_number = models.CharField(max_length=100, blank=True)
     address = models.TextField(blank=True)
     contact = models.CharField(max_length=100, blank=True)
     whatsapp_number = models.CharField(max_length=20, blank=True, help_text="e.g. 88017...")
-    
+    color_theme = models.CharField(max_length=20, choices=PRINT_THEMES, default='blue', help_text="Colour theme used on this supplier's printed invoices/quotations")
+
     signature_image = models.ImageField(upload_to='signatures/', blank=True, null=True)
     seal_image = models.ImageField(upload_to='seals/', blank=True, null=True)
-    
+
     def __str__(self):
         return self.name
 

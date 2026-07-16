@@ -16,49 +16,70 @@
             @page { size: A4 portrait; margin: 0; }
             body { background: white !important; }
             .no-print { display: none !important; }
-            .a4-invoice { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            .a4-invoice { box-shadow: none !important; margin: 0 !important; }
             html, body { width: 8.27in; height: 11.69in; }
         }
         .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
-        .a4-invoice { width: 8.27in; height: 11.69in; background: white; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); overflow: hidden; display: flex; flex-direction: column; position: relative; }
-        .invoice-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 32px 28px 24px; position: relative; overflow: hidden; }
-        .invoice-title { font-size: 42px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
-        .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
-        .invoice-body { padding: 28px 36px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
-        .section-title { font-size: 10px; font-weight: 700; color: #667eea; text-transform: uppercase; margin-bottom: 8px; }
-        .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
-        .info-block { line-height: 1.6; }
-        .info-value { font-size: 11px; font-weight: 500; color: #1e293b; }
-        .company-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: #667eea; margin-bottom: 2px; }
-        .divider { height: 1px; background: linear-gradient(to right, transparent, #667eea, transparent); margin: 12px 0; }
-        .invoice-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; }
-        .detail-item { border-left: 2px solid #667eea; padding-left: 8px; }
-        .detail-label { font-size: 8px; font-weight: 700; color: #667eea; text-transform: uppercase; margin-bottom: 2px; }
-        .detail-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; }
-        th { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
-        td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
-        tbody tr:nth-child(odd) { background: #f8fafc; }
-        .amount-section { display: grid; grid-template-columns: 1fr 220px; gap: 16px; margin-bottom: 8px; }
-        .amount-row { display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8fafc; border-radius: 3px; border-left: 2px solid #667eea; margin-bottom: 4px; }
-        .amount-row.total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 800; border: none; }
-        .signature-box { padding: 0; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; height: 90px; margin-top: 30px; z-index: 50; cursor: grab; }
-        .official-signature { height: 70px; position: absolute; bottom: 12px; left: 10px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
-        .signature-line { height: 50px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
-        .signature-label { font-size: 8px; font-weight: bold; text-align: left; padding-left: 5px; }
-        .category-badge {
-            display: inline-block;
-            padding: 1px 5px;
-            border-radius: 3px;
-            font-size: 8px;
-            font-weight: 800;
-            text-transform: uppercase;
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #cbd5e1;
-            margin-top: 3px;
-            letter-spacing: 0.02em;
+
+        /* ── Per-supplier colour theme ── */
+        .a4-invoice { --accent:#1e3a8a; --accent-2:#2563eb; --accent-soft:#eef2ff; --ink:#0f172a; --muted:#64748b; }
+        .theme-blue    { --accent:#1e3a8a; --accent-2:#2563eb; --accent-soft:#eef2ff; }
+        .theme-claude  { --accent:#8f4227; --accent-2:#c15f3c; --accent-soft:#fbf1ea; }
+        .theme-crimson { --accent:#7f1225; --accent-2:#be123c; --accent-soft:#fef2f4; }
+
+        .a4-invoice {
+            width: 8.27in; height: 11.69in; background: white;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); position: relative; overflow: hidden;
+            display: grid; grid-template-columns: 2.5in 1fr; color: var(--ink); font-size: 10px;
         }
+
+        /* Left sidebar: issuing supplier as the brand */
+        .inv-side { background: var(--accent-soft); border-right: 3px solid var(--accent); padding: 0.5in 0.32in; display: flex; flex-direction: column; }
+        .brand-mark { width: 48px; height: 48px; border-radius: 13px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 800; font-size: 21px; margin-bottom: 12px; }
+        .brand-name { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 16px; color: var(--accent); line-height: 1.15; }
+        .brand-tag { font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
+        .side-block { margin-top: 20px; }
+        .side-h { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 5px; }
+        .side-v { font-size: 10px; color: #334155; line-height: 1.55; }
+        .side-foot { margin-top: auto; font-size: 9px; color: var(--muted); line-height: 1.5; }
+
+        /* Right main column */
+        .inv-main { padding: 0.5in 0.45in 0.4in; display: flex; flex-direction: column; }
+        .invoice-body { flex: 1; display: flex; flex-direction: column; }
+        .inv-titlerow { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .invoice-title { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 40px; letter-spacing: .02em; color: var(--accent); margin: 0; line-height: 1; }
+        .invoice-subtitle { font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin-top: 6px; text-align: right; }
+        .meta-strip { display: flex; gap: 26px; margin-top: 4px; }
+        .meta-label { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+        .meta-value { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: var(--ink); }
+        .section-title { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 4px; }
+        .company-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 13px; color: var(--ink); }
+        .info-value { font-size: 10px; color: #334155; line-height: 1.5; }
+        .billto { margin: 4px 0 12px; }
+        .inv-desc { font-size: 10px; color: #475569; line-height: 1.5; background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 8px 11px; border-radius: 0 6px 6px 0; margin-bottom: 12px; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9px; table-layout: fixed; }
+        th { background: var(--accent); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 7.5px; text-transform: uppercase; white-space: normal; word-break: break-word; }
+        td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: var(--ink); }
+        tbody tr:nth-child(odd) { background: #f8fafc; }
+
+        .amount-section { display: grid; grid-template-columns: 1fr 2.9in; gap: 14px; margin-top: 4px; }
+        .amount-box { border: 1.5px solid var(--accent); border-radius: 8px; overflow: hidden; align-self: start; }
+        .amount-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; padding: 5px 9px; background: #fff; border-bottom: 1px solid #eef2f6; margin: 0; }
+        .amount-row .amount-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .amount-row .amount-value { white-space: nowrap; flex-shrink: 0; }
+        .amount-box .amount-row:last-child { border-bottom: none; }
+        .amount-row.total { background: var(--accent); color: white; font-weight: 800; border-bottom: none; }
+        .terms-note { font-size: 8.5px; color: var(--muted); line-height: 1.5; }
+        .terms-note b { color: #334155; }
+
+        .sign-row { margin-top: 26px; display: flex; justify-content: flex-end; }
+        .signature-box { position: relative; display: flex; flex-direction: column; align-items: flex-start; width: 2.2in; cursor: grab; z-index: 50; }
+        .official-signature { height: 58px; position: absolute; bottom: 28px; left: 6px; transform: rotate(-2deg); mix-blend-mode: multiply; z-index: 10; }
+        .signature-line { border-bottom: 1.5px solid var(--ink); width: 100%; height: 44px; margin-bottom: 5px; }
+        .sig-name { font-weight: 800; font-size: 11px; color: var(--ink); }
+        .sig-title { font-size: 9px; color: var(--muted); }
+        .category-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 8px; font-weight: 800; text-transform: uppercase; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; letter-spacing: 0.02em; }
         .mode-target .display-base { display: none !important; }
         .mode-base .display-target { display: none !important; }
     </style>
@@ -106,7 +127,7 @@
                 <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
             </div>
         </div>
-        <div class="a4-invoice mode-base" id="invoiceContent"
+        <div class="a4-invoice mode-base theme-{{ transaction.supplier_party.color_theme|default:'blue' }}" id="invoiceContent"
              data-decimal-mode="{{ transaction.decimal_display_mode }}"
              data-discount-flat="{{ transaction.discount_flat }}"
              data-vat-0="{{ transaction.vat_percentage }}"
@@ -115,72 +136,69 @@
              data-tax-1="{{ transaction.secondary_tax_percentage }}"
              data-duty-0="{{ transaction.duty_percentage }}"
              data-duty-1="{{ transaction.secondary_duty_percentage }}">
-            <!-- ... -->
-            <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <!-- ── Left sidebar: issuing supplier as the brand ── -->
+            <aside class="inv-side">
                 <div>
-                    <h1 class="invoice-title">INVOICE</h1>
-                    <p class="invoice-subtitle">Professional Business Document</p>
+                    <div class="brand-mark">{{ transaction.supplier_name|slice:":2"|upper|default:"NR" }}</div>
+                    <div class="brand-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+                    <div class="brand-tag">Supplier</div>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Invoice No.</div>
-                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; margin-bottom: 8px;">{{ transaction.invoice_number }}</div>
-                    
-                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Issue Date</div>
-                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700;">{{ transaction.created_at|date:"M d, Y" }}</div>
+                {% if transaction.supplier_bin %}<div class="side-block"><div class="side-h">BIN</div><div class="side-v">{{ transaction.supplier_bin }}</div></div>{% endif %}
+                {% if transaction.supplier_address %}<div class="side-block"><div class="side-h">Address</div><div class="side-v">{{ transaction.supplier_address }}</div></div>{% endif %}
+                {% if transaction.supplier_contact %}<div class="side-block"><div class="side-h">Contact</div><div class="side-v">{{ transaction.supplier_contact }}</div></div>{% endif %}
+                <div class="side-foot">
+                    <div class="side-h" style="margin-bottom:3px;">Payment</div>
+                    Due within 30 days of issue.<br>All amounts in Bangladeshi Taka (৳).
                 </div>
-            </div>
-            <div class="invoice-body">
-                <!-- ... existing info blocks ... -->
-                <div class="info-row">
-                    <div class="info-block">
-                        <div class="section-title">From</div>
-                        <div class="company-name">{{ transaction.supplier_name }}</div>
-                        <div class="info-value">BIN: {{ transaction.supplier_bin }}</div>
-                        <div class="info-value">{{ transaction.supplier_address }}</div>
-                        <div class="info-value">{{ transaction.supplier_contact }}</div>
-                    </div>
-                    <div class="info-block">
-                        <div class="section-title">Bill To</div>
-                        <div class="company-name">{{ transaction.buyer_name }}</div>
-                        <div class="info-value">BIN: {{ transaction.buyer_bin }}</div>
-                        <div class="info-value">{{ transaction.buyer_address }}</div>
-                        <div class="info-value">{{ transaction.buyer_contact }}</div>
-                    </div>
-                </div>
-                <!-- ... existing table ... -->
-                {% if transaction.secondary_category and transaction.secondary_items.exists %}
-                    <!-- Primary Category Section -->
-                    <div style="font-size:10px; font-weight:700; color:#667eea; text-transform:uppercase; margin-top:10px; margin-bottom:6px;">{{ transaction.transaction_category.name }}</div>
-                    {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items transaction=transaction %}
+            </aside>
 
-                    <!-- Secondary Category Section -->
-                    <div style="font-size:10px; font-weight:700; color:#764ba2; text-transform:uppercase; margin-top:16px; margin-bottom:6px;">{{ transaction.secondary_category.name }}</div>
-                    {% include 'documents/_print_items_table.html' with table_items=transaction.secondary_items transaction=transaction th_style="background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);" date_color="#7c3aed" %}
-                {% else %}
-                    <!-- Normal Single Table Rendering -->
-                    {% include 'documents/_print_items_table.html' with table_items=transaction.items.all transaction=transaction %}
-                {% endif %}
-                <div class="amount-section">
-                    <div class="terms">
-                        <div style="font-weight:700;margin-bottom:4px;">Terms & Conditions</div>
-                        Payment is expected within 30 days. No returns without prior approval.
-                        
-                        <div style="display: flex; gap: 40px; margin-top: 30px;">
-                            <div class="signature-box" style="margin-top: 0; position: relative;">
-                                {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
-                                    <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
-                                    {% if transaction.supplier_party.seal_image %}
-                                        <img src="{{ transaction.supplier_party.seal_image.url }}" alt="Supplier Seal" style="height: 50px; position: absolute; bottom: 5px; right: -20px; z-index: 5; opacity: 0.8; mix-blend-mode: multiply;">
-                                    {% endif %}
-                                {% else %}
-                                    <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
-                                {% endif %}
-                                <div class="signature-line"></div>
-                                <div class="signature-label">Company Authorized</div>
-                            </div>
+            <!-- ── Right main column ── -->
+            <main class="inv-main">
+                <div class="invoice-body">
+                    <!-- Title + Bill To -->
+                    <div class="inv-titlerow">
+                        <div class="billto">
+                            <div class="section-title">Bill To</div>
+                            <div class="company-name">{{ transaction.buyer_name }}</div>
+                            <div class="info-value">BIN: {{ transaction.buyer_bin }}</div>
+                            <div class="info-value">{{ transaction.buyer_address }}</div>
+                            <div class="info-value">{{ transaction.buyer_contact }}</div>
+                        </div>
+                        <div>
+                            <h1 class="invoice-title">INVOICE</h1>
+                            <div class="invoice-subtitle">Professional Business Document</div>
                         </div>
                     </div>
-                    <div class="amount-box">
+                    <!-- Meta: number + date -->
+                    <div class="meta-strip">
+                        <div><div class="meta-label">Invoice No.</div><div class="meta-value">{{ transaction.invoice_number|default:"—" }}</div></div>
+                        <div><div class="meta-label">Challan No.</div><div class="meta-value">{{ transaction.challan_number|default:"—" }}</div></div>
+                        <div><div class="meta-label">Issue Date</div><div class="meta-value">{{ transaction.created_at|date:"M d, Y" }}</div></div>
+                    </div>
+                    <!-- Description about the invoice -->
+                    <div class="inv-desc" style="margin-top:12px;">
+                        This invoice details {{ transaction.transaction_category.name|default:"the goods and services supplied" }}{% if transaction.secondary_category %} and {{ transaction.secondary_category.name }}{% endif %}, itemised below with applicable duty, tax and VAT.
+                    </div>
+
+                    <!-- ── Items table ── -->
+                    {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                        <div style="font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin:4px 0 5px;">{{ transaction.transaction_category.name }}</div>
+                        {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items transaction=transaction %}
+
+                        <div style="font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-2); margin:12px 0 5px;">{{ transaction.secondary_category.name }}</div>
+                        {% include 'documents/_print_items_table.html' with table_items=transaction.secondary_items transaction=transaction date_color="#7c3aed" %}
+                    {% else %}
+                        {% include 'documents/_print_items_table.html' with table_items=transaction.items.all transaction=transaction %}
+                    {% endif %}
+
+                    <!-- ── Monetary summary ── -->
+                    <div class="amount-section">
+                        <div class="terms-note">
+                            <b>Terms &amp; Conditions</b><br>
+                            Payment is expected within 30 days. No returns without prior approval.
+                            {% if transaction.service_charge_percentage > 0 or transaction.secondary_service_charge_percentage > 0 %}<br>A service charge is included in this document.{% endif %}
+                        </div>
+                        <div class="amount-box">
                         <div class="amount-row" data-amount-row-id="subtotal">
                             <span class="amount-label">Subtotal</span>
                             <span class="amount-value mono">
@@ -250,10 +268,26 @@
                             <span class="amount-value mono">৳{{ transaction.grand_total|format_billing:transaction }}</span>
                         </div>
                     </div>
+                    </div>
+
+                    <!-- ── Authorized signature ── -->
+                    <div class="sign-row">
+                        <div class="signature-box">
+                            {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                                <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
+                                {% if transaction.supplier_party.seal_image %}
+                                    <img src="{{ transaction.supplier_party.seal_image.url }}" alt="Supplier Seal" style="height:48px; position:absolute; bottom:26px; right:-6px; z-index:5; opacity:.8; mix-blend-mode:multiply;">
+                                {% endif %}
+                            {% else %}
+                                <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                            {% endif %}
+                            <div class="signature-line"></div>
+                            <div class="sig-name">{{ transaction.supplier_party.ceo_name|default:"Authorized Signatory" }}</div>
+                            <div class="sig-title">{% if transaction.supplier_party.designation %}{{ transaction.supplier_party.designation }}{% else %}For {{ transaction.supplier_name|default:"the Company" }}{% endif %}</div>
+                        </div>
+                    </div>
                 </div>
-                <!-- Removed invoice-footer, signature moved under terms -->
-            </div>
-            <!-- Software Generated Notice Removed -->
+            </main>
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
