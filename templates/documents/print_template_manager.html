@@ -17,12 +17,21 @@
 
     /* Section drag & drop (edit mode) */
     .edit-mode-active .invoice-body > * { position: relative; }
-    .edit-mode-active .invoice-body > *:hover { outline: 1px dashed #a5b4fc; }
+    .edit-mode-active .invoice-body > *:hover { outline: 1.5px dashed #6366f1; }
     .section-drag-handle {
-        position: absolute; left: -16px; top: 2px; width: 14px; cursor: grab;
-        color: #6366f1; font-size: 12px; line-height: 1; user-select: none; z-index: 60;
+        position: absolute; left: 4px; top: -14px;
+        background: #6366f1; color: white; padding: 2px 8px;
+        border-radius: 4px; font-size: 8px; font-weight: 700;
+        text-transform: uppercase; cursor: grab; z-index: 60;
+        align-items: center; gap: 4px; display: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        font-family: 'Poppins', sans-serif;
+        user-select: none;
     }
-    .section-drag-handle:active { cursor: grabbing; }
+    .section-drag-handle:active { cursor: grabbing; background: #4f46e5; }
+    .edit-mode-active .invoice-body > *:hover .section-drag-handle {
+        display: inline-flex;
+    }
     .drag-over-above { box-shadow: 0 -3px 0 0 #6366f1; }
     .drag-over-below { box-shadow: 0 3px 0 0 #6366f1; }
 
@@ -47,8 +56,21 @@
         // item-table columns this means one saved layout works on every bill.
         const storageKey = 'print_layout_v2_' + docType;
 
-        // Initialize storage structure if empty
+        // Initialize storage structure if empty (localStorage = fast offline cache)
         let store = JSON.parse(localStorage.getItem(storageKey) || '{"activeTemplate": "Default Layout", "templates": {}}');
+
+        // ── Server sync: layouts are company-shared, persist across devices,
+        // and are the same store bulk printing reads from Bill Summary. ──
+        const LAYOUT_API = '/api/print-layouts/' + docType + '/';
+        const CSRF_TOKEN = '{{ csrf_token }}';
+        function persistStore() {
+            localStorage.setItem(storageKey, JSON.stringify(store));   // cache
+            fetch(LAYOUT_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify(store)
+            }).catch(function () { /* offline: cache still holds it */ });
+        }
 
         const docContainer = document.querySelector('.a4-invoice, .mushok-form, #challanContent');
         const bodyContainer = document.querySelector('.invoice-body');
@@ -82,7 +104,16 @@
             let css = '';
             if (docContainer) {
                 const sel = docContainer.id ? ('#' + docContainer.id) : ('.' + (docContainer.classList[0] || 'a4-invoice'));
-                if (scale !== 100) css += `${sel} { zoom: ${scale}%; }\n`;
+                // On redesigned invoice/quotation (which have a .fit-wrap that is
+                // auto-scaled to one page), feed the text-size slider into the
+                // auto-fit as an extra shrink instead of a conflicting zoom.
+                const hasFit = docContainer.querySelector && docContainer.querySelector('.fit-wrap');
+                if (hasFit && typeof window.fitInvoiceToPage === 'function') {
+                    docContainer.setAttribute('data-user-scale', (scale / 100).toString());
+                    window.fitInvoiceToPage();
+                } else if (scale !== 100) {
+                    css += `${sel} { zoom: ${scale}%; }\n`;
+                }
                 if (family) css += `${sel} *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ${family} !important; }\n`;
                 if (color) {
                     // Whole-document text color — except text sitting on gradient
@@ -286,6 +317,16 @@
                 }
             });
 
+            // Apply sidebar width
+            const sidebarSlider = document.getElementById('sidebarWidthRange');
+            const sidebarVal = document.getElementById('sidebarWidthVal');
+            if (sidebarSlider) {
+                const w = (state && state.sidebarWidth) ? state.sidebarWidth : 33.25;
+                sidebarSlider.value = w;
+                if (sidebarVal) sidebarVal.textContent = Math.round(w) + '%';
+                if (docContainer) docContainer.style.setProperty('--sidebar-width', w + '%');
+            }
+
             applyTypography(state ? state.typography : null);
 
             totalsWidth = (state && state.totalsWidth) ? state.totalsWidth : null;
@@ -301,11 +342,26 @@
             }
 
             if (!state) {
+                if (bodyContainer) {
+                    Array.from(bodyContainer.children).forEach(el => {
+                        el.style.transform = '';
+                    });
+                }
                 updateHiddenRowsUI();
                 return;
             }
 
             applySectionOrder(state.sectionOrder);
+
+            if (state.sections) {
+                state.sections.forEach(secState => {
+                    const el = bodyContainer.querySelector(`[data-sec-id="${secState.secId}"]`);
+                    if (el) {
+                        if (secState.transform) el.style.transform = secState.transform;
+                        else el.style.transform = '';
+                    }
+                });
+            }
 
             try {
                 if (state.signatures) {
@@ -422,56 +478,94 @@
         }
 
         // ── Section drag handles (edit mode) ────────────────────────
-        let draggedSection = null;
+        function makeElementDraggable(element, handle) {
+            let isDragging = false;
+            let currentX = 0;
+            let currentY = 0;
+            let initialX = 0;
+            let initialY = 0;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            handle.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+
+            function dragStart(e) {
+                const transform = element.style.transform || '';
+                const matches = transform.match(/translate3d\(([-\d\.]+)px,\s*([-\d\.]+)px/);
+                if (matches) {
+                    xOffset = parseFloat(matches[1]);
+                    yOffset = parseFloat(matches[2]);
+                } else {
+                    xOffset = 0;
+                    yOffset = 0;
+                }
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+                isDragging = true;
+                handle.style.cursor = 'grabbing';
+                element.style.zIndex = '1000';
+                e.stopPropagation();
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                    xOffset = currentX;
+                    yOffset = currentY;
+                    element.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                }
+            }
+
+            function dragEnd(e) {
+                if (isDragging) {
+                    initialX = currentX;
+                    initialY = currentY;
+                    isDragging = false;
+                    handle.style.cursor = 'grab';
+                    element.style.zIndex = '';
+                    saveCurrentState();
+                }
+            }
+
+            return function cleanup() {
+                handle.removeEventListener('mousedown', dragStart);
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', dragEnd);
+            };
+        }
+
+        const activeDraggables = new Map();
+
         function attachSectionDrag() {
             if (!bodyContainer) return;
             Array.from(bodyContainer.children).forEach(section => {
-                if (section.querySelector(':scope > .section-drag-handle')) return;
-                const handle = document.createElement('span');
-                handle.className = 'section-drag-handle no-print';
-                handle.contentEditable = "false";
-                handle.innerHTML = '&#x2830;&#x2830;';
-                handle.title = 'Drag to move this section up/down';
-                section.prepend(handle);
+                let handle = section.querySelector(':scope > .section-drag-handle');
+                if (!handle) {
+                    handle = document.createElement('span');
+                    handle.className = 'section-drag-handle no-print';
+                    handle.contentEditable = "false";
+                    const isTable = section.querySelector('table') ? true : false;
+                    handle.innerHTML = isTable ? '<i class="fas fa-arrows-alt"></i> Drag Table' : '<i class="fas fa-arrows-alt"></i> Drag Section';
+                    handle.title = 'Drag to reposition this section anywhere';
+                    section.prepend(handle);
+                }
 
-                handle.addEventListener('mousedown', () => { section.draggable = true; });
-                section.addEventListener('dragstart', (e) => {
-                    draggedSection = section;
-                    e.dataTransfer.effectAllowed = 'move';
-                });
-                section.addEventListener('dragend', () => {
-                    section.draggable = false;
-                    draggedSection = null;
-                    clearDragMarkers();
-                    saveCurrentState();
-                });
-                section.addEventListener('dragover', (e) => {
-                    if (!draggedSection || draggedSection === section) return;
-                    e.preventDefault();
-                    const rect = section.getBoundingClientRect();
-                    const before = (e.clientY - rect.top) < rect.height / 2;
-                    clearDragMarkers();
-                    section.classList.add(before ? 'drag-over-above' : 'drag-over-below');
-                });
-                section.addEventListener('drop', (e) => {
-                    if (!draggedSection || draggedSection === section) return;
-                    e.preventDefault();
-                    const rect = section.getBoundingClientRect();
-                    const before = (e.clientY - rect.top) < rect.height / 2;
-                    bodyContainer.insertBefore(draggedSection, before ? section : section.nextSibling);
-                    clearDragMarkers();
-                    saveCurrentState();
-                });
+                if (!activeDraggables.has(section)) {
+                    const cleanup = makeElementDraggable(section, handle);
+                    activeDraggables.set(section, cleanup);
+                }
             });
         }
-        function clearDragMarkers() {
-            if (!bodyContainer) return;
-            Array.from(bodyContainer.children).forEach(el => el.classList.remove('drag-over-above', 'drag-over-below'));
-        }
+
         function detachSectionDrag() {
             if (!bodyContainer) return;
+            activeDraggables.forEach(cleanup => cleanup());
+            activeDraggables.clear();
             bodyContainer.querySelectorAll('.section-drag-handle').forEach(h => h.remove());
-            Array.from(bodyContainer.children).forEach(el => { el.draggable = false; });
         }
 
         // Hidden Columns UI rendering
@@ -717,6 +811,11 @@
                     <span id="fontScaleVal" style="font-size:10px; color:#e2e8f0; width:32px; text-align:right;">100%</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:10px; color:#94a3b8; width:52px;">Sidebar</span>
+                    <input type="range" id="sidebarWidthRange" min="20" max="45" step="1" value="33" style="flex:1;">
+                    <span id="sidebarWidthVal" style="font-size:10px; color:#e2e8f0; width:32px; text-align:right;">33%</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:10px; color:#94a3b8; width:52px;">Font</span>
                     <select id="fontFamilySelect" style="flex:1; padding: 4px; border-radius: 6px; font-size: 11px; background: #334155; color: white; border: 1px solid #475569; outline: none;">
                         <option value="">Default (Poppins)</option>
@@ -789,6 +888,16 @@
             document.getElementById('fontScaleRange').addEventListener('input', function() {
                 document.getElementById('fontScaleVal').textContent = this.value + '%';
                 applyTypographyFromControls();
+            });
+            document.getElementById('sidebarWidthRange').addEventListener('input', function() {
+                document.getElementById('sidebarWidthVal').textContent = this.value + '%';
+                if (docContainer) {
+                    docContainer.style.setProperty('--sidebar-width', this.value + '%');
+                }
+                saveCurrentState();
+                if (typeof window.fitInvoiceToPage === 'function') {
+                    window.fitInvoiceToPage();
+                }
             });
             document.getElementById('fontFamilySelect').addEventListener('change', applyTypographyFromControls);
             const colorInput = document.getElementById('textColorInput');
@@ -868,9 +977,22 @@
             // Panel was built after the initial applyTemplateState — sync controls now
             applyTypography(getActiveTemplateData() ? getActiveTemplateData().typography : null);
 
+            // Pull the company-shared layout from the server (source of truth) and
+            // re-apply. This makes a layout saved anywhere load on every device.
+            fetch(LAYOUT_API).then(function (r) { return r.json(); }).then(function (srv) {
+                if (srv && srv.store && srv.store.templates && Object.keys(srv.store.templates).length) {
+                    store = srv.store;
+                    localStorage.setItem(storageKey, JSON.stringify(store));
+                    applyTemplateState(getActiveTemplateData());
+                    refreshDropdown();
+                    updateHiddenColumnsUI();
+                    applyTypography(getActiveTemplateData() ? getActiveTemplateData().typography : null);
+                }
+            }).catch(function () { /* offline: keep localStorage cache */ });
+
             dd.addEventListener('change', function() {
                 store.activeTemplate = this.value;
-                localStorage.setItem(storageKey, JSON.stringify(store));
+                persistStore();
                 applyTemplateState(getActiveTemplateData());
                 refreshDropdown();
                 updateHiddenColumnsUI();
@@ -890,7 +1012,7 @@
                 if (store.activeTemplate !== "Default Layout" && confirm(`Delete layout '${store.activeTemplate}'?`)) {
                     delete store.templates[store.activeTemplate];
                     store.activeTemplate = "Default Layout";
-                    localStorage.setItem(storageKey, JSON.stringify(store));
+                    persistStore();
                     applyTemplateState(getActiveTemplateData());
                     refreshDropdown();
                     updateHiddenColumnsUI();
@@ -952,12 +1074,27 @@
                 }
             });
 
+            state.sections = [];
+            if (bodyContainer) {
+                Array.from(bodyContainer.children).forEach(section => {
+                    state.sections.push({
+                        secId: section.dataset.secId,
+                        transform: section.style.transform
+                    });
+                });
+            }
+
             state.typography = currentTypography();
             state.sectionOrder = currentSectionOrder();
             state.totalsWidth = totalsWidth;
+            
+            const sidebarSlider = document.getElementById('sidebarWidthRange');
+            if (sidebarSlider) {
+                state.sidebarWidth = parseFloat(sidebarSlider.value);
+            }
 
             store.templates[store.activeTemplate] = state;
-            localStorage.setItem(storageKey, JSON.stringify(store));
+            persistStore();
         }
     });
 </script>

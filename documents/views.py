@@ -1668,6 +1668,37 @@ def api_get_party_details(request, party_id):
         'address': party.address
     })
 
+@login_required
+def print_layout_api(request, doc_type):
+    """Company-shared print layout store per document type.
+
+    GET  -> {"store": <saved layout blob or null>}
+    POST -> body is the whole editor store blob; upserts and returns {"ok": true}
+    So a layout saved once (single print) loads on every device and during
+    bulk printing from Bill Summary.
+    """
+    from .models import PrintLayout
+    valid = {c[0] for c in PrintLayout.DOC_TYPES}
+    if doc_type not in valid:
+        return JsonResponse({'error': 'invalid document type'}, status=400)
+
+    if request.method == 'POST':
+        import json
+        try:
+            data = json.loads(request.body or '{}')
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'invalid JSON'}, status=400)
+        if not isinstance(data, dict):
+            return JsonResponse({'error': 'invalid payload'}, status=400)
+        obj, _ = PrintLayout.objects.get_or_create(doc_type=doc_type)
+        obj.data = data
+        obj.updated_by = request.user if request.user.is_authenticated else None
+        obj.save()
+        return JsonResponse({'ok': True})
+
+    obj = PrintLayout.objects.filter(doc_type=doc_type).first()
+    return JsonResponse({'store': obj.data if obj else None})
+
 import os
 from django.contrib import messages
 from django.shortcuts import redirect

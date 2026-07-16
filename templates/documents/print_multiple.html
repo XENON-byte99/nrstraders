@@ -223,6 +223,65 @@
 
             // Initialize signature dragging
             initSignatureDrag();
+
+            // Apply the company-shared saved layout (same one used for single prints)
+            applyBulkLayout();
+        }
+
+        // Loads the server layout for this document type and applies it to EVERY
+        // injected document, so bulk printing matches your saved single-print layout.
+        async function applyBulkLayout() {
+            const cont = document.getElementById('multiPrintContainer');
+            if (!cont) return;
+            let state = null;
+            try {
+                const srv = await fetch('/api/print-layouts/' + docType + '/').then(r => r.json());
+                if (srv && srv.store && srv.store.templates) {
+                    state = srv.store.templates[srv.store.activeTemplate];
+                }
+            } catch (e) { /* offline: nothing to apply */ }
+            if (!state) return;
+
+            // Column layout (hide / rename / resize) — applied within each document
+            Array.from(cont.children).forEach(function (wrapper) {
+                wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
+                    const tState = state.tables && state.tables[tIdx];
+                    if (!tState || !tState.cols) return;
+                    const ths = Array.from(table.querySelectorAll('thead th'));
+                    const trs = Array.from(table.querySelectorAll('tbody tr'));
+                    if (tState.cols.length !== ths.length) return;
+                    tState.cols.forEach(function (colState, colIdx) {
+                        const th = ths[colIdx];
+                        if (!th) return;
+                        if (colState.text) th.innerHTML = colState.text;
+                        if (colState.width) th.style.width = colState.width;
+                        if (colState.hidden) {
+                            th.classList.add('hidden-col');
+                            trs.forEach(function (tr) { if (tr.children[colIdx]) tr.children[colIdx].classList.add('hidden-col'); });
+                        }
+                    });
+                });
+            });
+
+            // Hidden totals rows
+            if (state.hiddenRows) {
+                state.hiddenRows.forEach(function (rowId) {
+                    document.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) { r.classList.add('hidden-row'); });
+                });
+            }
+
+            // Typography (text size / font / colour) across all injected docs
+            if (state.typography) {
+                const t = state.typography;
+                let css = '';
+                const s = '#multiPrintContainer';
+                if (t.scale && t.scale !== 100) css += s + ' .a4-invoice, ' + s + ' .mushok-form { zoom: ' + (t.scale / 100) + '; }\n';
+                if (t.family) css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + t.family + ' !important; }\n';
+                if (t.color) css += s + ' td, ' + s + ' .info-value, ' + s + ' .terms, ' + s + ' .terms-note { color: ' + t.color + ' !important; }\n';
+                let styleEl = document.getElementById('bulkLayoutStyle');
+                if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'bulkLayoutStyle'; document.head.appendChild(styleEl); }
+                styleEl.textContent = css;
+            }
         }
 
         function downloadJointPDF() {

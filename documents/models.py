@@ -795,3 +795,24 @@ class TransactionSnapshot(models.Model):
 
     def __str__(self):
         return f"Snapshot of {self.transaction.invoice_number or self.transaction.id} at {self.created_at}"
+
+
+class PrintLayout(models.Model):
+    """Server-stored, company-shared print layout per document type.
+
+    Holds the whole editor 'store' blob ({activeTemplate, templates:{name:state}})
+    so a layout saved once loads on every device and during bulk printing.
+    """
+    DOC_TYPES = [
+        ('invoice', 'Invoice'),
+        ('quotation', 'Quotation'),
+        ('challan', 'Challan'),
+        ('mushok', 'Mushok'),
+    ]
+    doc_type = models.CharField(max_length=20, choices=DOC_TYPES, unique=True)
+    data = models.JSONField(default=dict, help_text="Saved layout store for this document type")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"Print layout: {self.doc_type}"
