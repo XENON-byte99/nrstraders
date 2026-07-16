@@ -8,13 +8,21 @@ def main():
     print(f"Creating {zip_filename}...")
     
     skip_dirs = {".venv", "venv", "__pycache__", ".git", "static_root", "media", ".github"}
-    
+
+    # Never overwrite server-owned config/secrets. The production server keeps
+    # its own .env (with DEBUG=False, real SECRET_KEY, ALLOWED_HOSTS); pushing
+    # the local .env would flip production into debug mode.
+    skip_files = {
+        "deploy.zip", "deploy_logs.txt", "deploy_nrs_out.txt",
+        ".env", ".env.local", "db_upload.sqlite3", "db_deploy.sqlite3",
+    }
+
     count = 0
     with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(LOCAL_ROOT):
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for f in files:
-                if f in {"deploy.zip", "deploy_logs.txt", "deploy_nrs_out.txt"}:
+                if f in skip_files:
                     continue
                 local_path = os.path.join(root, f)
                 rel_path = os.path.relpath(local_path, LOCAL_ROOT)

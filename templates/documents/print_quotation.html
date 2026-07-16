@@ -15,15 +15,15 @@
             @page { size: A4 portrait; margin: 0; }
             body { background: white !important; }
             .no-print { display: none !important; }
-            .a4-invoice { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
-            html, body { width: 8.5in; height: 11in; }
+            .a4-container { display: block !important; width: 100% !important; height: 100% !important; padding: 0 !important; margin: 0 !important; }
+            html, body { width: 8.27in; height: 11.69in; }
         }
         .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
-        .a4-invoice { width: 8.5in; height: 11in; background: white; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); overflow: hidden; display: flex; flex-direction: column; position: relative; }
-        .invoice-header { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 32px 28px 24px; position: relative; overflow: hidden; }
+        
+        
         .invoice-title { font-size: 42px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
         .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
-        .invoice-body { padding: 28px 36px; flex: 1; display: flex; flex-direction: column; font-size: 10px; overflow: hidden; }
+        
         .section-title { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 8px; }
         .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
         .info-block { line-height: 1.6; }
@@ -34,7 +34,7 @@
         .detail-item { border-left: 2px solid #059669; padding-left: 8px; }
         .detail-label { font-size: 8px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 2px; }
         .detail-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; table-layout: fixed; }
         th { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
         td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
         tbody tr:nth-child(odd) { background: #f8fafc; }
@@ -47,10 +47,7 @@
         .amount-box .amount-row:last-child { border-bottom: none; }
         .display-base { margin: 0; padding: 0; border: none; }
         .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border-bottom: none; }
-        .signature-box { padding: 0; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; height: 90px; margin-top: 30px; z-index: 50; cursor: grab; }
-        .official-signature { height: 70px; position: absolute; bottom: 12px; left: 10px; z-index: 10; transform: rotate(-2deg); mix-blend-mode: multiply; }
-        .signature-line { height: 50px; border-bottom: 1px solid #1e293b; margin-bottom: 4px; width: 150px; }
-        .signature-label { font-size: 8px; font-weight: bold; text-align: left; padding-left: 5px; }
+
         .category-badge {
             display: inline-block;
             padding: 1px 5px;
@@ -66,6 +63,52 @@
         }
         .mode-target .display-base { display: none !important; }
         .mode-base .display-target { display: none !important; }
+    
+        .a4-invoice {
+            --accent: #059669; --accent-2: #047857; --accent-soft: #ecfdf5; --ink: #0f172a; --muted: #64748b;
+            width: 8.27in; height: 11.69in;
+            background: linear-gradient(to right, var(--accent-soft) var(--sidebar-width, 33.25%), var(--accent) var(--sidebar-width, 33.25%), var(--accent) calc(var(--sidebar-width, 33.25%) + 3px), white calc(var(--sidebar-width, 33.25%) + 3px));
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); position: relative; overflow: hidden;
+            color: var(--ink); font-size: 10px;
+        }
+        .fit-wrap {
+            width: 8.27in; min-height: 11.69in; transform-origin: top left;
+            display: grid; grid-template-columns: 33.25% 66.75%;
+        }
+        .inv-side {
+            padding: 0.35in 0.32in; display: flex; flex-direction: column;
+        }
+        .inv-main {
+            padding: 0.35in 0.45in 0.4in; display: flex; flex-direction: column;
+        }
+        .brand-row { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+        .brand-mark { width: 44px; height: 44px; border-radius: 12px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 800; font-size: 20px; flex-shrink: 0; }
+        .brand-name { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 15px; color: var(--accent); line-height: 1.1; }
+        .brand-tag { font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+        
+        .inv-desc { font-size: 10px; color: #475569; line-height: 1.5; margin-bottom: 12px; }
+        .side-block { margin-top: 14px; }
+        .side-h { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 5px; }
+        .side-v { font-size: 10px; color: #334155; line-height: 1.5; }
+        
+        .company-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 3px; }
+        .info-value { font-size: 10px; color: #334155; line-height: 1.5; }
+        
+        .header-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+        .invoice-title { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 32px; letter-spacing: .02em; color: var(--accent); margin: 0; line-height: 1; }
+        .meta-single-line { font-size: 9px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+        .meta-val-theme { color: var(--accent); font-weight: 800; font-family: 'IBM Plex Mono', monospace; }
+        
+        .divider-bar { display: flex; align-items: center; margin: 0.15in 0 0.15in; }
+        .divider-bar::before, .divider-bar::after { content: ""; flex: 1; height: 1.5px; background: var(--accent); opacity: 0.2; }
+        .divider-text { padding: 0 12px; font-size: 9px; font-weight: 800; text-transform: uppercase; color: var(--accent); letter-spacing: 0.15em; }
+        
+        .sign-row { margin-top: 65px; display: flex; flex-direction: column; align-items: flex-start; padding-top: 10px; }
+        .signature-box { position: relative; display: flex; flex-direction: column; align-items: flex-start; width: 100%; cursor: grab; z-index: 50; }
+        .official-signature { height: 80px; position: absolute; bottom: 32px; left: 6px; transform: rotate(-2deg); mix-blend-mode: multiply; z-index: 10; }
+        .signature-line { border-bottom: 1.5px solid var(--ink); width: 100%; height: 44px; margin-bottom: 5px; }
+        .sig-name { font-weight: 800; font-size: 11px; color: var(--ink); }
+        .sig-title { font-size: 9px; color: var(--muted); }
     </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -117,37 +160,116 @@
              data-tax-1="{{ transaction.secondary_tax_percentage }}"
              data-duty-0="{{ transaction.duty_percentage }}"
              data-duty-1="{{ transaction.secondary_duty_percentage }}">
-            <div class="invoice-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h1 class="invoice-title">QUOTATION</h1>
-                    <p class="invoice-subtitle">Professional Business Document</p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Quotation No.</div>
-                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; margin-bottom: 8px;">{{ transaction.invoice_number|default:"Draft" }} <br><span class="category-badge" style="background: rgba(255,255,255,0.2); color: white; border: none;">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+            <div class="fit-wrap">
+                <!-- LEFT COLUMN -->
+                <aside class="inv-side">
+                    <div class="brand-row">
+                        <div class="brand-mark">{{ transaction.supplier_name|slice:":2"|upper|default:"NR" }}</div>
+                        <div>
+                            <div class="brand-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+                            <div class="brand-tag">Supplier</div>
+                        </div>
+                    </div>
                     
-                    <div style="font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px;">Issue Date</div>
-                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700;">{{ transaction.created_at|date:"M d, Y" }}</div>
-                </div>
-            </div>
-            <div class="invoice-body">
-                <div class="info-row">
-                    <div class="info-block">
-                        <div class="section-title">From</div>
-                        <div class="company-name">{{ transaction.supplier_name }}</div>
-                        <div class="info-value">BIN: {{ transaction.supplier_bin }}</div>
-                        <div class="info-value">{{ transaction.supplier_address }}</div>
-                        <div class="info-value">{{ transaction.supplier_contact }}</div>
+                    <!-- Supplier details -->
+                    <div class="side-block" style="margin-top: 85px;">
+                        <div class="side-h">From (Supplier)</div>
+                        <div class="company-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+                        {% if transaction.supplier_bin %}<div class="info-value">BIN: {{ transaction.supplier_bin }}</div>{% endif %}
+                        {% if transaction.supplier_address %}<div class="info-value">{{ transaction.supplier_address }}</div>{% endif %}
+                        {% if transaction.supplier_contact %}<div class="info-value">{{ transaction.supplier_contact }}</div>{% endif %}
                     </div>
-                    <div class="info-block">
-                        <div class="section-title">Quoted To</div>
+                    
+                    <!-- Bill To / Quoted To -->
+                    <div class="side-block">
+                        <div class="side-h">Quoted To</div>
                         <div class="company-name">{{ transaction.buyer_name }}</div>
-                        <div class="info-value">BIN: {{ transaction.buyer_bin }}</div>
-                        <div class="info-value">{{ transaction.buyer_address }}</div>
-                        <div class="info-value">{{ transaction.buyer_contact }}</div>
+                        {% if transaction.buyer_bin %}<div class="info-value">BIN: {{ transaction.buyer_bin }}</div>{% endif %}
+                        {% if transaction.buyer_address %}<div class="info-value">{{ transaction.buyer_address }}</div>{% endif %}
+                        {% if transaction.buyer_contact %}<div class="info-value">{{ transaction.buyer_contact }}</div>{% endif %}
                     </div>
-                </div>
-                {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                    <!-- Attention section -->
+                    <div class="side-block" style="margin-top: 75px;">
+                        <div class="side-h" style="color: #881337; font-size: 15px; font-weight: 900; letter-spacing: 0.15em; margin-bottom: 6px;">ATTENTION</div>
+                        <div class="side-v" style="font-size: 10.5px; line-height: 1.45; color: #334155; font-weight: 500;">
+                            <div>For any payment-related inquiries, discrepancies, corrections, or financial concerns, please contact our Finance Head:</div>
+                            <div style="margin-top: 5px; font-weight: 700; color: var(--ink);">
+                                Name: Al Nahian<br>
+                                Contact: 01849885607
+                            </div>
+                            <div style="margin-top: 5px;">We encourage you to reach out directly for prompt assistance.</div>
+                        </div>
+                    </div>
+
+                    <!-- Reference Invoice -->
+                    <div class="side-block" style="margin-top: 20px;">
+                        <div class="side-h" style="color: var(--accent); font-size: 8px;">Reference Invoice</div>
+                        <div class="side-v" style="margin-top: 3px;">
+                            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 10px; color: var(--ink); letter-spacing: 0.03em;" contenteditable="true">RRS-202607-0003</span>
+                        </div>
+                    </div>
+
+                    <!-- Terms & Conditions -->
+                    <div class="side-block" style="margin-top: auto; padding-top: 40px;">
+                        <div class="side-h">Terms &amp; Conditions</div>
+                        <div class="side-v">
+                            Valid for 30 days from date of issue.
+                        </div>
+                    </div>
+                    
+                    <!-- Signature pinned to bottom -->
+                    <div class="sign-row">
+                        <div class="signature-box">
+                            {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                                <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
+                            {% else %}
+                                <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                            {% endif %}
+                            <div class="sig-name">{{ transaction.supplier_party.ceo_name|default:"Authorized Signatory" }}</div>
+                            <div class="sig-title">{% if transaction.supplier_party.designation %}{{ transaction.supplier_party.designation }}{% else %}For {{ transaction.supplier_name|default:"the Company" }}{% endif %}</div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- RIGHT COLUMN -->
+                <main class="inv-main invoice-body">
+                    <!-- Top row: split description and header -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 10px;">
+                        <!-- Description on left (with category badge on top) -->
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                            <div style="margin-top: 5px;">
+                                <span style="display: inline-block; padding: 2px 8px; background: var(--accent); color: white; border-radius: 12px; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    {{ transaction.transaction_category.name|default:"General" }}
+                                </span>
+                            </div>
+                            <div style="font-size: 10px; color: #475569; line-height: 1.5; padding: 8px 12px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0;">
+                                This quotation details the estimated cost for {{ transaction.transaction_category.name|default:"the goods and services" }}{% if transaction.secondary_category %} and {{ transaction.secondary_category.name }}{% endif %}, itemised below with applicable duty, tax and VAT.
+                            </div>
+                        </div>
+                        
+                        <!-- Header & Meta on right -->
+                        <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0;">
+                            <h1 class="invoice-title">QUOTATION</h1>
+                            <div style="font-size: 9px; color: #64748b; line-height: 1.5; text-align: right; margin-top: 4px; display: flex; flex-direction: column; align-items: flex-end;">
+                                <div>Quote No: <span style="color: var(--accent); font-weight: 700; font-family: 'IBM Plex Mono', monospace;">{{ transaction.invoice_number|default:"—" }}</span></div>
+                                <div>Issue Date: <span style="color: var(--accent); font-weight: 700; font-family: 'IBM Plex Mono', monospace;">{{ transaction.created_at|date:"M d, Y" }}</span></div>
+                                {% if transaction.challan_number %}
+                                <div>Challan No: <span style="color: var(--accent); font-weight: 700; font-family: 'IBM Plex Mono', monospace;">{{ transaction.challan_number }}</span></div>
+                                {% endif %}
+                                <div class="amount-row" data-amount-row-id="meta-ref-invoice" style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; padding: 0 !important; background: transparent !important; border: none !important; margin: 0; font-size: 9px; color: #64748b; width: auto;">
+                                    Related Inv: <span style="color: var(--accent); font-weight: 700; font-family: 'IBM Plex Mono', monospace;" contenteditable="true">RRS-202607-0003</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider-bar">
+                        <span class="divider-text">ITEMS AND CHARGES</span>
+                    </div>
+
+                    <!-- Items table -->
+                    <div style="flex: 1;">
+                        {% if transaction.secondary_category and transaction.secondary_items.exists %}
                     <!-- Primary + Secondary sections (universal columns; secondary items were previously missing from quotations) -->
                     <div style="font-size:10px; font-weight:700; color:#667eea; text-transform:uppercase; margin-top:10px; margin-bottom:6px;">{{ transaction.transaction_category.name }}</div>
                     {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items %}
@@ -156,27 +278,12 @@
                 {% else %}
                     {% include 'documents/_print_items_table.html' with table_items=transaction.items.all show_sec_badge=True %}
                 {% endif %}
-                <div class="amount-section">
-                    <div class="terms">
-                        <div style="font-weight:700;margin-bottom:4px;">Quote Terms</div>
-                        Valid for 30 days from date of issue.
-                        
-                        <div style="display: flex; gap: 40px; margin-top: 30px;">
-                            <div class="signature-box" style="margin-top: 0; position: relative;">
-                                {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
-                                    <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
-                                    {% if transaction.supplier_party.seal_image %}
-                                        <img src="{{ transaction.supplier_party.seal_image.url }}" alt="Supplier Seal" style="height: 50px; position: absolute; bottom: 5px; right: -20px; z-index: 5; opacity: 0.8; mix-blend-mode: multiply;">
-                                    {% endif %}
-                                {% else %}
-                                    <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
-                                {% endif %}
-                                <div class="signature-line"></div>
-                                <div class="signature-label">Company Authorized</div>
-                            </div>
-                        </div>
                     </div>
-                    <div class="amount-box">
+                    
+                    <!-- Subtotal/Totals aligned to right -->
+                    <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                        <div style="width: 250px;">
+                            <div class="amount-box">
                         <div class="amount-row" data-amount-row-id="subtotal">
                             <span class="amount-label">Subtotal</span>
                             <span class="amount-value mono">
@@ -186,10 +293,25 @@
                         </div>
                         <div class="display-base">
                         {% if transaction.total_service_charge > 0 %}
-                        <div class="amount-row" data-amount-row-id="service-charge">
-                            <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
-                            <span class="amount-value mono">৳{{ transaction.total_service_charge|format_billing:transaction }}</span>
-                        </div>
+                            {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                                {% if transaction.primary_total_service_charge > 0 %}
+                                <div class="amount-row" data-category-index="0" data-amount-row-id="service-charge-0">
+                                    <span class="amount-label">Service Charge ({{ transaction.transaction_category.invoice_prefix|default:"GEN" }} - {{ transaction.service_charge_percentage }}%)</span>
+                                    <span class="amount-value mono">৳{{ transaction.primary_total_service_charge|format_billing:transaction }}</span>
+                                </div>
+                                {% endif %}
+                                {% if transaction.secondary_total_service_charge > 0 %}
+                                <div class="amount-row" data-category-index="1" data-amount-row-id="service-charge-1">
+                                    <span class="amount-label">Service Charge ({{ transaction.secondary_category.invoice_prefix|default:"SEC" }} - {{ transaction.secondary_service_charge_percentage }}%)</span>
+                                    <span class="amount-value mono">৳{{ transaction.secondary_total_service_charge|format_billing:transaction }}</span>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <div class="amount-row" data-amount-row-id="service-charge">
+                                    <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
+                                    <span class="amount-value mono">৳{{ transaction.total_service_charge|format_billing:transaction }}</span>
+                                </div>
+                            {% endif %}
                         {% endif %}
                         {% if transaction.discount_percentage > 0 or transaction.discount_flat > 0 %}
                         <div class="amount-row" data-amount-row-id="discount">
@@ -215,13 +337,60 @@
                             <div style="font-size:8px;opacity:0.85;font-weight:500;background:rgba(255,255,255,0.15);border-radius:3px;padding:2px 6px;">
                                 ✓ VAT &amp; Tax Included
                             </div>
-                        </div></div>
-                </div>
-                <!-- Removed quotation-footer, signature moved under terms -->
+                        </div>
+                        </div>
+                    </div>
+
+                </main>
             </div>
-            <!-- Developer Credit Removed -->
-        </div>
-    </div>
+    
+    <script>
+        function fitInvoiceToPage() {
+            const a4 = document.getElementById('invoiceContent') || document.getElementById('quotationContent');
+            if (!a4) return;
+            const wrap = a4.querySelector('.fit-wrap');
+            if (!wrap) return;
+            const baseW = a4.clientWidth;
+            const avail = a4.clientHeight - 12;
+            const manual = parseFloat(a4.getAttribute('data-user-scale')) || 1;
+
+            wrap.style.transform = 'none';
+            wrap.style.width = baseW + 'px';
+            
+            let k = 1;
+            for (let iter = 0; iter < 3; iter++) {
+                wrap.style.width = (baseW / k) + 'px';
+                let nat = wrap.scrollHeight;
+                let newK = (nat > avail) ? (avail / nat) : 1;
+                newK = Math.min(newK, manual);
+                if (newK < 0.4) newK = 0.4;
+                if (Math.abs(k - newK) < 0.005) {
+                    k = newK;
+                    break;
+                }
+                k = newK;
+            }
+
+            if (k < 1) {
+                wrap.style.width = (baseW / k) + 'px';
+                wrap.style.transform = 'scale(' + k + ')';
+                a4.setAttribute('data-fit-scale', k.toFixed(3));
+            } else {
+                wrap.style.width = baseW + 'px';
+                wrap.style.transform = 'none';
+                a4.removeAttribute('data-fit-scale');
+            }
+        }
+        window.fitInvoiceToPage = fitInvoiceToPage;
+        let _fitT;
+        function scheduleFit() { clearTimeout(_fitT); _fitT = setTimeout(fitInvoiceToPage, 60); }
+        document.addEventListener('DOMContentLoaded', fitInvoiceToPage);
+        window.addEventListener('load', fitInvoiceToPage);
+        window.addEventListener('beforeprint', fitInvoiceToPage);
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fitInvoiceToPage); }
+        document.addEventListener('input', scheduleFit);
+        document.addEventListener('change', scheduleFit);
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         function downloadPDF() {

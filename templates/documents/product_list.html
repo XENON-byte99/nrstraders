@@ -8,6 +8,11 @@
             <p class="text-sm text-gray-500 font-medium">Manage all items and their prices by category.</p>
         </div>
         <div class="flex items-center gap-3">
+            {% if is_owner %}
+            <button onclick="openExportModal()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 transition-all font-bold text-sm">
+                <i class="fas fa-file-pdf text-xs"></i> Export PDF
+            </button>
+            {% endif %}
             <a href="{% url 'product_create' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all font-bold text-sm">
                 <i class="fas fa-plus text-xs"></i> Add New Product
             </a>
@@ -116,8 +121,346 @@
                 </tbody>
             </table>
         </div>
+        </div>
     </div>
 </div>
 
+<!-- Export Modal -->
+<div id="exportModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-gray-100 flex flex-col">
+        <!-- Modal Header -->
+        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-lg font-black text-gray-800 flex items-center gap-2">
+                <i class="fas fa-file-pdf text-emerald-600"></i> Export Inventory PDF
+            </h2>
+            <button onclick="closeExportModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 space-y-5 flex-1">
+            <!-- Custom Header -->
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Custom PDF Title</label>
+                <input type="text" id="pdfTitleInput" value="Products Inventory Report" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-medium text-sm text-gray-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors" placeholder="e.g. Monthly Stock Report">
+            </div>
+
+            <!-- Category Filter -->
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Filter by Category</label>
+                <select id="pdfCategoryFilter" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-medium text-sm text-gray-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors">
+                    <option value="all">All Categories</option>
+                </select>
+            </div>
+
+            <!-- Columns Checklist -->
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Select Columns &amp; Customize Headers</label>
+                <div id="columnsContainer" class="space-y-2.5 max-h-[40vh] overflow-y-auto pr-1">
+                    <!-- Standard Columns -->
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" checked data-col-field="name" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Product Name</span>
+                            <input type="text" data-col-header="name" value="Product Name" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" checked data-col-field="category" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Category</span>
+                            <input type="text" data-col-header="category" value="Category" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" checked data-col-field="buying_price" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Buying Price</span>
+                            <input type="text" data-col-header="buying_price" value="Buying Price" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" checked data-col-field="selling_price" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Selling Price</span>
+                            <input type="text" data-col-header="selling_price" value="Selling Price" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" data-col-field="price_diff" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Price Diff</span>
+                            <input type="text" data-col-header="price_diff" value="Difference" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" data-col-field="status" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Status</span>
+                            <input type="text" data-col-header="status" value="Status" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <div class="column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
+                        <input type="checkbox" data-col-field="id" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs font-black text-gray-400 block mb-1">Source: Product ID</span>
+                            <input type="text" data-col-header="id" value="ID" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add Custom Column button -->
+                <button type="button" onclick="addCustomColumnOption()" class="mt-3 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-bold transition-colors">
+                    <i class="fas fa-plus"></i> Add Blank Column (e.g. Stock, Remarks)
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 rounded-b-3xl">
+            <button onclick="closeExportModal()" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+            <button onclick="generatePDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl transition-all font-bold text-xs shadow-md shadow-emerald-100 flex items-center gap-1.5">
+                <i class="fas fa-file-pdf"></i> Generate PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Load html2pdf from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<script>
+    function openExportModal() {
+        const catSelect = document.getElementById('pdfCategoryFilter');
+        catSelect.innerHTML = '<option value="all">All Categories</option>';
+        
+        const categories = new Set();
+        document.querySelectorAll('#product-table-body tr').forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            const catSpan = row.querySelector('td:nth-child(2) span');
+            if (catSpan) {
+                categories.add(catSpan.innerText.trim());
+            }
+        });
+        
+        categories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.innerText = cat;
+            catSelect.appendChild(opt);
+        });
+
+        document.getElementById('exportModal').classList.remove('hidden');
+    }
+    
+    function closeExportModal() {
+        document.getElementById('exportModal').classList.add('hidden');
+    }
+    
+    function addCustomColumnOption() {
+        const container = document.getElementById('columnsContainer');
+        const customId = 'custom_' + Date.now();
+        const div = document.createElement('div');
+        div.className = 'column-option flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all';
+        div.innerHTML = `
+            <input type="checkbox" checked data-col-field="${customId}" data-is-custom="true" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+            <div class="flex-1 min-w-0">
+                <span class="text-xs font-black text-gray-400 block mb-1">Source: Blank Column</span>
+                <input type="text" data-col-header="${customId}" value="New Column" class="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-500">
+            </div>
+            <button type="button" onclick="this.closest('.column-option').remove()" class="text-red-400 hover:text-red-600 transition-colors p-1">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function generatePDF() {
+        const title = document.getElementById('pdfTitleInput').value.trim() || 'Products Inventory Report';
+        const catFilterValue = document.getElementById('pdfCategoryFilter').value;
+        
+        // Get checked columns
+        const columns = [];
+        document.querySelectorAll('.col-checkbox:checked').forEach(chk => {
+            const field = chk.getAttribute('data-col-field');
+            const isCustom = chk.getAttribute('data-is-custom') === 'true';
+            const headerInput = document.querySelector(`input[data-col-header="${field}"]`);
+            const headerText = headerInput ? headerInput.value.trim() : field;
+            columns.push({ field, headerText, isCustom });
+        });
+        
+        if (columns.length === 0) {
+            alert('Please select at least one column to export.');
+            return;
+        }
+        
+        // Extract rows from the table
+        const rows = [];
+        document.querySelectorAll('#product-table-body tr').forEach(row => {
+            // Skip empty state row
+            if (row.querySelector('td[colspan]')) return;
+            
+            const catSpan = row.querySelector('td:nth-child(2) span');
+            const category = catSpan ? catSpan.innerText.trim() : '';
+            
+            // Filter by Category
+            if (catFilterValue !== 'all' && category !== catFilterValue) {
+                return;
+            }
+            
+            const rowData = {};
+            rowData.id = row.dataset.productId || '';
+            
+            const nameSpan = row.querySelector('td:nth-child(1) span');
+            rowData.name = nameSpan ? nameSpan.innerText.trim() : '';
+            
+            const creatorSpan = row.querySelector('td:nth-child(1) .text-indigo-400');
+            rowData.creator = creatorSpan ? creatorSpan.innerText.replace('By: ', '').trim() : '—';
+            
+            rowData.category = category;
+            
+            const buyTd = row.querySelector('td:nth-child(3)');
+            rowData.buying_price = buyTd ? buyTd.innerText.trim() : '';
+            
+            const sellSpan = row.querySelector('td:nth-child(4) .upscale-price-val');
+            rowData.selling_price = sellSpan ? sellSpan.innerText.trim() : '';
+            
+            const diffSpan = row.querySelector('td:nth-child(4) .price-diff-badge');
+            rowData.price_diff = diffSpan ? diffSpan.innerText.trim() : '';
+            
+            const statusSpan = row.querySelector('td:nth-child(5) span');
+            rowData.status = statusSpan ? statusSpan.innerText.trim() : '';
+            
+            rows.push(rowData);
+        });
+        
+        // Create temporary export container
+        const pdfContainer = document.createElement('div');
+        pdfContainer.id = 'tempPdfContainer';
+        pdfContainer.style.padding = '30px 40px';
+        pdfContainer.style.background = '#ffffff';
+        pdfContainer.style.fontFamily = "'Inter', 'Segoe UI', sans-serif";
+        pdfContainer.style.color = '#1e293b';
+        
+        // Build Header HTML
+        const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        let headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
+                <div>
+                    <h1 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.02em;">${title}</h1>
+                    <p style="font-size: 11px; color: #64748b; margin: 4px 0 0; font-weight: 500;">NRS Traders &middot; Inventory Report</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Report Date</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">${today}</div>
+                </div>
+            </div>
+        `;
+        pdfContainer.innerHTML = headerHtml;
+        
+        // Build Table HTML
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.style.fontSize = '10px';
+        table.style.color = '#334155';
+        
+        // Table Header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.style.background = '#f8fafc';
+        headerRow.style.borderBottom = '1.5px solid #cbd5e1';
+        
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.innerText = col.headerText;
+            th.style.padding = '12px 10px';
+            th.style.textAlign = (col.field === 'buying_price' || col.field === 'selling_price' || col.field === 'price_diff') ? 'right' : 'left';
+            th.style.fontWeight = '800';
+            th.style.fontSize = '9px';
+            th.style.color = '#475569';
+            th.style.textTransform = 'uppercase';
+            th.style.letterSpacing = '0.05em';
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        
+        // Table Body
+        const tbody = document.createElement('tbody');
+        rows.forEach((rowData, index) => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #e2e8f0';
+            if (index % 2 === 1) {
+                tr.style.background = '#f8fafc';
+            }
+            
+            columns.forEach(col => {
+                const td = document.createElement('td');
+                td.style.padding = '12px 10px';
+                td.style.verticalAlign = 'middle';
+                td.style.fontSize = '10px';
+                
+                if (col.isCustom) {
+                    td.innerText = ''; // Blank cell
+                    td.style.borderRight = '1px solid #e2e8f0'; // Add visual border to help manual writing
+                } else {
+                    td.innerText = rowData[col.field] || '—';
+                    if (col.field === 'buying_price' || col.field === 'selling_price' || col.field === 'price_diff') {
+                        td.style.textAlign = 'right';
+                        td.style.fontFamily = 'monospace';
+                        td.style.fontWeight = '600';
+                    }
+                    if (col.field === 'name') {
+                        td.style.fontWeight = '700';
+                        td.style.color = '#0f172a';
+                    }
+                    if (col.field === 'status') {
+                        td.style.fontWeight = '700';
+                        if (rowData.status.toLowerCase().includes('approved')) {
+                            td.style.color = '#059669';
+                        } else {
+                            td.style.color = '#d97706';
+                        }
+                    }
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        pdfContainer.appendChild(table);
+        
+        // Append total summary count at bottom
+        const footerSummary = document.createElement('div');
+        footerSummary.style.marginTop = '25px';
+        footerSummary.style.fontSize = '10px';
+        footerSummary.style.color = '#64748b';
+        footerSummary.style.fontWeight = '600';
+        footerSummary.style.textAlign = 'right';
+        footerSummary.innerText = `Total Products Count: ${rows.length}`;
+        pdfContainer.appendChild(footerSummary);
+        
+        document.body.appendChild(pdfContainer);
+        
+        // Generate PDF
+        const opt = {
+            margin: 0.3,
+            filename: `${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2.5, useCORS: true, letterRendering: true },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        
+        html2pdf().set(opt).from(pdfContainer).save().then(() => {
+            document.body.removeChild(pdfContainer);
+            closeExportModal();
+        }).catch(err => {
+            console.error(err);
+            document.body.removeChild(pdfContainer);
+        });
+    }
 </script>
 {% endblock %}
