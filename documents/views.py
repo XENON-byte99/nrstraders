@@ -274,8 +274,9 @@ def transaction_create(request):
     is_lunch = _is_lunch_cat(getattr(form.instance, 'transaction_category', None)) if form.instance.pk else False
     is_room = _is_room_cat(getattr(form.instance, 'transaction_category', None)) if form.instance.pk else False
     parties = BusinessParty.objects.all()
+    # Unified entry form: every category uses the one item table (normal mode).
     return render(request, 'documents/transaction_form.html', {
-        'form': form, 'formset': formset, 'parties': parties, 'is_lunch': is_lunch, 'is_room': is_room
+        'form': form, 'formset': formset, 'parties': parties, 'is_lunch': False, 'is_room': False
     })
 
 @login_required
@@ -936,9 +937,10 @@ def transaction_update(request, pk):
         form = TransactionForm(instance=transaction)
         formset = FormSetClass(instance=transaction)
     parties = BusinessParty.objects.all()
+    # Unified entry form: every category uses the one item table (normal mode).
     return render(request, 'documents/transaction_form.html', {
         'form': form, 'formset': formset, 'parties': parties,
-        'is_update': True, 'is_lunch': is_lunch, 'is_room': is_room
+        'is_update': True, 'is_lunch': False, 'is_room': False
     })
 
 @login_required

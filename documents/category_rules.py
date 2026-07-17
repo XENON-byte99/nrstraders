@@ -73,7 +73,8 @@ class RoomCategoryRules(BaseCategoryRules):
     name = "Room"
 
     def entry_formset(self):
-        return RoomItemFormSet
+        # Unified: every category now uses the same item table for entry/edit.
+        return TransactionItemFormSet
 
     def pricing_formset(self):
         return RoomItemFormSet
@@ -96,7 +97,8 @@ class LunchCategoryRules(BaseCategoryRules):
     name = "Lunch"
 
     def entry_formset(self):
-        return LunchItemFormSet
+        # Unified: every category now uses the same item table for entry/edit.
+        return TransactionItemFormSet
 
     def pricing_formset(self):
         return LunchItemFormSet

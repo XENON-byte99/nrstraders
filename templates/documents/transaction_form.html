@@ -824,19 +824,17 @@ fillParty('buyer_select', 'buyer');
 let isLunchMode = {{ is_lunch|yesno:"true,false" }};
 let isRoomMode = {{ is_room|yesno:"true,false" }};
 
+// Unified billing: every category uses the single normal item table. The old
+// lunch/room "modes" are neutralised — these setters always keep the normal
+// table visible and the special lunch/room tables hidden, regardless of `on`.
 function setLunchMode(on) {
-    isLunchMode = on;
-    if (on) {
-        isRoomMode = false;
-        const roomTable = document.getElementById('room-items-table');
-        if (roomTable) roomTable.classList.add('hidden');
-    }
+    isLunchMode = false;
     const normalTable = document.getElementById('normal-items-table');
-    if (normalTable) normalTable.classList.toggle('hidden', on || isRoomMode);
+    if (normalTable) normalTable.classList.remove('hidden');
     const lunchTable = document.getElementById('lunch-items-table');
-    if (lunchTable) lunchTable.classList.toggle('hidden', !on);
+    if (lunchTable) lunchTable.classList.add('hidden');
     const lunchCtrl = document.getElementById('lunch-price-control');
-    if (lunchCtrl) lunchCtrl.classList.toggle('hidden', !on);
+    if (lunchCtrl) lunchCtrl.classList.add('hidden');
     updateLabels();
 }
 
@@ -972,18 +970,11 @@ function toggleRowRange(btn) {
 window.toggleRowRange = toggleRowRange;
 
 function setRoomMode(on) {
-    isRoomMode = on;
-    if (on) {
-        isLunchMode = false;
-        const lunchTable = document.getElementById('lunch-items-table');
-        if (lunchTable) lunchTable.classList.add('hidden');
-        const lunchCtrl = document.getElementById('lunch-price-control');
-        if (lunchCtrl) lunchCtrl.classList.add('hidden');
-    }
+    isRoomMode = false;
     const normalTable = document.getElementById('normal-items-table');
-    if (normalTable) normalTable.classList.toggle('hidden', on || isLunchMode);
+    if (normalTable) normalTable.classList.remove('hidden');
     const roomTable = document.getElementById('room-items-table');
-    if (roomTable) roomTable.classList.toggle('hidden', !on);
+    if (roomTable) roomTable.classList.add('hidden');
     syncRoomDailyBasisMode();
     updateLabels();
 }
