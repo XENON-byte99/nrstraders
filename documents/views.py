@@ -350,8 +350,9 @@ def transaction_pricing(request, pk):
         if formset.non_form_errors():
             messages.error(request, f"Form error: {', '.join(formset.non_form_errors())}")
 
+    # Unified pricing: every category uses the one price-only table (general branch).
     return render(request, 'documents/transaction_pricing.html', {
-        'transaction': transaction, 'formset': formset, 'is_meal': is_meal, 'is_lunch': is_lunch, 'is_room': is_room
+        'transaction': transaction, 'formset': formset, 'is_meal': False, 'is_lunch': False, 'is_room': False
     })
 
 @login_required

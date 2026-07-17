@@ -77,7 +77,8 @@ class RoomCategoryRules(BaseCategoryRules):
         return TransactionItemFormSet
 
     def pricing_formset(self):
-        return RoomItemFormSet
+        # Unified: the supplier-pricing step is a uniform price-only table.
+        return SupplierPricingFormSet
 
     def normalize_item(self, item, transaction):
         # Room bills expose Unit & Qty just like every other category, so the
@@ -101,7 +102,8 @@ class LunchCategoryRules(BaseCategoryRules):
         return TransactionItemFormSet
 
     def pricing_formset(self):
-        return LunchItemFormSet
+        # Unified: the supplier-pricing step is a uniform price-only table.
+        return SupplierPricingFormSet
 
     def normalize_item(self, item, transaction):
         # A lunch line is identified by its date; if no free-text description was
