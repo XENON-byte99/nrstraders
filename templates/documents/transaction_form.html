@@ -730,6 +730,38 @@
                     <span>Template</span>
                 </button>
             </div>
+
+            <!-- Excel/CSV import preview modal -->
+            <div id="import-preview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+                    <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                        <div>
+                            <h3 class="font-black text-gray-800 text-sm">Import preview</h3>
+                            <p id="import-preview-summary" class="text-[11px] text-gray-500 font-semibold"></p>
+                        </div>
+                        <button type="button" id="import-preview-close" class="text-gray-400 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="overflow-auto flex-1 p-4">
+                        <table class="w-full text-xs">
+                            <thead class="text-gray-400 uppercase text-[10px]">
+                                <tr>
+                                    <th class="text-left py-1 px-2">#</th>
+                                    <th class="text-left py-1 px-2">Description</th>
+                                    <th class="text-left py-1 px-2">Date</th>
+                                    <th class="text-center py-1 px-2">Qty</th>
+                                    <th class="text-right py-1 px-2">Price</th>
+                                    <th class="text-left py-1 px-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="import-preview-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="p-4 border-t border-gray-100 flex justify-end gap-2">
+                        <button type="button" id="import-preview-cancel" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-gray-200">Cancel</button>
+                        <button type="button" id="import-preview-confirm" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700">Confirm import</button>
+                    </div>
+                </div>
+            </div>
             <p class="text-gray-400 text-xs mt-2 italic">
                 <i class="fas fa-info-circle text-xs mr-0.5"></i>
                 {% if is_lunch %}Each row = one day's restaurant bill. Final invoice is generated after approval.{% else %}Prices can be left at 0 — suppliers can fill them later.{% endif %}
@@ -2338,64 +2370,14 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             dataRows.push(obj);
         }
         
-        let importedCount = 0;
-        let anyDate = false;
+        // Loose header matcher.
+        const resolveVal = (row, possibleNames) => {
+            const key = Object.keys(row).find(k => possibleNames.some(p => k.toLowerCase().includes(p)));
+            return key ? row[key] : null;
+        };
 
-        dataRows.forEach(row => {
-            // Helper to find value by loose header matching
-            const getVal = (possibleNames) => {
-                const key = Object.keys(row).find(k => possibleNames.some(p => k.toLowerCase().includes(p)));
-                return key ? row[key] : null;
-            };
-
-            const isSecVal = getVal(['is secondary', 'secondary', 'sec']);
-            const isSec = isSecVal && (String(isSecVal).toLowerCase() === 'yes' || String(isSecVal).toLowerCase() === 'true' || isSecVal === 1);
-            
-            // Add row
-            let addButton;
-            if (isSec) {
-                addButton = document.getElementById('add-secondary-item');
-            } else {
-                addButton = document.getElementById('add-item');
-            }
-            if (!addButton || addButton.classList.contains('hidden')) {
-                addButton = document.getElementById('add-item'); 
-            }
-            if (addButton) {
-                addButton.click();
-            }
-
-            // Find the newly added row. Unified: every category uses the single
-            // item table, so non-secondary rows always go to 'item-formset'.
-            const targetFormset = isSec ? 'secondary-item-formset' : 'item-formset';
-
-            const formsetTbody = document.getElementById(targetFormset);
-            if (!formsetTbody) return;
-            const newRow = formsetTbody.lastElementChild;
-            if (!newRow) return;
-
-            // Map values
-            const desc = getVal(['description', 'item', 'name', 'particular', 'restaurant name']) || '';
-            const qty = parseFloat(getVal(['qty', 'quantity'])) || 1;
-            const unit = getVal(['unit', 'uom']) || 'Pcs';
-            const basePrice = parseFloat(getVal(['base price', 'cost', 'price', 'bill amount'])) || 0;
-            const targetTotal = parseFloat(getVal(['target total', 'target', 'final total', 'total target'])) || 0;
-            
-            const entryDate = getVal(['entry date', 'entry_date', 'date', 'from date']);
-            const checkoutDate = getVal(['checkout date', 'checkout_date', 'to date', 'end date']);
-
-            // Populate fields
-            const descInput = newRow.querySelector('input[name$="-description"]');
-            if (descInput) { descInput.value = desc; highlightField(descInput); }
-
-            const qtyInput = newRow.querySelector('input[name$="-quantity"]');
-            if (qtyInput) { qtyInput.value = qty; highlightField(qtyInput); }
-
-            const unitInput = newRow.querySelector('input[name$="-unit"]');
-            if (unitInput) { unitInput.value = unit; highlightField(unitInput); }
-
-            // Handle date parsing safely (Excel dates might be numbers or strings)
-            const parseExcelDate = (d) => {
+        // Parse an Excel/CSV date cell to YYYY-MM-DD (or '' if unparseable).
+        const parseExcelDate = (d) => {
                 if (!d) return '';
                 let date = null;
                 if (typeof d === 'number') {
@@ -2470,69 +2452,46 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
                 return '';
             };
 
-            const entryInput = newRow.querySelector('input[name$="-entry_date"]');
-            const entryVal = parseExcelDate(entryDate);
-            if (entryInput && entryVal) { entryInput.value = entryVal; highlightField(entryInput); anyDate = true; }
+        // Build the validated preview list from the parsed rows.
+        const resolved = dataRows.map((row, i) => {
+            const isSecVal = resolveVal(row, ['is secondary', 'secondary', 'sec']);
+            const isSec = !!(isSecVal && (String(isSecVal).toLowerCase() === 'yes' || String(isSecVal).toLowerCase() === 'true' || isSecVal === 1));
+            const desc = String(resolveVal(row, ['description', 'item', 'name', 'particular', 'restaurant name']) || '').trim();
+            const unit = String(resolveVal(row, ['unit', 'uom']) || 'Pcs').trim() || 'Pcs';
+            const errors = [];
 
-            const checkoutInput = newRow.querySelector('input[name$="-checkout_date"]');
-            const checkoutVal = parseExcelDate(checkoutDate);
-            if (checkoutInput && checkoutVal) {
-                checkoutInput.value = checkoutVal; highlightField(checkoutInput); anyDate = true;
-                newRow.classList.add('range-on');   // this row spans a date range
+            const qtyRaw = resolveVal(row, ['qty', 'quantity']);
+            let qty = 1;
+            if (qtyRaw !== null && String(qtyRaw).trim() !== '') {
+                const q = parseFloat(qtyRaw);
+                if (isNaN(q) || q <= 0) errors.push('invalid quantity'); else qty = q;
             }
-
-            // Handle Prices based on current Calculation Mode
-            const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
-            const basePriceInput = newRow.querySelector('input[name$="-base_price"]');
-            const targetInput = newRow.querySelector('.target-input');
-
-            if (isReverse) {
-                // Reverse mode: prefer target total, fall back to base price
-                if (targetInput && targetTotal > 0) {
-                    targetInput.value = targetTotal;
-                    highlightField(targetInput);
-                    doReverseCalculation(newRow);
-                } else if (basePriceInput && basePrice > 0) {
-                    basePriceInput.value = basePrice;
-                    highlightField(basePriceInput);
-                }
-            } else {
-                // Forward mode
-                if (basePrice > 0) {
-                    if (basePriceInput) {
-                        basePriceInput.value = basePrice;
-                        highlightField(basePriceInput);
-                    }
-                } else if (targetTotal > 0) {
-                    const isSecRow = newRow.querySelector('input[name$="-is_secondary"]')?.checked || false;
-                    const multiplier = getMultiplier(isSecRow);
-                    const derivedBase = multiplier > 0 ? ((targetTotal / qty) / multiplier) : (targetTotal / qty);
-                    if (basePriceInput) {
-                        basePriceInput.value = derivedBase.toFixed(3);
-                        highlightField(basePriceInput);
-                    }
-                }
+            const priceRaw = resolveVal(row, ['base price', 'cost', 'price', 'bill amount']);
+            let basePrice = 0;
+            if (priceRaw !== null && String(priceRaw).trim() !== '') {
+                const p = parseFloat(priceRaw);
+                if (isNaN(p) || p < 0) errors.push('invalid price'); else basePrice = p;
             }
-            
-            importedCount++;
+            const targetRaw = resolveVal(row, ['target total', 'target', 'final total', 'total target']);
+            let targetTotal = 0;
+            if (targetRaw !== null && String(targetRaw).trim() !== '') {
+                const t = parseFloat(targetRaw); if (!isNaN(t) && t >= 0) targetTotal = t;
+            }
+            const entryRaw = resolveVal(row, ['entry date', 'entry_date', 'date', 'from date']);
+            const coRaw = resolveVal(row, ['checkout date', 'checkout_date', 'to date', 'end date']);
+            const entryDate = parseExcelDate(entryRaw);
+            const checkoutDate = parseExcelDate(coRaw);
+            if (entryRaw && String(entryRaw).trim() !== '' && !entryDate) errors.push('unrecognized date');
+            if (coRaw && String(coRaw).trim() !== '' && !checkoutDate) errors.push('unrecognized to-date');
+            if (!desc && !entryDate) errors.push('no description or date');
+
+            return { idx: i + 1, desc, unit, qty, basePrice, targetTotal, entryDate, checkoutDate, isSec,
+                     valid: errors.length === 0, error: errors.join(', ') };
         });
-        
-        // Reset file input so same file can be selected again if needed
+
+        window.__importResolved = resolved;
+        renderImportPreview(resolved);
         document.getElementById('excel-upload-input').value = '';
-
-        // If any imported row carried a date, reveal the date column so the
-        // imported dates are visible/editable (works for every category).
-        if (anyDate) {
-            const dateChk = document.getElementById('id_is_daily_basis');
-            if (dateChk && !dateChk.checked) { dateChk.checked = true; dateChk.dispatchEvent(new Event('change')); }
-            if (typeof syncRoomDailyBasisMode === 'function') syncRoomDailyBasisMode();
-        }
-
-        if (importedCount > 0) {
-            alert(`Successfully imported ${importedCount} items!`);
-        } else {
-            alert("Could not find any valid rows to import.");
-        }
     };
 
     if (isCSV) {
@@ -2541,6 +2500,102 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
         reader.readAsArrayBuffer(file);
     }
 });
+
+// ── Excel import preview + confirm ──
+function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderImportPreview(resolved) {
+    const body = document.getElementById('import-preview-body');
+    if (!body) return;
+    body.innerHTML = '';
+    let valid = 0;
+    resolved.forEach(r => {
+        if (r.valid) valid++;
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-50' + (r.valid ? '' : ' bg-red-50/50');
+        const dateTxt = r.entryDate ? (r.checkoutDate ? (r.entryDate + ' → ' + r.checkoutDate) : r.entryDate) : '';
+        const priceTxt = (r.targetTotal > 0 && !r.basePrice) ? ('⟲ ' + r.targetTotal) : r.basePrice;
+        const status = r.valid
+            ? '<span class="text-emerald-600 font-bold">✓ ready</span>'
+            : '<span class="text-red-600 font-bold">⚠ ' + escapeHtml(r.error) + '</span>';
+        tr.innerHTML =
+            '<td class="py-1 px-2 text-gray-400">' + r.idx + '</td>' +
+            '<td class="py-1 px-2 font-semibold text-gray-700">' + (escapeHtml(r.desc) || '<span class="text-gray-300">(none)</span>') + (r.isSec ? ' <span class="text-[9px] text-purple-600 font-bold">SEC</span>' : '') + '</td>' +
+            '<td class="py-1 px-2 text-gray-500">' + dateTxt + '</td>' +
+            '<td class="py-1 px-2 text-center">' + r.qty + '</td>' +
+            '<td class="py-1 px-2 text-right">' + priceTxt + '</td>' +
+            '<td class="py-1 px-2">' + status + '</td>';
+        body.appendChild(tr);
+    });
+    const total = resolved.length, skipped = total - valid;
+    const sum = document.getElementById('import-preview-summary');
+    if (sum) sum.textContent = total + ' row(s) found · ' + valid + ' ready' + (skipped ? (' · ' + skipped + ' skipped') : '');
+    const confirmBtn = document.getElementById('import-preview-confirm');
+    if (confirmBtn) {
+        confirmBtn.disabled = valid === 0;
+        confirmBtn.textContent = valid > 0 ? ('Confirm import (' + valid + ')') : 'Nothing to import';
+        confirmBtn.classList.toggle('opacity-50', valid === 0);
+    }
+    document.getElementById('import-preview-modal').classList.remove('hidden');
+}
+
+function closeImportPreview() {
+    const m = document.getElementById('import-preview-modal');
+    if (m) m.classList.add('hidden');
+    window.__importResolved = [];
+}
+
+function applyImportRows(rows) {
+    let anyDate = false;
+    const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
+    rows.forEach(r => {
+        let addButton = r.isSec ? document.getElementById('add-secondary-item') : document.getElementById('add-item');
+        if (!addButton || addButton.classList.contains('hidden')) addButton = document.getElementById('add-item');
+        if (addButton) addButton.click();
+        const tbody = document.getElementById(r.isSec ? 'secondary-item-formset' : 'item-formset');
+        if (!tbody) return;
+        const newRow = tbody.lastElementChild;
+        if (!newRow) return;
+        const setf = (sel, val) => { const el = newRow.querySelector(sel); if (el) { el.value = val; highlightField(el); } };
+        setf('input[name$="-description"]', r.desc);
+        setf('input[name$="-quantity"]', r.qty);
+        setf('input[name$="-unit"]', r.unit);
+        if (r.entryDate) { setf('input[name$="-entry_date"]', r.entryDate); anyDate = true; }
+        if (r.checkoutDate) { setf('input[name$="-checkout_date"]', r.checkoutDate); anyDate = true; newRow.classList.add('range-on'); }
+        const basePriceInput = newRow.querySelector('input[name$="-base_price"]');
+        const targetInput = newRow.querySelector('.target-input');
+        if (isReverse) {
+            if (targetInput && r.targetTotal > 0) { targetInput.value = r.targetTotal; highlightField(targetInput); if (typeof doReverseCalculation === 'function') doReverseCalculation(newRow); }
+            else if (basePriceInput && r.basePrice > 0) { basePriceInput.value = r.basePrice; highlightField(basePriceInput); }
+        } else {
+            if (r.basePrice > 0) { if (basePriceInput) { basePriceInput.value = r.basePrice; highlightField(basePriceInput); } }
+            else if (r.targetTotal > 0) {
+                const mult = getMultiplier(r.isSec);
+                const derived = mult > 0 ? ((r.targetTotal / r.qty) / mult) : (r.targetTotal / r.qty);
+                if (basePriceInput) { basePriceInput.value = derived.toFixed(3); highlightField(basePriceInput); }
+            }
+        }
+    });
+    if (anyDate) {
+        const dateChk = document.getElementById('id_is_daily_basis');
+        if (dateChk && !dateChk.checked) { dateChk.checked = true; dateChk.dispatchEvent(new Event('change')); }
+        if (typeof syncRoomDailyBasisMode === 'function') syncRoomDailyBasisMode();
+    }
+}
+
+(function(){
+    const closeBtn = document.getElementById('import-preview-close');
+    const cancelBtn = document.getElementById('import-preview-cancel');
+    const confirmBtn = document.getElementById('import-preview-confirm');
+    if (closeBtn) closeBtn.addEventListener('click', closeImportPreview);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeImportPreview);
+    if (confirmBtn) confirmBtn.addEventListener('click', function() {
+        const rows = (window.__importResolved || []).filter(r => r.valid);
+        applyImportRows(rows);
+        closeImportPreview();
+        if (rows.length) alert('Imported ' + rows.length + ' item(s).');
+    });
+})();
 
 
 
