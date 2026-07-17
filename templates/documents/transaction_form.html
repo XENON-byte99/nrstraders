@@ -451,8 +451,8 @@
                             <th class="text-left date-hdr-label" style="min-width:120px">📅 From Date</th>
                             <th class="text-left checkout-date-hdr" style="min-width:120px">📅 To Date</th>
                             <th class="text-left" style="min-width:180px">🏷 Description</th>
-                            <th class="text-center room-unit-hdr hidden" style="width:80px">Unit</th>
-                            <th class="text-center room-qty-hdr hidden" style="width:100px">Qty</th>
+                            <th class="text-center room-unit-hdr" style="width:80px">Unit</th>
+                            <th class="text-center room-qty-hdr" style="width:100px">Qty</th>
                             <th class="text-right room-cost-hdr" style="width:130px"><span class="price-header-label">💰 Cost (৳)</span></th>
                             <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
@@ -474,8 +474,8 @@
                                 </td>
                                 <td class="checkout-date-col">{{ item_form.checkout_date }}</td>
                                 <td>{{ item_form.description }}</td>
-                                <td class="room-unit-col hidden">{{ item_form.unit }}</td>
-                                <td class="room-qty-col hidden">{{ item_form.quantity }}</td>
+                                <td class="room-unit-col">{{ item_form.unit }}</td>
+                                <td class="room-qty-col">{{ item_form.quantity }}</td>
                                 <td class="base-price-cell">
                                     {{ item_form.base_price }}
                                     <div class="tax-ov">
@@ -524,13 +524,13 @@
                                    placeholder="Description..."
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
                         </td>
-                        <td class="room-unit-col hidden">
+                        <td class="room-unit-col">
                             <input type="text" name="items-__prefix__-unit"
                                    id="id_items-__prefix__-unit"
                                    value="Day"
                                    style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;background:#fff;box-sizing:border-box;">
                         </td>
-                        <td class="room-qty-col hidden">
+                        <td class="room-qty-col">
                             <input type="number" name="items-__prefix__-quantity"
                                    id="id_items-__prefix__-quantity"
                                    value="1" min="0.001" step="any"
@@ -906,11 +906,13 @@ function syncRoomDailyBasisMode() {
     const checkoutHdr = roomTable ? roomTable.querySelector('.checkout-date-hdr') : null;
     if (checkoutHdr) checkoutHdr.classList.toggle('hidden', isDaily);
     
+    // Unit & Qty are always shown for room bills (same as every other category),
+    // in both range and daily-basis mode.
     const unitHdr = roomTable ? roomTable.querySelector('.room-unit-hdr') : null;
-    if (unitHdr) unitHdr.classList.toggle('hidden', !isDaily);
-    
+    if (unitHdr) unitHdr.classList.remove('hidden');
+
     const qtyHdr = roomTable ? roomTable.querySelector('.room-qty-hdr') : null;
-    if (qtyHdr) qtyHdr.classList.toggle('hidden', !isDaily);
+    if (qtyHdr) qtyHdr.classList.remove('hidden');
     
     const costHdrLabel = roomTable ? roomTable.querySelector('.room-cost-hdr .price-header-label') : null;
     if (costHdrLabel) costHdrLabel.innerHTML = isDaily ? '💰 Rate (৳)' : '💰 Cost (৳)';
@@ -944,10 +946,10 @@ function syncRoomDailyBasisMode() {
         if (rangeBtn) rangeBtn.classList.toggle('hidden', !isDaily);
 
         const unitCol = row.querySelector('.room-unit-col');
-        if (unitCol) unitCol.classList.toggle('hidden', !isDaily);
+        if (unitCol) unitCol.classList.remove('hidden');
 
         const qtyCol = row.querySelector('.room-qty-col');
-        if (qtyCol) qtyCol.classList.toggle('hidden', !isDaily);
+        if (qtyCol) qtyCol.classList.remove('hidden');
     });
 }
 

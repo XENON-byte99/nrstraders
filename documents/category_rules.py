@@ -79,15 +79,10 @@ class RoomCategoryRules(BaseCategoryRules):
         return RoomItemFormSet
 
     def normalize_item(self, item, transaction):
-        # Daily-basis: one row == one calendar day; the quantity carries that
-        # day's person/room count. A row MAY optionally carry a checkout date to
-        # cover a range of days — if the user picked one we keep it, otherwise it
-        # stays a single day. (checkout_date is left exactly as submitted.)
-        #
-        # Range mode (not daily-basis): every row spans from/to dates, so the
-        # quantity is always fixed at 1.
-        if not transaction.is_daily_basis:
-            item.quantity = 1
+        # Room bills expose Unit & Qty just like every other category, so the
+        # quantity the user typed is always respected (in both daily-basis and
+        # range mode). A blank quantity falls back to 1 via ``normalize_items``.
+        # checkout_date is left exactly as submitted.
         return item
 
     def pricing_change_note(self, item_form):
