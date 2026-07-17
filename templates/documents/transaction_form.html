@@ -2189,15 +2189,14 @@ document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
 
 // ── Excel Import Logic ──
 document.getElementById('download-template-btn').addEventListener('click', function() {
-    let csvContent = "";
-    if (isRoomMode) {
-        csvContent = "Description,From Date,To Date,Base Price,Target Total\nDeluxe Room,2026-06-28,2026-06-30,5000,\n";
-    } else if (isLunchMode) {
-        csvContent = "Date,Restaurant Name,Qty,Base Price,Target Total\n2026-06-28,Kacchi Bhai,15,250,\n";
-    } else {
-        csvContent = "Description,Qty,Unit,Base Price,Target Total,Is Secondary\nOffice Chairs,5,Pcs,2000,,No\nTransport Fee,1,Trip,1500,,Yes\n";
-    }
-    
+    // One unified template for every category. Date / To Date are optional —
+    // leave them blank for non-dated items; fill them for stays/daily entries.
+    const csvContent =
+        "Description,Date,To Date,Unit,Qty,Base Price,Target Total,Is Secondary\n" +
+        "Deluxe Room,2026-07-01,2026-07-03,Night,2,5000,,No\n" +
+        "Office Chairs,,,Pcs,5,2000,,No\n" +
+        "Transport Fee,,,Trip,1,1500,,Yes\n";
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -2310,7 +2309,8 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
         }
         
         let importedCount = 0;
-        
+        let anyDate = false;
+
         dataRows.forEach(row => {
             // Helper to find value by loose header matching
             const getVal = (possibleNames) => {
@@ -2335,12 +2335,9 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
                 addButton.click();
             }
 
-            // Find the newly added row
-            let targetFormset;
-            if (isSec) targetFormset = 'secondary-item-formset';
-            else if (isRoomMode) targetFormset = 'room-formset';
-            else if (isLunchMode) targetFormset = 'lunch-formset';
-            else targetFormset = 'item-formset';
+            // Find the newly added row. Unified: every category uses the single
+            // item table, so non-secondary rows always go to 'item-formset'.
+            const targetFormset = isSec ? 'secondary-item-formset' : 'item-formset';
 
             const formsetTbody = document.getElementById(targetFormset);
             if (!formsetTbody) return;
@@ -2436,10 +2433,15 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             };
 
             const entryInput = newRow.querySelector('input[name$="-entry_date"]');
-            if (entryInput) { entryInput.value = parseExcelDate(entryDate); highlightField(entryInput); }
+            const entryVal = parseExcelDate(entryDate);
+            if (entryInput && entryVal) { entryInput.value = entryVal; highlightField(entryInput); anyDate = true; }
 
             const checkoutInput = newRow.querySelector('input[name$="-checkout_date"]');
-            if (checkoutInput) { checkoutInput.value = parseExcelDate(checkoutDate); highlightField(checkoutInput); }
+            const checkoutVal = parseExcelDate(checkoutDate);
+            if (checkoutInput && checkoutVal) {
+                checkoutInput.value = checkoutVal; highlightField(checkoutInput); anyDate = true;
+                newRow.classList.add('range-on');   // this row spans a date range
+            }
 
             // Handle Prices based on current Calculation Mode
             const isReverse = document.querySelector('input[name="calculation_mode"]:checked')?.value === 'reverse';
@@ -2479,7 +2481,15 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
         
         // Reset file input so same file can be selected again if needed
         document.getElementById('excel-upload-input').value = '';
-        
+
+        // If any imported row carried a date, reveal the date column so the
+        // imported dates are visible/editable (works for every category).
+        if (anyDate) {
+            const dateChk = document.getElementById('id_is_daily_basis');
+            if (dateChk && !dateChk.checked) { dateChk.checked = true; dateChk.dispatchEvent(new Event('change')); }
+            if (typeof syncRoomDailyBasisMode === 'function') syncRoomDailyBasisMode();
+        }
+
         if (importedCount > 0) {
             alert(`Successfully imported ${importedCount} items!`);
         } else {
