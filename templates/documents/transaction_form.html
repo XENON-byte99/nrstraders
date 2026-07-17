@@ -702,6 +702,14 @@
                 </table>
             </div>
 
+            <!-- Live totals (estimate; server computes the final figures) -->
+            <div id="entry-totals-bar" class="hidden mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm">
+                <span class="text-gray-600 font-semibold">Items: <b id="et-count" class="text-indigo-700">0</b></span>
+                <span class="text-gray-600 font-semibold">Subtotal (incl. taxes): <b id="et-subtotal" class="text-indigo-700">৳0.00</b></span>
+                <span id="et-discount-wrap" class="text-gray-600 font-semibold hidden">Flat discount: <b id="et-discount" class="text-rose-600">−৳0.00</b></span>
+                <span class="text-gray-800 font-black">Grand total: <b id="et-grand" class="text-indigo-800 text-base">৳0.00</b></span>
+            </div>
+
             <div class="flex flex-col sm:flex-row gap-3">
                 <button type="button" id="add-item"
                     class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-100 transition w-full sm:w-auto justify-center">
@@ -2081,6 +2089,56 @@ function syncTargetInputsFromBasePrices() {
     });
 }
 
+// ── Live line + grand totals (estimate; server computes the final figures) ──
+function fmtBDT(v) {
+    const n = Math.round((v + Number.EPSILON) * 100) / 100;
+    return '৳' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function recalcEntryTotals() {
+    const bar = document.getElementById('entry-totals-bar');
+    if (!bar) return;
+    let count = 0, subtotal = 0;
+    document.querySelectorAll('#item-formset tr.item-row, #secondary-item-formset tr.item-row').forEach(row => {
+        if (row.closest('.hidden') || row.style.display === 'none') return;
+        const del = row.querySelector('input[name$="-DELETE"]');
+        if (del && del.checked) return;
+        const baseEl = row.querySelector('input[name$="-base_price"]');
+        const base = baseEl ? (parseFloat(baseEl.value) || 0) : 0;
+        if (base <= 0) return;
+        const qtyEl = row.querySelector('input[name$="-quantity"]');
+        const qty = (qtyEl && qtyEl.value) ? (parseFloat(qtyEl.value) || 1) : 1;
+        const isSec = !!(row.querySelector('input[name$="-is_secondary"]')?.checked) || !!row.closest('#secondary-item-formset');
+        subtotal += base * getMultiplier(isSec, row) * qty;
+        count++;
+    });
+    const flat = parseFloat(document.querySelector('[name="discount_flat"]')?.value) || 0;
+    const grand = Math.max(0, subtotal - flat);
+    document.getElementById('et-count').textContent = count;
+    document.getElementById('et-subtotal').textContent = fmtBDT(subtotal);
+    const dwrap = document.getElementById('et-discount-wrap');
+    if (flat > 0) { dwrap.classList.remove('hidden'); document.getElementById('et-discount').textContent = '−' + fmtBDT(flat); }
+    else dwrap.classList.add('hidden');
+    document.getElementById('et-grand').textContent = fmtBDT(grand);
+    bar.classList.toggle('hidden', subtotal <= 0);
+}
+window.recalcEntryTotals = recalcEntryTotals;
+
+document.addEventListener('input', function(e) {
+    const n = e.target.name || '';
+    if (e.target.matches('input[name$="-base_price"], input[name$="-quantity"], .target-input, .ov-vat, .ov-tax')
+        || /_percentage$|profit_margin|discount_flat/.test(n)) {
+        recalcEntryTotals();
+    }
+});
+document.addEventListener('change', function(e) {
+    if (e.target.matches('input[name$="-DELETE"]')) recalcEntryTotals();
+});
+document.addEventListener('DOMContentLoaded', function() { setTimeout(recalcEntryTotals, 300); });
+// Category change updates VAT/TAX/etc. programmatically (no input event) — recalc after the fetch settles.
+if (typeof categorySelect !== 'undefined' && categorySelect) {
+    categorySelect.addEventListener('change', function() { setTimeout(recalcEntryTotals, 600); });
+}
+
 // Global listener for target input changes
 document.addEventListener('input', function(e) {
     if (e.target.classList.contains('target-input')) {
@@ -2581,6 +2639,7 @@ function applyImportRows(rows) {
         if (dateChk && !dateChk.checked) { dateChk.checked = true; dateChk.dispatchEvent(new Event('change')); }
         if (typeof syncRoomDailyBasisMode === 'function') syncRoomDailyBasisMode();
     }
+    if (typeof recalcEntryTotals === 'function') recalcEntryTotals();
 }
 
 (function(){
