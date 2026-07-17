@@ -239,7 +239,7 @@
                         <tr>
                             <th class="py-3 px-2 text-center w-8"></th>
                             <th class="py-3 px-4 text-left">Description</th>
-                            {% if not is_room or transaction.is_daily_basis %}
+                            {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                             <th class="py-3 px-4 text-center w-16">Qty</th>
                             {% endif %}
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
@@ -297,7 +297,7 @@
                                             <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge">Sec</span>
                                         {% endif %}
                                     </div>
-                                    {% if not is_room or transaction.is_daily_basis %}
+                                    {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                                     <div class="mt-1 flex items-center gap-1">
                                         <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
                                         <input type="text" name="{{ form.unit.html_name }}" 
@@ -323,7 +323,7 @@
                                     {% if form.instance.is_secondary or form.is_secondary.value %}
                                         <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded ml-1 border border-purple-200">Sec</span>
                                     {% endif %}
-                                    {% if not is_room or transaction.is_daily_basis %}
+                                    {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                                     <div class="text-[10px] text-gray-400">{{ form.instance.unit }}</div>
                                     {% endif %}
                                 {% endif %}
@@ -331,7 +331,7 @@
                                 <input type="hidden" name="{{ form.sort_order.html_name }}" value="{{ form.sort_order.value|default:forloop.counter0 }}" class="sort-order-input">
                                 <div class="hidden">{{ form.is_secondary }}</div>
                             </td>
-                            {% if not is_room or transaction.is_daily_basis %}
+                            {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                             <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
                                 {% if not is_locked %}
                                     <input type="number" step="any" name="{{ form.quantity.html_name }}" 
@@ -706,7 +706,7 @@
                                        class="desc-input font-bold text-gray-800" disabled>
                                 <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 sec-badge hidden">Sec</span>
                             </div>
-                            {% if not is_room or transaction.is_daily_basis %}
+                            {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                             <div class="mt-1 flex items-center gap-1">
                                 <span class="text-[9px] text-gray-400 font-bold uppercase">Unit:</span>
                                 <input type="text" name="items-__prefix__-unit" id="id_items-__prefix__-unit"
@@ -723,7 +723,7 @@
                                 <input type="checkbox" name="items-__prefix__-is_secondary" id="id_items-__prefix__-is_secondary" class="is-secondary-checkbox" disabled>
                             </div>
                         </td>
-                        {% if not is_room or transaction.is_daily_basis %}
+                        {% if True %}{# unified: Qty & Unit always shown, and Qty multiplies the line total for every category #}
                         <td class="py-1 px-2 text-center font-mono font-bold bg-gray-50/30 w-16">
                             <input type="number" step="any" name="items-__prefix__-quantity" id="id_items-__prefix__-quantity"
                                    value="1"
