@@ -225,15 +225,24 @@
                 <div><label class="form-label">Challan #</label>{{ form.challan_number }}</div>
             </div>
 
-            <!-- Room Daily Basis Mode Toggle -->
+            <!-- Date Column Toggle + global single/range choice -->
             <div id="room-daily-basis-toggle" class="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                 <label class="flex items-center gap-3 cursor-pointer">
                     {{ form.is_daily_basis }}
                     <div>
-                        <span class="text-sm font-semibold text-indigo-900 block">Date Column Mode</span>
-                        <span class="text-[10px] text-indigo-500 font-medium">Toggle this to switch between single-date logging and date-range (From/To) logging.</span>
+                        <span class="text-sm font-semibold text-indigo-900 block">Date Column</span>
+                        <span class="text-[10px] text-indigo-500 font-medium">Turn on to add a date to each row. Choose single dates or a From–To range for every row.</span>
                     </div>
                 </label>
+                <div id="date-range-mode" class="mt-3 pl-8 flex flex-wrap gap-x-5 gap-y-1 {% if not form.is_daily_basis.value %}hidden{% endif %}">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-indigo-800">
+                        <input type="radio" name="date_range_mode" value="single" checked class="accent-indigo-600"> Single date per row
+                        <span class="text-[10px] text-indigo-400 font-normal">(＋to-date on any row)</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-indigo-800">
+                        <input type="radio" name="date_range_mode" value="all" class="accent-indigo-600"> Date range (From–To) for all rows
+                    </label>
+                </div>
             </div>
 
             <!-- Calculation Mode -->
@@ -841,21 +850,30 @@ function setLunchMode(on) {
 function syncRoomDailyBasisMode() {
     const isDaily = document.getElementById('id_is_daily_basis')?.checked;
     
-    // Normal table date toggle
+    // Normal table date toggle. `rangeAll` (global) forces every row to show
+    // the To-Date; otherwise a row shows it only when individually range-on.
+    const rangeAll = !!window.__dateRangeAll;
     const normalTable = document.getElementById('normal-items-table');
     if (normalTable) {
         const dateHdr = normalTable.querySelector('.normal-date-hdr');
         if (dateHdr) dateHdr.classList.toggle('hidden', !isDaily);
-        
+
         const rows = normalTable.querySelectorAll('.item-row');
+        let anyRange = false;
         rows.forEach(row => {
             const dateCol = row.querySelector('.normal-date-col');
             if (dateCol) dateCol.classList.toggle('hidden', !isDaily);
-            
-            const rangeOn = row.classList.contains('range-on');
+
+            const rangeOn = rangeAll || row.classList.contains('range-on');
+            if (rangeOn) anyRange = true;
             const checkoutCol = row.querySelector('.checkout-date-col');
-            if (checkoutCol) checkoutCol.classList.toggle('hidden', (!isDaily) || (!rangeOn && isDaily));
+            if (checkoutCol) checkoutCol.classList.toggle('hidden', !isDaily || !rangeOn);
+            // keep the per-row "+to-date" button out of the way when range-all is on
+            const rangeBtn = row.querySelector('.range-toggle-btn');
+            if (rangeBtn) rangeBtn.classList.toggle('hidden', rangeAll);
         });
+        const coHdr = normalTable.querySelector('.normal-checkout-date-hdr');
+        if (coHdr) coHdr.classList.toggle('hidden', !isDaily || !anyRange);
     }
 
     // Secondary table date toggle (Always show date if secondary category is not Room/Stay)
@@ -1188,9 +1206,21 @@ if (roomStdPriceInput) {
 const dailyBasisToggle = document.getElementById('id_is_daily_basis');
 if (dailyBasisToggle) {
     dailyBasisToggle.addEventListener('change', function() {
+        // Reveal the single/range sub-choice only while the date column is on.
+        const sub = document.getElementById('date-range-mode');
+        if (sub) sub.classList.toggle('hidden', !dailyBasisToggle.checked);
         syncRoomDailyBasisMode();
     });
 }
+
+// Global single-date vs date-range-for-all-rows choice.
+window.__dateRangeAll = (document.querySelector('input[name="date_range_mode"]:checked')?.value === 'all');
+document.querySelectorAll('input[name="date_range_mode"]').forEach(r => {
+    r.addEventListener('change', function() {
+        window.__dateRangeAll = (this.value === 'all');
+        syncRoomDailyBasisMode();
+    });
+});
 
 
 // ── Category Auto-Fill + Lunch Mode Switch ──
@@ -2351,8 +2381,8 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             const basePrice = parseFloat(getVal(['base price', 'cost', 'price', 'bill amount'])) || 0;
             const targetTotal = parseFloat(getVal(['target total', 'target', 'final total', 'total target'])) || 0;
             
-            const entryDate = getVal(['entry date', 'date', 'from date']);
-            const checkoutDate = getVal(['checkout date', 'to date']);
+            const entryDate = getVal(['entry date', 'entry_date', 'date', 'from date']);
+            const checkoutDate = getVal(['checkout date', 'checkout_date', 'to date', 'end date']);
 
             // Populate fields
             const descInput = newRow.querySelector('input[name$="-description"]');
@@ -2369,23 +2399,31 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
                 if (!d) return '';
                 let date = null;
                 if (typeof d === 'number') {
-                    // Excel serialized date
+                    // Excel serialized date: use UTC to prevent timezone shifts
                     date = new Date((d - (25567 + 2)) * 86400 * 1000);
+                    if (!isNaN(date.getTime())) {
+                        const y = date.getUTCFullYear();
+                        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+                        const dayStr = String(date.getUTCDate()).padStart(2, '0');
+                        return `${y}-${m}-${dayStr}`;
+                    }
                 } else {
                     let str = String(d).trim();
                     if (!str) return '';
 
-                    // Try default parsing first
-                    let pd = new Date(str);
+                    // Replace dashes with spaces for better native JS Date parsing (e.g. 15-Jul-26 -> 15 Jul 26)
+                    let cleanStr = str.replace(/-/g, ' ');
+                    let pd = new Date(cleanStr);
                     if (!isNaN(pd.getTime())) {
                         date = pd;
                     } else {
-                        // Match DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
-                        const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+                        // Match DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD/MM/YY
+                        const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
                         if (dmyMatch) {
                             const day = parseInt(dmyMatch[1], 10);
                             const month = parseInt(dmyMatch[2], 10) - 1;
-                            const year = parseInt(dmyMatch[3], 10);
+                            let year = parseInt(dmyMatch[3], 10);
+                            if (year < 100) year += (year < 50 ? 2000 : 1900);
                             date = new Date(year, month, day);
                         } else {
                             // Match YYYY/MM/DD, YYYY-MM-DD, YYYY.MM.DD
