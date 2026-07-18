@@ -467,6 +467,43 @@
         <button onclick="printReceivedSummary()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-md"><i class="fas fa-file-signature text-xs"></i> Download Received Copy (Summary Sheet)</button>
       </div>
     </div>
+    <!-- Modal Footer (Mixed Document Bundle) -->
+    <div class="px-5 pb-2 border-t border-gray-700/50 pt-2.5">
+      <p class="text-[10px] text-gray-400 font-bold uppercase mb-2">Mixed Document Joint Bundle</p>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2 bg-gray-800 p-2.5 rounded-xl border border-gray-700 text-xs">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="bundle-inc-invoice" checked class="rounded border-gray-600 bg-gray-700 text-indigo-500">
+          <span>Invoice</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="bundle-inc-quotation" checked class="rounded border-gray-600 bg-gray-700 text-indigo-500">
+          <span>Quotation</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="bundle-inc-challan" checked class="rounded border-gray-600 bg-gray-700 text-indigo-500">
+          <span>Challan</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="bundle-inc-mushok" checked class="rounded border-gray-600 bg-gray-700 text-indigo-500">
+          <span>Mushok 6.3</span>
+        </label>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
+        <div class="flex gap-3 text-xs">
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" name="bundle_group_by" value="transaction" checked class="text-indigo-500 bg-gray-700 border-gray-600">
+            <span>By Bill</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" name="bundle_group_by" value="type" class="text-indigo-500 bg-gray-700 border-gray-600">
+            <span>By Doc Type</span>
+          </label>
+        </div>
+        <button onclick="printBundle()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black px-4 py-2 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md">
+          <i class="fas fa-file-pdf"></i> Download Joint Bundle
+        </button>
+      </div>
+    </div>
     <div class="px-5 pb-4 flex gap-3">
       <button onclick="clearSelection();closeCalcModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-sm font-bold py-2 rounded-lg transition"><i class="fas fa-times mr-1"></i>Clear Selection</button>
       <button onclick="closeCalcModal()" class="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-sm font-bold py-2 rounded-lg transition">Continue Selecting</button>
@@ -512,6 +549,25 @@ function printReceivedSummary() {
   if (!window.selectedPks || !window.selectedPks.length) return;
   const ids = window.selectedPks.join(',');
   window.open(`/bills/print-received-summary/?ids=${ids}`, '_blank');
+}
+function printBundle() {
+  if (!window.selectedPks || !window.selectedPks.length) return;
+  
+  const types = [];
+  if (document.getElementById('bundle-inc-invoice').checked) types.push('invoice');
+  if (document.getElementById('bundle-inc-quotation').checked) types.push('quotation');
+  if (document.getElementById('bundle-inc-challan').checked) types.push('challan');
+  if (document.getElementById('bundle-inc-mushok').checked) types.push('mushok');
+  
+  if (!types.length) {
+    alert("Please select at least one document type for the bundle.");
+    return;
+  }
+  
+  const ids = window.selectedPks.join(',');
+  const groupBy = document.querySelector('input[name="bundle_group_by"]:checked').value;
+  
+  window.open(`/bills/print-bundle/?ids=${ids}&types=${types.join(',')}&group_by=${groupBy}`, '_blank');
 }
 function openCalcModal(){ document.getElementById('calcModal').classList.remove('hidden'); }
 function closeCalcModal(){ document.getElementById('calcModal').classList.add('hidden'); }

@@ -1,0 +1,1091 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Joint Bundle Print Pack</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+        #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .spinner { border: 4px solid rgba(0,0,0,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #4f46e5; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .page-break { page-break-before: always; margin-top: 40px; }
+        @media print {
+            body { background: white; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .page-break { margin-top: 0; }
+            @page { margin: 0; }
+        }
+        #controls { position: fixed; top: 20px; right: 20px; z-index: 9999; display: none; gap: 10px; flex-direction: column; }
+        
+        /* Challan scaling in portrait bundle layout */
+        .bundle-doc-challan {
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+        .bundle-doc-challan .copies-container {
+            transform: scale(0.95);
+            transform-origin: top center;
+        }
+
+        /* ── Column Adjust / Hide ── */
+        .resizer {
+            position: absolute; right: 0; top: 0; bottom: 0; width: 6px;
+            cursor: col-resize; z-index: 50; user-select: none;
+        }
+        .resizer:hover { background: #6366f1; }
+        .hide-col-btn {
+            position: absolute; right: 4px; top: 2px; font-size: 8px;
+            cursor: pointer; color: #f87171; display: none; z-index: 52;
+        }
+        th:hover .hide-col-btn { display: inline-block; }
+        .hidden-col { display: none !important; }
+        
+        .edit-mode-active th.resizable { outline: 1px dashed #ccc; position: relative; }
+        
+        /* ── Row Hiding ── */
+        .hide-row-btn {
+            margin-left: 8px; cursor: pointer; color: #ef4444; font-size: 10px; display: none; z-index: 2;
+        }
+        .amount-row:hover .hide-row-btn { display: inline-block !important; }
+        .hidden-row { display: none !important; }
+
+        /* ── Section Drag & Drop ── */
+        .edit-mode-active .invoice-body > * { position: relative; }
+        .edit-mode-active .invoice-body > *:hover { outline: 1.5px dashed #6366f1; }
+        
+        .section-drag-handle {
+            position: absolute; left: 4px; top: -14px;
+            background: #6366f1; color: white; padding: 2px 8px;
+            border-radius: 4px; font-size: 8px; font-weight: 700;
+            text-transform: uppercase; cursor: grab; z-index: 60;
+            align-items: center; gap: 4px; display: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            font-family: 'Poppins', sans-serif;
+            user-select: none;
+        }
+        .section-drag-handle:active { cursor: grabbing; background: #4f46e5; }
+        .edit-mode-active .invoice-body > *:hover .section-drag-handle {
+            display: inline-flex;
+        }
+    </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <h2 style="color: #4f46e5;">Generating Joint Document Bundle...</h2>
+        <p id="progressText">0 / 0</p>
+    </div>
+
+    <div id="controls" class="no-print">
+        <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="amount_toggle" value="base" checked onchange="toggleAmountDisplay(this.value)"> 
+                Show Base Amount
+            </label>
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="amount_toggle" value="target" onchange="toggleAmountDisplay(this.value)"> 
+                Show Target Amount (Incl. VAT/Tax)
+            </label>
+        </div>
+        <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                Enable Edit & Live Calculation
+            </label>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Bundle</button>
+            <button onclick="downloadJointPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
+        </div>
+    </div>
+    <div id="diagnostic-box" class="no-print" style="margin: 20px; padding: 15px; background: #1e293b; color: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 11px; max-width: 800px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+        <h3 style="margin-top: 0; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 6px; font-size: 12px;"><i class="fas fa-bug mr-2"></i>Joint Bundle Diagnostics Log</h3>
+        <pre id="diagnosticLog" style="white-space: pre-wrap; margin: 0; font-family: monospace; line-height: 1.4;"></pre>
+    </div>
+
+    <div id="multiPrintContainer" style="display: none; align-items: center; flex-direction: column; gap: 40px; padding-bottom: 40px;"></div>
+
+    <script>
+        const txIds = [{% for tx in transactions %}{{ tx.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
+        const docTypes = {{ doc_types_json|safe }};
+        const groupBy = "{{ group_by }}";
+        const container = document.getElementById('multiPrintContainer');
+        const loading = document.getElementById('loading');
+        const controls = document.getElementById('controls');
+        const progressText = document.getElementById('progressText');
+        const stylesInjected = {};
+        
+        function toggleAmountDisplay(mode) {
+            const els = document.querySelectorAll('#multiPrintContainer > div > div');
+            els.forEach(container => {
+                if (container.classList.contains('mushok-form')) return; // mushok has fixed styles
+                if (mode === 'target') {
+                    container.classList.remove('mode-base');
+                    container.classList.add('mode-target');
+                } else {
+                    container.classList.remove('mode-target');
+                    container.classList.add('mode-base');
+                }
+            });
+        }
+
+        async function loadDocuments() {
+            // Build the sequence list based on group_by parameter
+            const tasks = [];
+            if (groupBy === 'transaction') {
+                for (let txId of txIds) {
+                    for (let type of docTypes) {
+                        tasks.push({ txId, type });
+                    }
+                }
+            } else {
+                for (let type of docTypes) {
+                    for (let txId of txIds) {
+                        tasks.push({ txId, type });
+                    }
+                }
+            }
+
+            progressText.innerText = `0 / ${tasks.length}`;
+
+            for (let i = 0; i < tasks.length; i++) {
+                const task = tasks[i];
+                progressText.innerText = `${i + 1} / ${tasks.length}`;
+                
+                try {
+                    const response = await fetch(`/bills/${task.txId}/print/${task.type}/`);
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Inject stylesheets scoped to this document type using CSS nesting to prevent clashing
+                    if (!stylesInjected[task.type]) {
+                        const styles = doc.querySelectorAll('style');
+                        styles.forEach(s => {
+                            if (!s.innerText.includes('spinner')) {
+                                const scopedStyle = document.createElement('style');
+                                scopedStyle.textContent = `.bundle-doc-${task.type} {\n${s.innerText}\n}`;
+                                document.head.appendChild(scopedStyle);
+                            }
+                        });
+                        stylesInjected[task.type] = true;
+                    }
+                    
+                    let content = doc.getElementById('invoiceContent') || 
+                                  doc.getElementById('quotationContent') || 
+                                  doc.getElementById('challanContent') || 
+                                  doc.querySelector('.mushok-form');
+                                  
+                    if (content) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'bundle-doc-' + task.type;
+                        if (i > 0) {
+                            wrapper.classList.add('page-break', 'html2pdf__page-break');
+                        }
+                        
+                        if (content.id === 'challanContent') {
+                            const copiesWrapper = document.createElement('div');
+                            copiesWrapper.className = 'copies-container';
+                            copiesWrapper.innerHTML = content.innerHTML;
+                            wrapper.appendChild(copiesWrapper);
+                        } else {
+                            wrapper.appendChild(content.cloneNode(true));
+                        }
+                        
+                        container.appendChild(wrapper);
+                    }
+                } catch (e) {
+                    console.error("Error loading document task:", task, e);
+                }
+            }
+            
+            loading.style.display = 'none';
+            container.style.display = 'flex';
+            controls.style.display = 'flex';
+            
+            initSignatureDrag();
+            applyBulkLayouts();
+        }
+
+        function syncColspans(table) {
+            const ths = Array.from(table.querySelectorAll('thead th'));
+            if (ths.length === 0) return;
+            const isColHidden = ths.map(th => th.classList.contains('hidden-col'));
+
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                let visualColCount = 0;
+                Array.from(tr.children).forEach(cell => {
+                    visualColCount += parseInt(cell.getAttribute('colspan') || '1', 10);
+                });
+                if (visualColCount !== ths.length) return;
+
+                let hasColspan = false;
+                Array.from(tr.children).forEach(cell => {
+                    let origColspan = cell.dataset.origColspan;
+                    if (!origColspan) {
+                        origColspan = cell.getAttribute('colspan') || '1';
+                        cell.dataset.origColspan = origColspan;
+                    }
+                    if (parseInt(origColspan) > 1) {
+                        hasColspan = true;
+                    }
+                });
+
+                if (!hasColspan) {
+                    Array.from(tr.children).forEach((cell, colIdx) => {
+                        if (isColHidden[colIdx]) {
+                            cell.classList.add('hidden-col');
+                        } else {
+                            cell.classList.remove('hidden-col');
+                        }
+                    });
+                    return;
+                }
+
+                let currentColIdx = 0;
+                Array.from(tr.children).forEach(cell => {
+                    let origColspan = parseInt(cell.dataset.origColspan || '1');
+                    let hiddenCount = 0;
+                    for (let c = currentColIdx; c < currentColIdx + origColspan; c++) {
+                        if (isColHidden[c]) hiddenCount++;
+                    }
+                    let newColspan = origColspan - hiddenCount;
+                    if (newColspan > 0) {
+                        cell.setAttribute('colspan', newColspan);
+                        cell.classList.remove('hidden-col');
+                    } else {
+                        cell.classList.add('hidden-col');
+                    }
+                    currentColIdx += origColspan;
+                });
+            });
+        }
+
+        function logDiag(msg) {
+            console.log("[Diagnostics]", msg);
+            const diag = document.getElementById('diagnosticLog');
+            const diagBox = document.getElementById('diagnostic-box');
+            if (diag && diagBox) {
+                diag.innerText += msg + '\n';
+                diagBox.style.display = 'block';
+            }
+        }
+
+        function fitBundleDocumentToPage(wrapper) {
+            const a4 = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
+            if (!a4) return;
+            const wrap = a4.querySelector('.fit-wrap');
+            if (!wrap) return;
+            
+            // Standard A4 dimensions at 96 DPI: 793.92px width, 1122.24px height
+            const baseW = 793.92;
+            const avail = 1122.24 - 12;
+            const manual = parseFloat(a4.getAttribute('data-user-scale')) || 1;
+
+            wrap.style.transform = 'none';
+            wrap.style.width = baseW + 'px';
+            
+            let k = 1;
+            for (let iter = 0; iter < 3; iter++) {
+                wrap.style.width = (baseW / k) + 'px';
+                let nat = wrap.scrollHeight;
+                let newK = (nat > avail) ? (avail / nat) : 1;
+                newK = Math.min(newK, manual);
+                if (newK < 0.4) newK = 0.4;
+                if (Math.abs(k - newK) < 0.005) {
+                    k = newK;
+                    break;
+                }
+                k = newK;
+            }
+
+            if (k < 1) {
+                wrap.style.width = (baseW / k) + 'px';
+                wrap.style.transform = 'scale(' + k + ')';
+                a4.setAttribute('data-fit-scale', k.toFixed(3));
+                logDiag(`Fit wrap scaled to ${k.toFixed(3)} for ${a4.id}`);
+            } else {
+                wrap.style.width = baseW + 'px';
+                wrap.style.transform = 'none';
+                a4.removeAttribute('data-fit-scale');
+            }
+        }
+
+        async function applyBulkLayouts() {
+            const cont = document.getElementById('multiPrintContainer');
+            if (!cont) return;
+            
+            logDiag(`Starting applyBulkLayouts for docTypes: ${JSON.stringify(docTypes)}`);
+
+            // Loop through each document type we have to pull saved templates
+            for (let type of docTypes) {
+                let state = null;
+                let responseData = null;
+                try {
+                    const url = '/api/print-layouts/' + type + '/';
+                    logDiag(`Fetching layout from server: ${url}`);
+                    const response = await fetch(url);
+                    responseData = await response.json();
+                    
+                    if (responseData && responseData.store) {
+                        const store = responseData.store;
+                        logDiag(`Loaded store for ${type}. Active template: ${store.activeTemplate}`);
+                        
+                        if (store.templates) {
+                            const activeTemp = store.activeTemplate || "Default Layout";
+                            state = store.templates[activeTemp] || Object.values(store.templates)[0];
+                            if (state) {
+                                logDiag(`Using state from template: "${activeTemp}" (found: ${!!store.templates[activeTemp]})`);
+                            }
+                        }
+                    }
+                } catch (e) { 
+                    logDiag(`Error loading layout for ${type}: ${e.message}`);
+                    continue; 
+                }
+                
+                if (!state) {
+                    logDiag(`No saved state found for ${type}. Skipping.`);
+                    continue;
+                }
+
+                const wrappers = cont.querySelectorAll('.bundle-doc-' + type);
+                logDiag(`Found ${wrappers.length} documents of type "${type}" to style.`);
+
+                wrappers.forEach(function (wrapper, wIdx) {
+                    logDiag(`Applying layouts to wrapper ${wIdx + 1} of type ${type}`);
+                    
+                    // 1. Column layout (hide / rename / resize)
+                    wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
+                        const tState = state.tables && state.tables[tIdx];
+                        if (!tState || !tState.cols) {
+                            logDiag(`Table ${tIdx} state not found. Skipping table styling.`);
+                            return;
+                        }
+                        const ths = Array.from(table.querySelectorAll('thead th'));
+                        if (tState.cols.length !== ths.length) {
+                            logDiag(`Table ${tIdx} column count mismatch: expected ${tState.cols.length}, got ${ths.length}`);
+                            return;
+                        }
+                        tState.cols.forEach(function (colState, colIdx) {
+                            const th = ths[colIdx];
+                            if (!th) return;
+                            if (colState.text) th.innerHTML = colState.text;
+                            if (colState.width) th.style.width = colState.width;
+                            if (colState.hidden) {
+                                th.classList.add('hidden-col');
+                            }
+                        });
+                        syncColspans(table);
+                    });
+
+                    // 2. Hidden amount rows
+                    if (state.hiddenRows) {
+                        state.hiddenRows.forEach(function (rowId) {
+                            wrapper.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) { 
+                                r.classList.add('hidden-row'); 
+                            });
+                        });
+                    }
+
+                    // 3. Sidebar Width
+                    if (state.sidebarWidth) {
+                        const invoice = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
+                        if (invoice) {
+                            invoice.style.setProperty('--sidebar-width', state.sidebarWidth + '%');
+                            logDiag(`Set sidebar width to ${state.sidebarWidth}% for wrapper ${wIdx + 1}`);
+                        }
+                    }
+
+                    // 4. Totals box width
+                    if (state.totalsWidth) {
+                        const sect = wrapper.querySelector('.amount-section');
+                        if (sect) {
+                            sect.style.gridTemplateColumns = '1fr ' + state.totalsWidth + 'px';
+                        }
+                    }
+
+                    // 5. Section reordering
+                    const bodyContainer = wrapper.querySelector('.invoice-body');
+                    if (bodyContainer) {
+                        Array.from(bodyContainer.children).forEach((el, idx) => {
+                            if (!el.dataset.secId) el.dataset.secId = 'sec-' + idx;
+                        });
+                        
+                        if (state.sectionOrder && state.sectionOrder.length) {
+                            state.sectionOrder.forEach(secId => {
+                                const el = bodyContainer.querySelector(`[data-sec-id="${secId}"]`);
+                                if (el) bodyContainer.appendChild(el);
+                            });
+                        }
+
+                        // Apply transforms to sections
+                        if (state.sections) {
+                            state.sections.forEach(secState => {
+                                const el = bodyContainer.querySelector(`[data-sec-id="${secState.secId}"]`);
+                                if (el && secState.transform) {
+                                    el.style.transform = secState.transform;
+                                }
+                            });
+                        }
+                    }
+
+                    // 6. Signatures transforms
+                    if (state.signatures) {
+                        wrapper.querySelectorAll('.signature-box').forEach((box, idx) => {
+                            const sigState = state.signatures[idx];
+                            if (sigState && sigState.transform) {
+                                box.style.transform = sigState.transform;
+                            }
+                        });
+                    }
+                    
+                    // Trigger manual scaling to fit the A4 page height
+                    fitBundleDocumentToPage(wrapper);
+                });
+
+                // 7. Typography (font scale, family, text color theme)
+                if (state.typography) {
+                    const t = state.typography;
+                    let css = '';
+                    const s = '#multiPrintContainer .bundle-doc-' + type;
+                    logDiag(`Applying typography: family="${t.family}", color="${t.color}", scale="${t.scale}"`);
+                    
+                    if (t.scale && t.scale !== 100) {
+                        css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container, ' + s + ' .copies-container { zoom: ' + (t.scale / 100) + '; }\n';
+                    }
+                    if (t.family) {
+                        css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + t.family + ' !important; }\n';
+                    }
+                    if (t.color) {
+                        css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container { color: ' + t.color + '; }\n';
+                        css += s + ' .a4-invoice *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *), ' +
+                               s + ' .quotation-container *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *) { color: ' + t.color + ' !important; }\n';
+                    }
+                    
+                    let styleEl = document.getElementById('bulkLayoutStyle-' + type);
+                    if (!styleEl) { 
+                        styleEl = document.createElement('style'); 
+                        styleEl.id = 'bulkLayoutStyle-' + type; 
+                        document.head.appendChild(styleEl); 
+                    }
+                    styleEl.textContent = css;
+                }
+            }
+        }
+
+        function downloadJointPDF() {
+            const element = document.getElementById('multiPrintContainer');
+            if (!element) return;
+
+            const filename = `Document_Joint_Bundle.pdf`;
+            
+            const oldGap = element.style.gap;
+            const oldPadding = element.style.paddingBottom;
+            element.style.gap = '0';
+            element.style.paddingBottom = '0';
+            
+            const shadowItems = element.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+            const oldShadows = [];
+            shadowItems.forEach((item, i) => {
+                oldShadows[i] = item.style.boxShadow;
+                item.style.boxShadow = 'none';
+                item.style.margin = '0';
+            });
+
+            // Standardize format: A4 portrait for the bundle
+            let opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 1.5, useCORS: true, letterRendering: true, windowWidth: 1200 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.gap = oldGap;
+                element.style.paddingBottom = oldPadding;
+                shadowItems.forEach((item, i) => {
+                    item.style.boxShadow = oldShadows[i];
+                });
+            });
+        }
+
+        const activeDraggablesMap = new Map();
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        async function saveDocumentState(wrapper, type) {
+            logDiag(`Saving state for "${type}"...`);
+            let store = { activeTemplate: "Default Layout", templates: {} };
+            try {
+                const srv = await fetch('/api/print-layouts/' + type + '/').then(r => r.json());
+                if (srv && srv.store) {
+                    store = srv.store;
+                }
+            } catch (e) {}
+
+            const activeTemp = store.activeTemplate || "Default Layout";
+            if (!store.templates) store.templates = {};
+            const existingState = store.templates[activeTemp] || {};
+
+            const state = {
+                tables: [],
+                signatures: [],
+                hiddenRows: [],
+                sections: [],
+                sectionOrder: existingState.sectionOrder || [],
+                typography: existingState.typography || {},
+                sidebarWidth: existingState.sidebarWidth,
+                totalsWidth: existingState.totalsWidth
+            };
+
+            // 1. Signatures position
+            wrapper.querySelectorAll('.signature-box').forEach(box => {
+                state.signatures.push({ transform: box.style.transform });
+            });
+
+            // 2. Tables & Columns
+            wrapper.querySelectorAll('table').forEach(table => {
+                const ths = Array.from(table.querySelectorAll('th'));
+                const fingerprint = ths.map(th => {
+                    let clone = th.cloneNode(true);
+                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
+                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                    return th.innerText.replace(/<[^>]*>/g, '').trim();
+                }).join('|');
+
+                const tState = { fingerprint: fingerprint, cols: [] };
+                ths.forEach(th => {
+                    let clone = th.cloneNode(true);
+                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
+                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
+                    tState.cols.push({
+                        text: clone.innerHTML,
+                        width: th.style.width,
+                        hidden: th.classList.contains('hidden-col')
+                    });
+                });
+                state.tables.push(tState);
+            });
+
+            // 3. Hidden amount rows
+            wrapper.querySelectorAll('.amount-row').forEach(row => {
+                const rowId = row.dataset.amountRowId;
+                if (rowId && row.classList.contains('hidden-row')) {
+                    state.hiddenRows.push(rowId);
+                }
+            });
+
+            // 4. Section translation & order
+            const bodyContainer = wrapper.querySelector('.invoice-body');
+            if (bodyContainer) {
+                Array.from(bodyContainer.children).forEach(section => {
+                    state.sections.push({
+                        secId: section.dataset.secId,
+                        transform: section.style.transform
+                    });
+                });
+                const order = [];
+                Array.from(bodyContainer.children).forEach(section => {
+                    if (section.dataset.secId) order.push(section.dataset.secId);
+                });
+                state.sectionOrder = order;
+            }
+
+            store.templates[activeTemp] = state;
+
+            try {
+                await fetch('/api/print-layouts/' + type + '/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify(store)
+                });
+                logDiag(`Saved layout template "${activeTemp}" for "${type}" successfully!`);
+            } catch (e) {
+                logDiag(`Failed saving template to server: ${e.message}`);
+            }
+        }
+
+        function makeWrapperElementDraggable(element, handle, wrapper, type) {
+            let isDragging = false;
+            let currentX = 0;
+            let currentY = 0;
+            let initialX = 0;
+            let initialY = 0;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            const dragStart = function(e) {
+                const transform = element.style.transform || '';
+                const matches = transform.match(/translate3d\(([-\d\.]+)px,\s*([-\d\.]+)px/);
+                if (matches) {
+                    xOffset = parseFloat(matches[1]);
+                    yOffset = parseFloat(matches[2]);
+                } else {
+                    xOffset = 0;
+                    yOffset = 0;
+                }
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+                isDragging = true;
+                handle.style.cursor = 'grabbing';
+                element.style.zIndex = '1000';
+                e.stopPropagation();
+            };
+
+            const drag = function(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                    xOffset = currentX;
+                    yOffset = currentY;
+                    element.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                }
+            };
+
+            const dragEnd = function(e) {
+                if (isDragging) {
+                    initialX = currentX;
+                    initialY = currentY;
+                    isDragging = false;
+                    handle.style.cursor = 'grab';
+                    element.style.zIndex = '';
+                    saveDocumentState(wrapper, type);
+                }
+            };
+
+            handle.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+
+            return function cleanup() {
+                handle.removeEventListener('mousedown', dragStart);
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', dragEnd);
+            };
+        }
+
+        function setupDocumentEditControls(wrapper, type) {
+            removeDocumentEditControls(wrapper);
+            const cleanups = [];
+
+            // 1. Columns adjusting and resizing
+            wrapper.querySelectorAll('table').forEach(table => {
+                const ths = table.querySelectorAll('th');
+                ths.forEach((th, idx) => {
+                    th.classList.add('resizable');
+                    th.contentEditable = "true";
+
+                    if (!th.querySelector('.resizer')) {
+                        const resizer = document.createElement('div');
+                        resizer.className = 'resizer no-print';
+                        resizer.contentEditable = "false";
+                        th.appendChild(resizer);
+
+                        let startX, startW, nextTh, nextStartW;
+                        const onMouseDown = function(e) {
+                            startX = e.clientX;
+                            startW = th.offsetWidth;
+                            nextTh = th.nextElementSibling;
+                            while (nextTh && nextTh.classList.contains('hidden-col')) {
+                                nextTh = nextTh.nextElementSibling;
+                            }
+                            if (nextTh) nextStartW = nextTh.offsetWidth;
+
+                            const onMouseMove = e => {
+                                let diff = e.clientX - startX;
+                                if (startW + diff < 20) diff = 20 - startW;
+                                if (nextTh && nextStartW - diff < 20) diff = nextStartW - 20;
+                                th.style.width = (startW + diff) + 'px';
+                                if (nextTh) nextTh.style.width = (nextStartW - diff) + 'px';
+                            };
+
+                            const onMouseUp = () => {
+                                document.removeEventListener('mousemove', onMouseMove);
+                                document.removeEventListener('mouseup', onMouseUp);
+                                saveDocumentState(wrapper, type);
+                            };
+
+                            document.addEventListener('mousemove', onMouseMove);
+                            document.addEventListener('mouseup', onMouseUp);
+                            e.stopPropagation();
+                        };
+                        resizer.addEventListener('mousedown', onMouseDown);
+                        cleanups.push(() => resizer.removeEventListener('mousedown', onMouseDown));
+                    }
+
+                    if (!th.querySelector('.hide-col-btn')) {
+                        const hbtn = document.createElement('i');
+                        hbtn.className = 'fas fa-eye-slash hide-col-btn no-print';
+                        hbtn.contentEditable = "false";
+                        th.appendChild(hbtn);
+
+                        const onClick = function(e) {
+                            th.classList.add('hidden-col');
+                            syncColspans(table);
+                            saveDocumentState(wrapper, type);
+                            e.stopPropagation();
+                        };
+                        hbtn.addEventListener('click', onClick);
+                        cleanups.push(() => hbtn.removeEventListener('click', onClick));
+                    }
+                });
+            });
+
+            // 2. Hide amount rows
+            wrapper.querySelectorAll('.amount-row').forEach(row => {
+                const rowId = row.dataset.amountRowId;
+                if (rowId && !row.querySelector('.hide-row-btn')) {
+                    const hbtn = document.createElement('i');
+                    hbtn.className = 'fas fa-eye-slash hide-row-btn no-print';
+                    hbtn.contentEditable = "false";
+                    row.appendChild(hbtn);
+
+                    const onClick = function(e) {
+                        row.classList.add('hidden-row');
+                        saveDocumentState(wrapper, type);
+                        e.stopPropagation();
+                    };
+                    hbtn.addEventListener('click', onClick);
+                    cleanups.push(() => hbtn.removeEventListener('click', onClick));
+                }
+            });
+
+            // 3. Draggable invoice sections
+            const bodyContainer = wrapper.querySelector('.invoice-body');
+            if (bodyContainer) {
+                Array.from(bodyContainer.children).forEach(section => {
+                    let handle = section.querySelector(':scope > .section-drag-handle');
+                    if (!handle) {
+                        handle = document.createElement('span');
+                        handle.className = 'section-drag-handle no-print';
+                        handle.contentEditable = "false";
+                        const isTable = section.querySelector('table') ? true : false;
+                        handle.innerHTML = isTable ? '<i class="fas fa-arrows-alt"></i> Drag Table' : '<i class="fas fa-arrows-alt"></i> Drag Section';
+                        section.prepend(handle);
+                    }
+                    const dragCleanup = makeWrapperElementDraggable(section, handle, wrapper, type);
+                    cleanups.push(dragCleanup);
+                });
+            }
+
+            activeDraggablesMap.set(wrapper, cleanups);
+        }
+
+        function removeDocumentEditControls(wrapper) {
+            const cleanups = activeDraggablesMap.get(wrapper);
+            if (cleanups) {
+                cleanups.forEach(c => c());
+                activeDraggablesMap.delete(wrapper);
+            }
+            wrapper.querySelectorAll('.resizer').forEach(el => el.remove());
+            wrapper.querySelectorAll('.hide-col-btn').forEach(el => el.remove());
+            wrapper.querySelectorAll('.hide-row-btn').forEach(el => el.remove());
+            wrapper.querySelectorAll('.section-drag-handle').forEach(el => el.remove());
+            wrapper.querySelectorAll('table th').forEach(th => {
+                th.classList.remove('resizable');
+                th.contentEditable = "false";
+            });
+        }
+
+        function toggleEditMode(enabled) {
+            document.body.classList.toggle('edit-mode-active', enabled);
+            const containers = document.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+            containers.forEach(container => {
+                container.contentEditable = enabled ? "true" : "false";
+                container.querySelectorAll('.display-base, .display-target').forEach(el => {
+                    el.contentEditable = "inherit";
+                });
+            });
+
+            if (enabled) {
+                document.getElementById('multiPrintContainer').querySelectorAll('[class^="bundle-doc-"]').forEach(wrapper => {
+                    const type = Array.from(wrapper.classList).find(c => c.startsWith('bundle-doc-')).split('-').pop();
+                    setupDocumentEditControls(wrapper, type);
+                });
+
+                if (!window.liveCalcBound) {
+                    window.liveCalcBound = true;
+                    bindLiveCalculations();
+                }
+            } else {
+                document.getElementById('multiPrintContainer').querySelectorAll('[class^="bundle-doc-"]').forEach(wrapper => {
+                    removeDocumentEditControls(wrapper);
+                });
+            }
+        }
+
+        function extractNum(text) {
+            if (!text) return 0;
+            const match = text.replace(/,/g, '').match(/[\d\.]+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function bindLiveCalculations() {
+            const container = document.getElementById('multiPrintContainer');
+            if (!container) return;
+            
+            container.addEventListener('input', (e) => {
+                const td = e.target.closest('td');
+                if (!td) return;
+                
+                const tr = td.closest('tr');
+                const table = tr.closest('table');
+                if (!table) return;
+
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const qtyIdx = headers.findIndex(h => h === 'qty');
+                const rateIdx = headers.findIndex(h => h === 'rate');
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+
+                const tds = Array.from(tr.children);
+                const cellIdx = tds.indexOf(td);
+
+                if (cellIdx === qtyIdx || cellIdx === rateIdx || cellIdx === amountIdx) {
+                    if (qtyIdx !== -1 && rateIdx !== -1 && cellIdx !== amountIdx) {
+                        const qty = extractNum(tds[qtyIdx].innerText);
+                        const rate = extractNum(tds[rateIdx].innerText);
+                        const amount = qty * rate;
+                        
+                        const amountTd = tds[amountIdx];
+                        const baseSpan = amountTd.querySelector('.display-base');
+                        if (baseSpan) {
+                            baseSpan.innerText = '৳' + amount.toFixed(3);
+                            const targetSpan = amountTd.querySelector('.display-target');
+                            if (targetSpan) targetSpan.innerText = '৳' + amount.toFixed(2);
+                        } else {
+                            amountTd.innerText = '৳' + amount.toFixed(3);
+                        }
+                    }
+                    
+                    const docContainer = td.closest('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+                    if (docContainer) {
+                        recalculateDocTotals(docContainer);
+                    }
+                }
+            });
+        }
+
+        function recalculateDocTotals(container) {
+            let subtotals = [];
+            let totalSubtotal = 0;
+
+            container.querySelectorAll('table').forEach(table => {
+                let tableSub = 0;
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+                const amountIdx = headers.findIndex(h => h === 'amount' || h === 'cost');
+                
+                if (amountIdx !== -1) {
+                    table.querySelectorAll('tbody tr').forEach(tr => {
+                        if (tr.children[amountIdx]) {
+                            const amountTd = tr.children[amountIdx];
+                            const valText = amountTd.querySelector('.display-base') ? amountTd.querySelector('.display-base').innerText : amountTd.innerText;
+                            tableSub += extractNum(valText);
+                        }
+                    });
+                }
+                subtotals.push(tableSub);
+                totalSubtotal += tableSub;
+            });
+
+            const amountRows = container.querySelectorAll('.amount-row');
+            let discountPct = 0;
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                if (labelEl && labelEl.innerText.toLowerCase().includes('discount')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        discountPct = parseFloat(pctMatches[0][1]);
+                    }
+                }
+            });
+
+            let serviceCharges = [0, 0];
+            let discounts = [0, 0];
+            let priceAfterDeductions = [0, 0];
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('subtotal')) {
+                    baseSpan.innerText = '৳' + totalSubtotal.toFixed(3);
+                } else if (label.includes('service charge')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        const pct = parseFloat(pctMatches[0][1]);
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
+                            serviceCharges[catIdx] = (subtotals[catIdx] || 0) * (pct / 100);
+                            valueEl.innerText = '৳' + serviceCharges[catIdx].toFixed(3);
+                        } else {
+                            serviceCharges[0] = totalSubtotal * (pct / 100);
+                            valueEl.innerText = '৳' + serviceCharges[0].toFixed(3);
+                        }
+                    }
+                }
+            });
+
+            const flatHost = container.hasAttribute && container.hasAttribute('data-discount-flat') ? container : (container.closest ? container.closest('[data-discount-flat]') : null);
+            const discountFlat = flatHost ? (parseFloat(flatHost.getAttribute('data-discount-flat')) || 0) : 0;
+            if (subtotals.length > 1) {
+                const base0 = subtotals[0] + serviceCharges[0];
+                const base1 = subtotals[1] + serviceCharges[1];
+                const baseAll = base0 + base1;
+                discounts[0] = base0 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base0 / baseAll) : 0);
+                priceAfterDeductions[0] = base0 - discounts[0];
+
+                discounts[1] = base1 * (discountPct / 100) + (baseAll > 0 ? discountFlat * (base1 / baseAll) : 0);
+                priceAfterDeductions[1] = base1 - discounts[1];
+            } else {
+                discounts[0] = (totalSubtotal + serviceCharges[0]) * (discountPct / 100) + discountFlat;
+                priceAfterDeductions[0] = (totalSubtotal + serviceCharges[0]) - discounts[0];
+            }
+
+            let totalDiscountAmt = discounts[0] + discounts[1];
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                const baseSpan = valueEl.querySelector('.display-base') || valueEl;
+
+                if (label.includes('discount')) {
+                    baseSpan.innerText = '৳' + totalDiscountAmt.toFixed(3);
+                }
+            });
+
+            const totalPriceAfterDeduction = priceAfterDeductions[0] + priceAfterDeductions[1];
+            let grandTotal = totalPriceAfterDeduction;
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                const valueEl = row.querySelector('.amount-value');
+                if (!labelEl || !valueEl) return;
+                const label = labelEl.innerText.toLowerCase();
+
+                if (label.includes('price after deduction')) {
+                    const displayBaseSpan = valueEl.querySelector('.display-base');
+                    if (displayBaseSpan) {
+                        displayBaseSpan.innerText = '৳' + totalPriceAfterDeduction.toFixed(3);
+                    } else {
+                        valueEl.innerText = '৳' + totalPriceAfterDeduction.toFixed(3);
+                    }
+                } else if (!label.includes('subtotal') && !label.includes('service charge') && !label.includes('discount') && !label.includes('grand total')) {
+                    const pctMatches = [...labelEl.innerText.matchAll(/([\d\.]+)%/g)];
+                    if (pctMatches.length > 0) {
+                        let taxAmt = 0;
+                        const catIdxStr = row.getAttribute('data-category-index');
+                        if (catIdxStr !== null) {
+                            const catIdx = parseInt(catIdxStr);
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = priceAfterDeductions[catIdx] * (pct / 100);
+                        } else if (pctMatches.length === 1 || subtotals.length === 1) {
+                            const pct = parseFloat(pctMatches[0][1]);
+                            taxAmt = priceAfterDeductions[0] * (pct / 100);
+                        } else {
+                            pctMatches.forEach((match, idx) => {
+                                const pct = parseFloat(match[1]);
+                                taxAmt += priceAfterDeductions[idx] * (pct / 100);
+                            });
+                        }
+                        
+                        valueEl.innerText = '৳' + taxAmt.toFixed(3);
+                        grandTotal += taxAmt;
+                    }
+                }
+            });
+
+            amountRows.forEach(row => {
+                const labelEl = row.querySelector('.amount-label');
+                if (!labelEl) return;
+                const label = labelEl.innerText.toLowerCase();
+                if (label.includes('grand total')) {
+                    const val = row.querySelector('.amount-value');
+                    const baseSpan = val.querySelector('.display-base');
+                    if (baseSpan) {
+                        baseSpan.innerText = '৳' + grandTotal.toFixed(3);
+                        const targetSpan = val.querySelector('.display-target');
+                        if (targetSpan) targetSpan.innerText = '৳' + grandTotal.toFixed(3);
+                    } else {
+                        val.innerText = '৳' + grandTotal.toFixed(3);
+                    }
+                }
+            });
+        }
+
+        function initSignatureDrag() {
+            const signatureBoxes = document.querySelectorAll('.signature-box');
+            signatureBoxes.forEach(box => {
+                let isDragging = false;
+                let currentX = 0;
+                let currentY = 0;
+                let initialX = 0;
+                let initialY = 0;
+                let xOffset = 0;
+                let yOffset = 0;
+
+                box.addEventListener('mousedown', dragStart);
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', dragEnd);
+
+                function dragStart(e) {
+                    if (e.target.closest('.signature-box') === box) {
+                        initialX = e.clientX - xOffset;
+                        initialY = e.clientY - yOffset;
+                        isDragging = true;
+                        box.style.cursor = 'grabbing';
+                    }
+                }
+
+                function drag(e) {
+                    if (isDragging) {
+                        e.preventDefault();
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                        xOffset = currentX;
+                        yOffset = currentY;
+                        box.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                    }
+                }
+
+                function dragEnd(e) {
+                    if (isDragging) {
+                        initialX = currentX;
+                        initialY = currentY;
+                        isDragging = false;
+                        box.style.cursor = 'grab';
+                    }
+                }
+            });
+        }
+
+        window.onload = loadDocuments;
+    </script>
+</body>
+</html>
