@@ -2748,6 +2748,84 @@ function applyImportRows(rows) {
     });
 })();
 
+// ── Inline product type-ahead: type in Description, pick, get unit + price ──
+(function () {
+    let box = null, activeInput = null, timer = null;
+
+    function ensureBox() {
+        if (box) return box;
+        box = document.createElement('div');
+        box.id = 'product-typeahead';
+        box.style.cssText = 'position:absolute;z-index:60;background:#fff;border:1px solid #c7d2fe;' +
+            'border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow:auto;display:none;';
+        document.body.appendChild(box);
+        return box;
+    }
+    function hide() { if (box) box.style.display = 'none'; activeInput = null; }
+    function place(input) {
+        const r = input.getBoundingClientRect(), b = ensureBox();
+        b.style.left = (window.scrollX + r.left) + 'px';
+        b.style.top  = (window.scrollY + r.bottom + 2) + 'px';
+        b.style.minWidth = Math.max(240, r.width) + 'px';
+    }
+
+    function render(items, input) {
+        const b = ensureBox();
+        b.innerHTML = '';
+        if (!items.length) { hide(); return; }
+        items.forEach(function (p) {
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;';
+            row.innerHTML = '<b>' + escapeHtml(p.name) + '</b>' +
+                '<span style="float:right;color:#4f46e5;font-weight:700">৳' + escapeHtml(p.base_price) + '</span>' +
+                '<div style="color:#94a3b8;font-size:10px">' + escapeHtml(p.unit || '') + '</div>';
+            row.addEventListener('mouseenter', function () { row.style.background = '#eef2ff'; });
+            row.addEventListener('mouseleave', function () { row.style.background = '#fff'; });
+            // mousedown fires before the input's blur, so the pick isn't lost
+            row.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                const tr = input.closest('tr');
+                input.value = p.name;
+                const u = tr.querySelector('input[name$="-unit"]');
+                if (u && p.unit) u.value = p.unit;
+                const pr = tr.querySelector('input[name$="-base_price"]');
+                if (pr && (!pr.value || parseFloat(pr.value) === 0)) {
+                    pr.value = p.base_price;
+                    pr.dispatchEvent(new Event('input', { bubbles: true }));  // refresh live totals
+                }
+                hide();
+            });
+            b.appendChild(row);
+        });
+        place(input);
+        b.style.display = 'block';
+    }
+
+    document.addEventListener('input', function (e) {
+        const t = e.target;
+        if (!t.matches || !t.matches('input[name$="-description"]')) return;
+        const q = (t.value || '').trim();
+        activeInput = t;
+        clearTimeout(timer);
+        if (q.length < 2) { hide(); return; }
+        timer = setTimeout(async function () {
+            const catSel = document.querySelector('[name="transaction_category"]');
+            const params = new URLSearchParams({ q: q });
+            if (catSel && catSel.value) params.set('category_id', catSel.value);
+            try {
+                const d = await fetch('/api/products/search/?' + params.toString()).then(r => r.json());
+                if (activeInput === t) render(d.results || [], t);
+            } catch (err) { hide(); }
+        }, 220);
+    });
+
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+    document.addEventListener('click', function (e) {
+        if (box && !box.contains(e.target) && e.target !== activeInput) hide();
+    });
+    window.addEventListener('scroll', function () { if (activeInput) place(activeInput); }, true);
+})();
+
 
 
 const roundingSelect = document.getElementById('id_decimal_display_mode');
