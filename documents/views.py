@@ -1772,3 +1772,124 @@ def sync_status_api(request):
         'unsynced_count': unsynced_count,
         'has_supabase': has_supabase
     })
+
+
+# ── Quick Bill: type a whole bill instead of filling blanks ────────────────
+@login_required
+def quick_bill_parse(request):
+    """Parse typed quick-bill text into structured rows.
+
+    Input : {"text": "lunch\nkacchi bhai | 20\nborhani | 20", "category_id": <optional>}
+    Output: resolved category + one row per item, with unit/price auto-filled
+            from the Product master so the user only types name + qty.
+    """
+    import json, re, difflib
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        payload = json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'invalid JSON'}, status=400)
+
+    text = (payload.get('text') or '').strip()
+    if not text:
+        return JsonResponse({'error': 'no text supplied'}, status=400)
+
+    lines = [l.strip() for l in text.splitlines()]
+    lines = [l for l in lines if l]
+    SEP = re.compile(r'\s*[|\t;]\s*')
+
+    # ── Resolve the category from an optional first line ──
+    cats = list(TransactionCategory.objects.all())
+    category = None
+    category_line = None
+    if lines and len(SEP.split(lines[0])) == 1:
+        first = lines[0].strip().lower()
+        for c in cats:
+            n = c.name.strip().lower()
+            if n == first or first in n or n in first:
+                category = c
+                break
+        if category is None:
+            close = difflib.get_close_matches(first, [c.name.strip().lower() for c in cats], n=1, cutoff=0.6)
+            if close:
+                category = next((c for c in cats if c.name.strip().lower() == close[0]), None)
+        if category is not None:
+            category_line = lines[0]
+            lines = lines[1:]
+    if category is None and payload.get('category_id'):
+        category = TransactionCategory.objects.filter(pk=payload.get('category_id')).first()
+
+    # ── Product pool: prefer this category's products, fall back to all ──
+    scoped = list(Product.objects.filter(category=category)) if category else []
+    everything = list(Product.objects.all())
+
+    def match_product(name):
+        n = (name or '').strip().lower()
+        if not n:
+            return None
+        for pool in (scoped, everything):
+            if not pool:
+                continue
+            for p in pool:                      # exact
+                if p.name.strip().lower() == n:
+                    return p
+            for p in pool:                      # substring either way
+                pn = p.name.strip().lower()
+                if n in pn or pn in n:
+                    return p
+            close = difflib.get_close_matches(n, [p.name.strip().lower() for p in pool], n=1, cutoff=0.75)
+            if close:
+                hit = next((p for p in pool if p.name.strip().lower() == close[0]), None)
+                if hit:
+                    return hit
+        return None
+
+    rows = []
+    for i, line in enumerate(lines, start=1):
+        parts = SEP.split(line)
+        desc = (parts[0] or '').strip()
+        qty, price, note, status = 1.0, None, [], 'ok'
+
+        if len(parts) > 1 and parts[1].strip() != '':
+            try:
+                qty = float(parts[1])
+                if qty <= 0:
+                    raise ValueError
+            except ValueError:
+                status = 'error'; note.append('invalid quantity')
+        if len(parts) > 2 and parts[2].strip() != '':
+            try:
+                price = float(parts[2])
+            except ValueError:
+                status = 'error'; note.append('invalid price')
+
+        prod = match_product(desc) if desc else None
+        unit = prod.unit if prod else None
+        if prod and price is None:
+            saved = prod.upscale_value or prod.base_price or 0
+            if saved:
+                price = float(saved)
+                note.append('price + unit from "%s"' % prod.name)
+        if not desc:
+            status = 'error'; note.append('no description')
+        if status == 'ok' and not price:
+            status = 'needs_price'; note.append('no saved price — enter it')
+
+        rows.append({
+            'idx': i,
+            'description': desc,
+            'unit': unit or 'Pcs',
+            'quantity': qty,
+            'unit_price': price,
+            'matched_product': prod.name if prod else None,
+            'status': status,
+            'note': ', '.join(note),
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'category': ({'id': category.id, 'name': category.name} if category else None),
+        'category_line': category_line,
+        'rows': rows,
+    })

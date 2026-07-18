@@ -78,6 +78,7 @@ urlpatterns = [
     path('api/users/<int:user_id>/nid/', doc_views.api_get_user_nid, name='api_get_user_nid'),
     path('api/parties/<int:party_id>/details/', doc_views.api_get_party_details, name='api_get_party_details'),
     path('api/print-layouts/<int:pk>/<str:doc_type>/', doc_views.print_layout_api, name='print_layout_api'),
+    path('api/quick-bill/parse/', doc_views.quick_bill_parse, name='quick_bill_parse'),
     path('sync/', doc_views.sync_db_view, name='sync_db'),
     path('api/sync/status/', doc_views.sync_status_api, name='sync_status_api'),
 ]
