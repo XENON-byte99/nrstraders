@@ -1928,27 +1928,89 @@ def quick_bill_parse(request):
     })
 
 
+def _ai_extract_anthropic(api_key, model, system, text, schema):
+    """Anthropic path: strict json_schema output, so the JSON is guaranteed."""
+    import json, anthropic
+    client = anthropic.Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model=model or "claude-opus-4-8",
+        max_tokens=4096,
+        system=system,
+        thinking={"type": "adaptive"},
+        output_config={"format": {"type": "json_schema", "schema": schema}},
+        messages=[{"role": "user", "content": text}],
+    )
+    if getattr(resp, 'stop_reason', None) == 'refusal':
+        raise RuntimeError('the model declined to process that text')
+    raw = next(b.text for b in resp.content if b.type == 'text')
+    return json.loads(raw)
+
+
+def _ai_extract_openai_compatible(api_key, base_url, model, system, text):
+    """NVIDIA NIM / any OpenAI-compatible endpoint, via stdlib urllib.
+
+    These models don't reliably support strict schemas, so we ask for JSON and
+    then defensively pull the first {...} block out of the reply.
+    """
+    import json, urllib.request, urllib.error
+    url = (base_url or '').rstrip('/') + '/chat/completions'
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": text},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 1500,
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=body, method='POST', headers={
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer %s' % api_key,
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read().decode('utf-8', 'replace'))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode('utf-8', 'replace')[:300]
+        raise RuntimeError('provider returned HTTP %s: %s' % (e.code, detail))
+
+    content = (data.get('choices') or [{}])[0].get('message', {}).get('content', '') or ''
+    # Strip code fences / prose around the JSON object.
+    start, end = content.find('{'), content.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        raise RuntimeError('the model did not return JSON')
+    return json.loads(content[start:end + 1])
+
+
 @login_required
 def quick_bill_ai_parse(request):
-    """Free-form parser: hand messy text (a WhatsApp message, a note) to Claude,
+    """Free-form parser: hand messy text (a WhatsApp message, a note) to an LLM,
     get structured items back, then resolve them through the SAME product
-    matching / preview pipeline as the typed parser."""
+    matching / preview pipeline as the typed parser.
+
+    Provider is configurable: NVIDIA NIM (or any OpenAI-compatible endpoint) or
+    Anthropic. Whichever is used, the user still confirms the preview.
+    """
     import json
     from django.conf import settings
 
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
 
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', '') or ''
-    if not api_key:
+    provider = (getattr(settings, 'AI_PROVIDER', '') or '').strip().lower()
+    api_key = (getattr(settings, 'AI_API_KEY', '') or '').strip()
+    anthropic_key = (getattr(settings, 'ANTHROPIC_API_KEY', '') or '').strip()
+    if not provider and anthropic_key:
+        provider, api_key = 'anthropic', anthropic_key
+    if provider == 'anthropic' and not api_key:
+        api_key = anthropic_key
+
+    if not provider or not api_key:
         return JsonResponse({
-            'error': 'AI parsing is not set up yet. Add ANTHROPIC_API_KEY to your .env and '
-                     'restart the server, or use the plain "name | qty | price" format above.'
+            'error': 'AI parsing is not set up yet. Set AI_PROVIDER / AI_API_KEY in your .env '
+                     'and restart, or use the plain "name | qty | price" format above.'
         }, status=503)
-    try:
-        import anthropic
-    except ImportError:
-        return JsonResponse({'error': 'The anthropic package is not installed on the server.'}, status=503)
 
     try:
         payload = json.loads(request.body or '{}')
@@ -1989,31 +2051,28 @@ def quick_bill_ai_parse(request):
         "Bangladeshi supply company. Amounts are in BDT. Return ONLY what the message "
         "actually states: never invent prices or quantities. If a quantity is missing, "
         "use 1. If a price is not stated, use null (it gets filled from a product "
-        "database afterwards). Split combined lines into separate items. "
-        "Available categories: " + ", ".join(known)
+        "database afterwards). Split combined lines into separate items.\n"
+        "Available categories: " + ", ".join(known) + "\n"
+        "Reply with ONLY a JSON object, no prose and no code fences, shaped exactly like:\n"
+        '{"category": "<one of the categories above or null>", "items": '
+        '[{"description": "item name", "quantity": 1, "unit": null, "unit_price": null}]}'
     )
 
+    model = (getattr(settings, 'AI_MODEL', '') or '').strip()
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=4096,
-            system=system,
-            thinking={"type": "adaptive"},
-            output_config={"format": {"type": "json_schema", "schema": schema}},
-            messages=[{"role": "user", "content": text}],
-        )
+        if provider == 'anthropic':
+            data = _ai_extract_anthropic(api_key, model, system, text, schema)
+        else:
+            base_url = (getattr(settings, 'AI_BASE_URL', '') or '').strip()
+            if not base_url:
+                return JsonResponse({'error': 'AI_BASE_URL is not set for provider "%s".' % provider}, status=503)
+            data = _ai_extract_openai_compatible(api_key, base_url, model, system, text)
     except Exception as exc:
         return JsonResponse({'error': 'AI request failed: %s' % exc}, status=502)
 
-    if getattr(resp, 'stop_reason', None) == 'refusal':
-        return JsonResponse({'error': 'The AI declined to process that text.'}, status=502)
-
-    try:
-        raw = next(b.text for b in resp.content if b.type == 'text')
-        data = json.loads(raw)
-    except (StopIteration, ValueError, TypeError):
-        return JsonResponse({'error': 'Could not read the AI response.'}, status=502)
+    if not isinstance(data, dict) or not isinstance(data.get('items'), list):
+        return JsonResponse({'error': 'The AI reply was not in the expected shape. '
+                                      'Try the plain "name | qty | price" format.'}, status=502)
 
     category = _quick_resolve_category(data.get('category')) if data.get('category') else None
     if category is None and payload.get('category_id'):

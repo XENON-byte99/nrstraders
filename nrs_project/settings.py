@@ -105,8 +105,15 @@ DATABASES = {
 
 SUPABASE_DATABASE_URL = config('SUPABASE_DATABASE_URL', default=None)
 
-# Optional: enables Quick Bill's "Read with AI" free-form parsing.
-# Leave unset to keep the feature switched off (it degrades gracefully).
+# ── Quick Bill "Read with AI" (free-form parsing) ──────────────────────────
+# Works with NVIDIA NIM (or any OpenAI-compatible endpoint) and with Anthropic.
+# Leave AI_PROVIDER blank to switch the feature off; it degrades gracefully.
+AI_PROVIDER = config('AI_PROVIDER', default='')          # 'nvidia' | 'anthropic'
+AI_API_KEY  = config('AI_API_KEY', default='')
+AI_BASE_URL = config('AI_BASE_URL', default='https://integrate.api.nvidia.com/v1')
+AI_MODEL    = config('AI_MODEL', default='meta/llama-3.1-8b-instruct')
+
+# Back-compat: an Anthropic key alone still enables the Anthropic path.
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
 if SUPABASE_DATABASE_URL:
     db_config = dj_database_url.parse(SUPABASE_DATABASE_URL)
