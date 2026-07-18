@@ -51,17 +51,18 @@
 </style>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // v3: layouts are scoped PER BILL + document type. Editing one bill's
+        // print never affects another; bulk printing applies each bill's own.
+        const billId = '{{ transaction.pk|default:"" }}';
         const docType = window.location.pathname.split('/').filter(Boolean).pop();
-        // v2: layouts are GLOBAL per document type. Combined with the universal
-        // item-table columns this means one saved layout works on every bill.
-        const storageKey = 'print_layout_v2_' + docType;
+        const storageKey = 'print_layout_v3_' + billId + '_' + docType;
 
         // Initialize storage structure if empty (localStorage = fast offline cache)
         let store = JSON.parse(localStorage.getItem(storageKey) || '{"activeTemplate": "Default Layout", "templates": {}}');
 
-        // ── Server sync: layouts are company-shared, persist across devices,
-        // and are the same store bulk printing reads from Bill Summary. ──
-        const LAYOUT_API = '/api/print-layouts/' + docType + '/';
+        // ── Server sync: this bill's layout, persisted across devices, and the
+        // same store bulk printing reads for this bill from Bill Summary. ──
+        const LAYOUT_API = '/api/print-layouts/' + billId + '/' + docType + '/';
         const CSRF_TOKEN = '{{ csrf_token }}';
         function persistStore() {
             localStorage.setItem(storageKey, JSON.stringify(store));   // cache

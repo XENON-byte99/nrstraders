@@ -798,10 +798,12 @@ class TransactionSnapshot(models.Model):
 
 
 class PrintLayout(models.Model):
-    """Server-stored, company-shared print layout per document type.
+    """Server-stored print layout, scoped per BILL + document type.
 
-    Holds the whole editor 'store' blob ({activeTemplate, templates:{name:state}})
-    so a layout saved once loads on every device and during bulk printing.
+    Each bill keeps its own layout for each document type (invoice/quotation/
+    challan/mushok), so editing one bill's print never affects another and bulk
+    printing applies each bill's own saved layout. Holds the whole editor
+    'store' blob ({activeTemplate, templates:{name:state}}).
     """
     DOC_TYPES = [
         ('invoice', 'Invoice'),
@@ -809,10 +811,15 @@ class PrintLayout(models.Model):
         ('challan', 'Challan'),
         ('mushok', 'Mushok'),
     ]
-    doc_type = models.CharField(max_length=20, choices=DOC_TYPES, unique=True)
-    data = models.JSONField(default=dict, help_text="Saved layout store for this document type")
+    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE,
+                                    related_name='print_layouts', null=True, blank=True)
+    doc_type = models.CharField(max_length=20, choices=DOC_TYPES)
+    data = models.JSONField(default=dict, help_text="Saved layout store for this bill + document type")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
 
+    class Meta:
+        unique_together = (('transaction', 'doc_type'),)
+
     def __str__(self):
-        return f"Print layout: {self.doc_type}"
+        return f"Print layout: bill {self.transaction_id} / {self.doc_type}"

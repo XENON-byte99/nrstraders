@@ -228,59 +228,65 @@
             applyBulkLayout();
         }
 
-        // Loads the server layout for this document type and applies it to EVERY
-        // injected document, so bulk printing matches your saved single-print layout.
+        // Per-bill: fetch EACH bill's own saved layout and apply it to that
+        // bill's wrapper only. Wrappers were appended in txIds order.
         async function applyBulkLayout() {
             const cont = document.getElementById('multiPrintContainer');
             if (!cont) return;
-            let state = null;
-            try {
-                const srv = await fetch('/api/print-layouts/' + docType + '/').then(r => r.json());
-                if (srv && srv.store && srv.store.templates) {
-                    state = srv.store.templates[srv.store.activeTemplate];
-                }
-            } catch (e) { /* offline: nothing to apply */ }
-            if (!state) return;
+            const wrappers = Array.from(cont.children);
+            for (let i = 0; i < wrappers.length; i++) {
+                const txId = txIds[i];
+                if (txId === undefined || txId === null) continue;
+                let state = null;
+                try {
+                    const srv = await fetch('/api/print-layouts/' + txId + '/' + docType + '/').then(function (r) { return r.json(); });
+                    if (srv && srv.store && srv.store.templates) {
+                        state = srv.store.templates[srv.store.activeTemplate];
+                    }
+                } catch (e) { /* skip this bill */ }
+                if (state) applyLayoutToWrapper(wrappers[i], state);
+            }
+        }
 
-            // Column layout (hide / rename / resize) — applied within each document
-            Array.from(cont.children).forEach(function (wrapper) {
-                wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
-                    const tState = state.tables && state.tables[tIdx];
-                    if (!tState || !tState.cols) return;
-                    const ths = Array.from(table.querySelectorAll('thead th'));
-                    const trs = Array.from(table.querySelectorAll('tbody tr'));
-                    if (tState.cols.length !== ths.length) return;
-                    tState.cols.forEach(function (colState, colIdx) {
-                        const th = ths[colIdx];
-                        if (!th) return;
-                        if (colState.text) th.innerHTML = colState.text;
-                        if (colState.width) th.style.width = colState.width;
-                        if (colState.hidden) {
-                            th.classList.add('hidden-col');
-                            trs.forEach(function (tr) { if (tr.children[colIdx]) tr.children[colIdx].classList.add('hidden-col'); });
-                        }
-                    });
+        // Apply one bill's saved layout to its own wrapper (scoped, not global).
+        function applyLayoutToWrapper(wrapper, state) {
+            // Column layout (hide / rename / resize)
+            wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
+                const tState = state.tables && state.tables[tIdx];
+                if (!tState || !tState.cols) return;
+                const ths = Array.from(table.querySelectorAll('thead th'));
+                const trs = Array.from(table.querySelectorAll('tbody tr'));
+                if (tState.cols.length !== ths.length) return;
+                tState.cols.forEach(function (colState, colIdx) {
+                    const th = ths[colIdx];
+                    if (!th) return;
+                    if (colState.text) th.innerHTML = colState.text;
+                    if (colState.width) th.style.width = colState.width;
+                    if (colState.hidden) {
+                        th.classList.add('hidden-col');
+                        trs.forEach(function (tr) { if (tr.children[colIdx]) tr.children[colIdx].classList.add('hidden-col'); });
+                    }
                 });
             });
 
-            // Hidden totals rows
+            // Hidden totals rows — scoped to this wrapper
             if (state.hiddenRows) {
                 state.hiddenRows.forEach(function (rowId) {
-                    document.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) { r.classList.add('hidden-row'); });
+                    wrapper.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) { r.classList.add('hidden-row'); });
                 });
             }
 
-            // Typography (text size / font / colour) across all injected docs
+            // Typography (text size / font / colour) — scoped to this wrapper
             if (state.typography) {
                 const t = state.typography;
-                let css = '';
-                const s = '#multiPrintContainer';
-                if (t.scale && t.scale !== 100) css += s + ' .a4-invoice, ' + s + ' .mushok-form { zoom: ' + (t.scale / 100) + '; }\n';
-                if (t.family) css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + t.family + ' !important; }\n';
-                if (t.color) css += s + ' td, ' + s + ' .info-value, ' + s + ' .terms, ' + s + ' .terms-note { color: ' + t.color + ' !important; }\n';
-                let styleEl = document.getElementById('bulkLayoutStyle');
-                if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'bulkLayoutStyle'; document.head.appendChild(styleEl); }
-                styleEl.textContent = css;
+                const docEl = wrapper.querySelector('.a4-invoice, .mushok-form') || wrapper;
+                if (t.scale && t.scale !== 100) docEl.style.zoom = (t.scale / 100);
+                if (t.family) {
+                    wrapper.querySelectorAll('*:not(.mono):not(.fas):not(.far):not(.fab)').forEach(function (el) { el.style.fontFamily = t.family; });
+                }
+                if (t.color) {
+                    wrapper.querySelectorAll('td, .info-value, .terms, .terms-note').forEach(function (el) { el.style.color = t.color; });
+                }
             }
         }
 

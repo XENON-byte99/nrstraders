@@ -584,6 +584,45 @@ def print_multiple(request, doc_type):
     })
 
 @login_required
+def print_bundle(request):
+    # Security Check
+    if not (request.user.is_superuser or request.user.p_view_bills):
+        messages.error(request, "Access Denied: You do not have permission to print documents.")
+        return redirect('home')
+
+    ids = request.GET.get('ids', '')
+    types = request.GET.get('types', '')
+    group_by = request.GET.get('group_by', 'transaction')
+    
+    if not ids:
+        messages.error(request, "No documents selected for printing.")
+        return redirect('bill_summary')
+        
+    id_list = [int(i) for i in ids.split(',') if i.strip().isdigit()]
+    transactions = Transaction.objects.filter(pk__in=id_list, status__in=['APPROVED', 'SUBMITTED', 'RELEASED'])
+    
+    if not transactions.exists():
+        messages.error(request, "Selected documents are either not found or not approved.")
+        return redirect('bill_summary')
+        
+    type_list = [t.strip().lower() for t in types.split(',') if t.strip()]
+    if not type_list:
+        messages.error(request, "No document types selected for printing.")
+        return redirect('bill_summary')
+
+    log_audit(request.user, "Printed Document Bundle", f"Printed bundle ({', '.join(type_list)}) grouped by {group_by} for {transactions.count()} bills")
+    
+    import json
+    doc_types_json = json.dumps(type_list)
+    
+    return render(request, 'documents/print_bundle.html', {
+        'transactions': transactions,
+        'doc_types_json': doc_types_json,
+        'doc_types': type_list,
+        'group_by': group_by,
+    })
+
+@login_required
 def print_received_summary(request):
     # Security Check
     if not (request.user.is_superuser or request.user.p_view_bills or request.user.p_print_documents):
@@ -1672,18 +1711,19 @@ def api_get_party_details(request, party_id):
     })
 
 @login_required
-def print_layout_api(request, doc_type):
-    """Company-shared print layout store per document type.
+def print_layout_api(request, pk, doc_type):
+    """Per-bill print layout store, scoped to (bill, document type).
 
-    GET  -> {"store": <saved layout blob or null>}
+    GET  -> {"store": <this bill's saved layout blob or null>}
     POST -> body is the whole editor store blob; upserts and returns {"ok": true}
-    So a layout saved once (single print) loads on every device and during
-    bulk printing from Bill Summary.
+    Each bill keeps its own layout, so editing one bill's print never affects
+    another, and bulk printing applies each bill's own saved layout.
     """
-    from .models import PrintLayout
+    from .models import PrintLayout, Transaction
     valid = {c[0] for c in PrintLayout.DOC_TYPES}
     if doc_type not in valid:
         return JsonResponse({'error': 'invalid document type'}, status=400)
+    transaction = get_object_or_404(Transaction, pk=pk)
 
     if request.method == 'POST':
         import json
@@ -1693,13 +1733,13 @@ def print_layout_api(request, doc_type):
             return JsonResponse({'error': 'invalid JSON'}, status=400)
         if not isinstance(data, dict):
             return JsonResponse({'error': 'invalid payload'}, status=400)
-        obj, _ = PrintLayout.objects.get_or_create(doc_type=doc_type)
+        obj, _ = PrintLayout.objects.get_or_create(transaction=transaction, doc_type=doc_type)
         obj.data = data
         obj.updated_by = request.user if request.user.is_authenticated else None
         obj.save()
         return JsonResponse({'ok': True})
 
-    obj = PrintLayout.objects.filter(doc_type=doc_type).first()
+    obj = PrintLayout.objects.filter(transaction=transaction, doc_type=doc_type).first()
     return JsonResponse({'store': obj.data if obj else None})
 
 import os
