@@ -1774,71 +1774,56 @@ def sync_status_api(request):
     })
 
 
+
+
 # ── Quick Bill: type a whole bill instead of filling blanks ────────────────
-@login_required
-def quick_bill_parse(request):
-    """Parse typed quick-bill text into structured rows.
-
-    Input : {"text": "lunch\nkacchi bhai | 20\nborhani | 20", "category_id": <optional>}
-    Output: resolved category + one row per item, with unit/price auto-filled
-            from the Product master so the user only types name + qty.
-    """
-    import json, re, difflib
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-    try:
-        payload = json.loads(request.body or '{}')
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'invalid JSON'}, status=400)
-
-    text = (payload.get('text') or '').strip()
-    if not text:
-        return JsonResponse({'error': 'no text supplied'}, status=400)
-
-    lines = [l.strip() for l in text.splitlines()]
-    lines = [l for l in lines if l]
-    SEP = re.compile(r'\s*[|\t;]\s*')
-
-    # ── Resolve the category from an optional first line ──
+def _quick_resolve_category(first_line):
+    """Fuzzy-match a typed line (e.g. 'lunch') to a TransactionCategory."""
+    import difflib
+    if not first_line:
+        return None
+    first = str(first_line).strip().lower()
     cats = list(TransactionCategory.objects.all())
-    category = None
-    category_line = None
-    if lines and len(SEP.split(lines[0])) == 1:
-        first = lines[0].strip().lower()
-        for c in cats:
-            n = c.name.strip().lower()
-            if n == first or first in n or n in first:
-                category = c
-                break
-        if category is None:
-            close = difflib.get_close_matches(first, [c.name.strip().lower() for c in cats], n=1, cutoff=0.6)
-            if close:
-                category = next((c for c in cats if c.name.strip().lower() == close[0]), None)
-        if category is not None:
-            category_line = lines[0]
-            lines = lines[1:]
-    if category is None and payload.get('category_id'):
-        category = TransactionCategory.objects.filter(pk=payload.get('category_id')).first()
+    for c in cats:
+        n = c.name.strip().lower()
+        if n == first or first in n or n in first:
+            return c
+    close = difflib.get_close_matches(first, [c.name.strip().lower() for c in cats], n=1, cutoff=0.6)
+    if close:
+        return next((c for c in cats if c.name.strip().lower() == close[0]), None)
+    return None
 
-    # ── Product pool: prefer this category's products, fall back to all ──
+
+def _quick_build_rows(category, raw_items):
+    """Resolve raw items against the Product master.
+
+    raw_items: [{'description', 'quantity', 'unit', 'unit_price'}]
+    Returns preview rows with unit/price auto-filled and a per-row status, so
+    the typed parser and the AI parser produce identical output.
+    """
+    import difflib
     scoped = list(Product.objects.filter(category=category)) if category else []
     everything = list(Product.objects.all())
 
-    def match_product(name):
+    def match(name):
         n = (name or '').strip().lower()
         if not n:
             return None
         for pool in (scoped, everything):
             if not pool:
                 continue
-            for p in pool:                      # exact
+            for p in pool:                                    # exact (any length)
                 if p.name.strip().lower() == n:
                     return p
-            for p in pool:                      # substring either way
+            # Fuzzy/substring only for reasonably specific text, so a stray
+            # word like "bad" doesn't inherit some product's price.
+            if len(n) < 4:
+                continue
+            for p in pool:                                    # substring either way
                 pn = p.name.strip().lower()
                 if n in pn or pn in n:
                     return p
-            close = difflib.get_close_matches(n, [p.name.strip().lower() for p in pool], n=1, cutoff=0.75)
+            close = difflib.get_close_matches(n, [p.name.strip().lower() for p in pool], n=1, cutoff=0.82)
             if close:
                 hit = next((p for p in pool if p.name.strip().lower() == close[0]), None)
                 if hit:
@@ -1846,35 +1831,44 @@ def quick_bill_parse(request):
         return None
 
     rows = []
-    for i, line in enumerate(lines, start=1):
-        parts = SEP.split(line)
-        desc = (parts[0] or '').strip()
-        qty, price, note, status = 1.0, None, [], 'ok'
+    for i, raw in enumerate(raw_items, start=1):
+        desc = (raw.get('description') or '').strip()
+        note, status = [], 'ok'
 
-        if len(parts) > 1 and parts[1].strip() != '':
-            try:
-                qty = float(parts[1])
-                if qty <= 0:
-                    raise ValueError
-            except ValueError:
-                status = 'error'; note.append('invalid quantity')
-        if len(parts) > 2 and parts[2].strip() != '':
-            try:
-                price = float(parts[2])
-            except ValueError:
-                status = 'error'; note.append('invalid price')
+        qty = raw.get('quantity')
+        try:
+            qty = float(qty) if qty not in (None, '') else 1.0
+            if qty <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            qty, status = 1.0, 'error'
+            note.append('invalid quantity')
 
-        prod = match_product(desc) if desc else None
-        unit = prod.unit if prod else None
-        if prod and price is None:
-            saved = prod.upscale_value or prod.base_price or 0
-            if saved:
-                price = float(saved)
-                note.append('price + unit from "%s"' % prod.name)
+        price = raw.get('unit_price')
+        try:
+            price = float(price) if price not in (None, '') else None
+            if price is not None and price < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            price, status = None, 'error'
+            note.append('invalid price')
+
+        unit = (raw.get('unit') or '').strip() or None
+        prod = match(desc) if desc else None
+        if prod:
+            if not unit:
+                unit = prod.unit
+            if price is None:
+                saved = prod.upscale_value or prod.base_price or 0
+                if saved:
+                    price = float(saved)
+                    note.append('price + unit from "%s"' % prod.name)
         if not desc:
-            status = 'error'; note.append('no description')
+            status = 'error'
+            note.append('no description')
         if status == 'ok' and not price:
-            status = 'needs_price'; note.append('no saved price — enter it')
+            status = 'needs_price'
+            note.append('no saved price - enter it')
 
         rows.append({
             'idx': i,
@@ -1886,10 +1880,149 @@ def quick_bill_parse(request):
             'status': status,
             'note': ', '.join(note),
         })
+    return rows
+
+
+@login_required
+def quick_bill_parse(request):
+    """Deterministic parser: 'name | qty | price' lines, optional category line."""
+    import json, re
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        payload = json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'invalid JSON'}, status=400)
+
+    text = (payload.get('text') or '').strip()
+    if not text:
+        return JsonResponse({'error': 'no text supplied'}, status=400)
+
+    sep = re.compile(r'\s*[|\t;]\s*')
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    category, category_line = None, None
+    if lines and len(sep.split(lines[0])) == 1:
+        category = _quick_resolve_category(lines[0])
+        if category is not None:
+            category_line = lines[0]
+            lines = lines[1:]
+    if category is None and payload.get('category_id'):
+        category = TransactionCategory.objects.filter(pk=payload.get('category_id')).first()
+
+    raw_items = []
+    for line in lines:
+        parts = sep.split(line)
+        raw_items.append({
+            'description': parts[0] if parts else '',
+            'quantity': parts[1] if len(parts) > 1 and parts[1].strip() != '' else None,
+            'unit': None,
+            'unit_price': parts[2] if len(parts) > 2 and parts[2].strip() != '' else None,
+        })
 
     return JsonResponse({
         'ok': True,
         'category': ({'id': category.id, 'name': category.name} if category else None),
         'category_line': category_line,
-        'rows': rows,
+        'rows': _quick_build_rows(category, raw_items),
+    })
+
+
+@login_required
+def quick_bill_ai_parse(request):
+    """Free-form parser: hand messy text (a WhatsApp message, a note) to Claude,
+    get structured items back, then resolve them through the SAME product
+    matching / preview pipeline as the typed parser."""
+    import json
+    from django.conf import settings
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    api_key = getattr(settings, 'ANTHROPIC_API_KEY', '') or ''
+    if not api_key:
+        return JsonResponse({
+            'error': 'AI parsing is not set up yet. Add ANTHROPIC_API_KEY to your .env and '
+                     'restart the server, or use the plain "name | qty | price" format above.'
+        }, status=503)
+    try:
+        import anthropic
+    except ImportError:
+        return JsonResponse({'error': 'The anthropic package is not installed on the server.'}, status=503)
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'invalid JSON'}, status=400)
+    text = (payload.get('text') or '').strip()
+    if not text:
+        return JsonResponse({'error': 'no text supplied'}, status=400)
+
+    known = list(TransactionCategory.objects.values_list('name', flat=True))
+    schema = {
+        "type": "object",
+        "properties": {
+            "category": {"type": ["string", "null"],
+                         "description": "Best matching category name from the provided list, else null"},
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string", "description": "The item / product name only"},
+                        "quantity": {"type": "number"},
+                        "unit": {"type": ["string", "null"]},
+                        "unit_price": {"type": ["number", "null"],
+                                       "description": "Per-unit price if stated, else null"},
+                    },
+                    "required": ["description", "quantity", "unit", "unit_price"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["category", "items"],
+        "additionalProperties": False,
+    }
+
+    system = (
+        "You extract billing line items from short, messy purchase messages for a "
+        "Bangladeshi supply company. Amounts are in BDT. Return ONLY what the message "
+        "actually states: never invent prices or quantities. If a quantity is missing, "
+        "use 1. If a price is not stated, use null (it gets filled from a product "
+        "database afterwards). Split combined lines into separate items. "
+        "Available categories: " + ", ".join(known)
+    )
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=4096,
+            system=system,
+            thinking={"type": "adaptive"},
+            output_config={"format": {"type": "json_schema", "schema": schema}},
+            messages=[{"role": "user", "content": text}],
+        )
+    except Exception as exc:
+        return JsonResponse({'error': 'AI request failed: %s' % exc}, status=502)
+
+    if getattr(resp, 'stop_reason', None) == 'refusal':
+        return JsonResponse({'error': 'The AI declined to process that text.'}, status=502)
+
+    try:
+        raw = next(b.text for b in resp.content if b.type == 'text')
+        data = json.loads(raw)
+    except (StopIteration, ValueError, TypeError):
+        return JsonResponse({'error': 'Could not read the AI response.'}, status=502)
+
+    category = _quick_resolve_category(data.get('category')) if data.get('category') else None
+    if category is None and payload.get('category_id'):
+        category = TransactionCategory.objects.filter(pk=payload.get('category_id')).first()
+
+    return JsonResponse({
+        'ok': True,
+        'ai': True,
+        'category': ({'id': category.id, 'name': category.name} if category else None),
+        'category_line': data.get('category'),
+        'rows': _quick_build_rows(category, data.get('items') or []),
     })

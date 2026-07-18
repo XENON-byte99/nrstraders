@@ -308,6 +308,11 @@
                             class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition">
                         <i class="fas fa-wand-magic-sparkles mr-1"></i> Read &amp; preview
                     </button>
+                    <button type="button" id="quick-bill-ai"
+                            class="bg-white text-indigo-700 border border-indigo-300 px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-50 transition"
+                            title="For messy text that doesn't follow the format — e.g. a pasted WhatsApp message">
+                        <i class="fas fa-robot mr-1"></i> Messy text? Read with AI
+                    </button>
                     <span id="quick-bill-status" class="text-[11px] font-semibold text-indigo-600"></span>
                 </div>
             </div>
@@ -2701,18 +2706,18 @@ function applyImportRows(rows) {
         document.getElementById('quick-bill-help').classList.toggle('hidden');
     });
 
-    btn.addEventListener('click', async function () {
+    async function runParse(endpoint, busyLabel) {
         const ta = document.getElementById('quick-bill-text');
         const statusEl = document.getElementById('quick-bill-status');
         const text = (ta.value || '').trim();
         if (!text) { statusEl.textContent = 'Type a few lines first.'; return; }
-        statusEl.textContent = 'Reading…';
+        statusEl.textContent = busyLabel;
 
         const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1]
                   || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
         const catSel = document.querySelector('[name="transaction_category"]');
         try {
-            const r = await fetch('/api/quick-bill/parse/', {
+            const r = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
                 body: JSON.stringify({ text: text, category_id: catSel ? catSel.value : null })
@@ -2739,12 +2744,20 @@ function applyImportRows(rows) {
             });
             window.__importResolved = resolved;
             renderImportPreview(resolved);
-            statusEl.textContent = d.category
+            statusEl.textContent = (d.ai ? 'AI read it. ' : '') + (d.category
                 ? ('Category: ' + d.category.name)
-                : 'No category line — using the one selected above.';
+                : 'No category detected — using the one selected above.');
         } catch (e) {
             statusEl.textContent = 'Error: ' + e;
         }
+    }
+
+    btn.addEventListener('click', function () {
+        runParse('/api/quick-bill/parse/', 'Reading…');
+    });
+    const aiBtn = document.getElementById('quick-bill-ai');
+    if (aiBtn) aiBtn.addEventListener('click', function () {
+        runParse('/api/quick-bill/ai-parse/', 'Asking AI…');
     });
 })();
 

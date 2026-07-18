@@ -104,6 +104,10 @@ DATABASES = {
 }
 
 SUPABASE_DATABASE_URL = config('SUPABASE_DATABASE_URL', default=None)
+
+# Optional: enables Quick Bill's "Read with AI" free-form parsing.
+# Leave unset to keep the feature switched off (it degrades gracefully).
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
 if SUPABASE_DATABASE_URL:
     db_config = dj_database_url.parse(SUPABASE_DATABASE_URL)
     try:
