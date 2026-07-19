@@ -255,7 +255,7 @@
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="calculation_mode" value="reverse" {% if form.instance.calculation_mode == 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Total &rarr; Base)</span>
+                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Price &rarr; Base)</span>
                     </label>
                 </div>
                 <p class="text-[10px] text-indigo-500 mt-2 font-medium" id="calc-mode-hint">Enter base price. Taxes and margins will be added on top to reach final total.</p>
@@ -358,7 +358,7 @@
                             <th class="text-center" style="width:80px">Unit</th>
                             <th class="text-center" style="width:150px">Qty</th>
                             <th class="text-right" style="width:120px"><span class="price-header-label">Display Price (৳)</span></th>
-                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Price (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
@@ -426,7 +426,7 @@
                             <th class="text-left" style="min-width:120px">📅 Entry Date</th>
                             <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
                             <th class="text-right" style="width:130px"><span class="price-header-label">💰 Bill Amount (৳)</span></th>
-                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Price (৳)</th>
                             <th class="text-center" style="width:100px">📦 Unit</th>
                             <th class="text-center" style="width:150px">🔢 Qty</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
@@ -493,7 +493,7 @@
                             <th class="text-center room-unit-hdr" style="width:80px">Unit</th>
                             <th class="text-center room-qty-hdr" style="width:100px">Qty</th>
                             <th class="text-right room-cost-hdr" style="width:130px"><span class="price-header-label">💰 Cost (৳)</span></th>
-                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Price (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
@@ -720,7 +720,7 @@
                             <th class="text-center" style="width:80px">Unit</th>
                             <th class="text-center" style="width:150px">Qty</th>
                             <th class="text-right" style="width:120px"><span class="price-header-label">Display Price (৳)</span></th>
-                            <th class="text-right target-col hidden" style="width:120px">Target Total (৳)</th>
+                            <th class="text-right target-col hidden" style="width:120px">Target Price (৳)</th>
                             <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                                 <i class="fas fa-trash text-xs"></i>
                             </th>
@@ -827,7 +827,7 @@
                             <i class="fas fa-fill-drip mr-1"></i> Apply Price
                         </button>
                     </div>
-                    <p class="text-[10px] text-amber-600 font-medium mt-1">In reverse mode this fills the <b>Target Total</b> column and recalculates base prices.</p>
+                    <p class="text-[10px] text-amber-600 font-medium mt-1">In reverse mode this fills the <b>Target Price</b> column and recalculates base prices.</p>
                 </div>
             </div>
         </div>
@@ -1390,7 +1390,7 @@ function syncSecondaryTableHeaders() {
                 <th class="text-left" style="min-width:120px">📅 Entry Date</th>
                 <th class="text-left" style="min-width:180px">🍽 Restaurant Name</th>
                 <th class="text-right" style="width:130px"><span class="price-header-label">${isReverse ? 'Base Price (Auto)' : '💰 Cost (৳)'}</span></th>
-                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Price (৳)</th>
                 <th class="text-center" style="width:100px">📦 Unit</th>
                 <th class="text-center" style="width:150px">🔢 Qty</th>
                 <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
@@ -1408,7 +1408,7 @@ function syncSecondaryTableHeaders() {
                 <th class="text-center room-unit-hdr ${isDaily ? '' : 'hidden'}" style="width:80px">Unit</th>
                 <th class="text-center room-qty-hdr ${isDaily ? '' : 'hidden'}" style="width:100px">Qty</th>
                 <th class="text-right room-cost-hdr" style="width:130px"><span class="price-header-label">${isDaily ? '💰 Rate (৳)' : '💰 Cost (৳)'}</span></th>
-                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Price (৳)</th>
                 <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                     <i class="fas fa-trash text-xs"></i>
                 </th>
@@ -1424,7 +1424,7 @@ function syncSecondaryTableHeaders() {
                 <th class="text-center" style="width:80px">Unit</th>
                 <th class="text-center" style="width:150px">Qty</th>
                 <th class="text-right" style="width:120px"><span class="price-header-label">${isReverse ? 'Base Price (Auto)' : 'Display Price (৳)'}</span></th>
-                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Total (৳)</th>
+                <th class="text-right target-col ${isReverse ? '' : 'hidden'}" style="width:120px">Target Price (৳)</th>
                 <th class="text-center !bg-red-50 !text-red-400" style="width:44px">
                     <i class="fas fa-trash text-xs"></i>
                 </th>
@@ -2076,24 +2076,18 @@ function getMultiplier(isSecondary, row) {
 
 function doReverseCalculation(row) {
     const isSecondary = row.querySelector('input[name$="-is_secondary"]')?.checked || false;
-    const qtyInput = row.querySelector('input[name$="-quantity"]');
     const targetInput = row.querySelector('.target-input');
     const basePriceInput = row.querySelector('input[name$="-base_price"]');
 
     if (!targetInput || !basePriceInput) return;
 
-    const targetTotal = parseFloat(targetInput.value) || 0;
-    const quantity = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) || 1 : 1;
-    
-    if (quantity === 0) return;
-
-    const targetPerUnit = targetTotal / quantity;
+    const targetVal = parseFloat(targetInput.value) || 0;
     const multiplier = getMultiplier(isSecondary, row);
 
     if (multiplier === 0) {
-        basePriceInput.value = targetPerUnit.toFixed(3);
+        basePriceInput.value = targetVal.toFixed(3);
     } else {
-        const requiredBasePrice = targetPerUnit / multiplier;
+        const requiredBasePrice = targetVal / multiplier;
         basePriceInput.value = requiredBasePrice.toFixed(3);
     }
 }
@@ -2104,14 +2098,12 @@ function syncTargetInputsFromBasePrices() {
         
         const basePriceInput = row.querySelector('input[name$="-base_price"]');
         const targetInput = row.querySelector('.target-input');
-        const qtyInput = row.querySelector('input[name$="-quantity"]');
         if (basePriceInput && targetInput) {
             const basePrice = parseFloat(basePriceInput.value) || 0;
-            const quantity = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) || 1 : 1;
             if (basePrice > 0) {
                 const isSecondary = row.querySelector('input[name$="-is_secondary"]')?.checked || false;
                 const multiplier = getMultiplier(isSecondary, row);
-                targetInput.value = (basePrice * multiplier * quantity).toFixed(3);
+                targetInput.value = (basePrice * multiplier).toFixed(3);
             } else {
                 targetInput.value = "0.000";
             }
@@ -2218,7 +2210,7 @@ document.querySelectorAll('input[name="calculation_mode"]').forEach(radio => {
         const isReverse = this.value === 'reverse';
         
         document.getElementById('calc-mode-hint').textContent = isReverse ? 
-            "Enter Final Target Total. Base Price will be auto-calculated to hit that total." : 
+            "Enter Target Price (VAT & Tax added unit price). Base Price will be auto-calculated." : 
             "Enter base price. Taxes and margins will be added on top to reach final total.";
             
         // Toggle columns
@@ -2342,7 +2334,7 @@ document.getElementById('download-template-btn').addEventListener('click', funct
     // One unified template for every category. Date / To Date are optional —
     // leave them blank for non-dated items; fill them for stays/daily entries.
     const csvContent =
-        "Description,Date,To Date,Unit,Qty,Base Price,Target Total,Is Secondary\n" +
+        "Description,Date,To Date,Unit,Qty,Base Price,Target Price,Is Secondary\n" +
         "Deluxe Room,2026-07-01,2026-07-03,Night,2,5000,,No\n" +
         "Office Chairs,,,Pcs,5,2000,,No\n" +
         "Transport Fee,,,Trip,1,1500,,Yes\n";
@@ -2560,10 +2552,10 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
                 const p = parseFloat(priceRaw);
                 if (isNaN(p) || p < 0) errors.push('invalid price'); else basePrice = p;
             }
-            const targetRaw = resolveVal(row, ['target total', 'target', 'final total', 'total target']);
-            let targetTotal = 0;
+            const targetRaw = resolveVal(row, ['target price', 'target unit price', 'target total', 'target', 'final total', 'total target']);
+            let targetPrice = 0;
             if (targetRaw !== null && String(targetRaw).trim() !== '') {
-                const t = parseFloat(targetRaw); if (!isNaN(t) && t >= 0) targetTotal = t;
+                const t = parseFloat(targetRaw); if (!isNaN(t) && t >= 0) targetPrice = t;
             }
             const entryRaw = resolveVal(row, ['entry date', 'entry_date', 'date', 'from date']);
             const coRaw = resolveVal(row, ['checkout date', 'checkout_date', 'to date', 'end date']);
@@ -2573,7 +2565,7 @@ document.getElementById('excel-upload-input').addEventListener('change', functio
             if (coRaw && String(coRaw).trim() !== '' && !checkoutDate) errors.push('unrecognized to-date');
             if (!desc && !entryDate) errors.push('no description or date');
 
-            return { idx: i + 1, desc, unit, qty, basePrice, targetTotal, entryDate, checkoutDate, isSec,
+            return { idx: i + 1, desc, unit, qty, basePrice, targetPrice, entryDate, checkoutDate, isSec,
                      valid: errors.length === 0, error: errors.join(', ') };
         });
 
@@ -2602,7 +2594,7 @@ function renderImportPreview(resolved) {
         const tr = document.createElement('tr');
         tr.className = 'border-b border-gray-50' + (!r.valid ? ' bg-red-50/50' : (r.warn ? ' bg-amber-50/50' : ''));
         const dateTxt = r.entryDate ? (r.checkoutDate ? (r.entryDate + ' → ' + r.checkoutDate) : r.entryDate) : '';
-        const priceTxt = (r.targetTotal > 0 && !r.basePrice) ? ('⟲ ' + r.targetTotal) : r.basePrice;
+        const priceTxt = (r.targetPrice > 0 && !r.basePrice) ? ('⟲ ' + r.targetPrice) : r.basePrice;
         // invalid = skipped (red); warn = still imported but needs attention (amber)
         const status = !r.valid
             ? '<span class="text-red-600 font-bold">⚠ ' + escapeHtml(r.error) + '</span>'
@@ -2655,13 +2647,13 @@ function applyImportRows(rows) {
         const basePriceInput = newRow.querySelector('input[name$="-base_price"]');
         const targetInput = newRow.querySelector('.target-input');
         if (isReverse) {
-            if (targetInput && r.targetTotal > 0) { targetInput.value = r.targetTotal; highlightField(targetInput); if (typeof doReverseCalculation === 'function') doReverseCalculation(newRow); }
+            if (targetInput && r.targetPrice > 0) { targetInput.value = r.targetPrice; highlightField(targetInput); if (typeof doReverseCalculation === 'function') doReverseCalculation(newRow); }
             else if (basePriceInput && r.basePrice > 0) { basePriceInput.value = r.basePrice; highlightField(basePriceInput); }
         } else {
             if (r.basePrice > 0) { if (basePriceInput) { basePriceInput.value = r.basePrice; highlightField(basePriceInput); } }
-            else if (r.targetTotal > 0) {
+            else if (r.targetPrice > 0) {
                 const mult = getMultiplier(r.isSec);
-                const derived = mult > 0 ? ((r.targetTotal / r.qty) / mult) : (r.targetTotal / r.qty);
+                const derived = mult > 0 ? (r.targetPrice / mult) : r.targetPrice;
                 if (basePriceInput) { basePriceInput.value = derived.toFixed(3); highlightField(basePriceInput); }
             }
         }

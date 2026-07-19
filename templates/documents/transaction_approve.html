@@ -164,7 +164,7 @@
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="calculation_mode" value="reverse" {% if transaction.calculation_mode == 'reverse' %}checked{% endif %} class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Total &rarr; Base)</span>
+                        <span class="text-sm font-semibold text-gray-700">Reverse (Target Price &rarr; Base)</span>
                     </label>
                 </div>
                 <p class="text-[10px] text-indigo-500 mt-2 font-medium" id="calc-mode-hint">Enter base price. Taxes and margins will be added on top to reach final total.</p>
@@ -188,7 +188,7 @@
             <div class="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-5 opacity-80">
                 <h3 class="text-xs font-black text-indigo-600 uppercase tracking-wider mb-2">Calculation Mode</h3>
                 <p class="text-sm font-bold text-gray-800">
-                    {% if transaction.calculation_mode == 'reverse' %}Reverse (Target Total &rarr; Base){% else %}Forward (Base &rarr; Total){% endif %}
+                    {% if transaction.calculation_mode == 'reverse' %}Reverse (Target Price &rarr; Base){% else %}Forward (Base &rarr; Total){% endif %}
                 </p>
             </div>
             <div class="bg-gray-50/50 border border-gray-200/50 rounded-2xl p-5 opacity-80">
@@ -244,7 +244,7 @@
                             {% endif %}
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
-                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Unit<br>Price (৳)</th>
+                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Price (৳)</th>
                             <th class="py-3 px-4 text-right w-24 bg-indigo-900/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
                             <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
                             <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
@@ -462,7 +462,7 @@
                             <th class="py-3 px-4 text-center w-16">Qty</th>
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Price from supplier">Supplier<br>Cost</th>
                             <th class="py-3 px-4 text-right w-24 border-l border-gray-700" title="Your price before margin and taxes">Selling Price<br>(Base)</th>
-                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Unit<br>Price (৳)</th>
+                            <th class="py-3 px-4 text-right target-col hidden w-24 border-l border-gray-700">Target Price (৳)</th>
                             <th class="py-3 px-4 text-right w-24 bg-purple-950/50" title="Price after profit margin but before taxes">Billed<br>Price</th>
                             <th class="py-3 px-4 text-right w-24 text-emerald-400" title="Markup gain per unit (Billed - Supplier)">Markup<br>Gain</th>
                             <th class="py-3 px-2 text-right w-20 border-l border-gray-700">VAT</th>
@@ -1798,7 +1798,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const hintEl = document.getElementById('calc-mode-hint');
             if (hintEl) {
                 hintEl.textContent = isReverse ? 
-                    "Enter Final Target Total. Base Price will be auto-calculated to hit that total." : 
+                    "Enter Target Price (VAT & Tax added unit price). Base Price will be auto-calculated." : 
                     "Enter base price. Taxes and margins will be added on top to reach final total.";
             }
                 
