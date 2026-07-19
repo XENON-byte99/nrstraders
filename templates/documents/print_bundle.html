@@ -285,12 +285,11 @@
             const isColHidden = ths.map(th => th.classList.contains('hidden-col'));
 
             table.querySelectorAll('tbody tr').forEach(tr => {
-                let visualColCount = 0;
-                Array.from(tr.children).forEach(cell => {
-                    visualColCount += parseInt(cell.getAttribute('colspan') || '1', 10);
-                });
-                if (visualColCount !== ths.length) return;
-
+                // Remember each cell's untouched span BEFORE measuring the row. This
+                // function rewrites colspans, so measuring the live values would make it
+                // non-idempotent: once a span had been shrunk the row no longer added up
+                // to the header width and every later run bailed out here, freezing the
+                // row (mushok's Grand Total) out of step with the rest of the table.
                 let hasColspan = false;
                 Array.from(tr.children).forEach(cell => {
                     let origColspan = cell.dataset.origColspan;
@@ -302,6 +301,12 @@
                         hasColspan = true;
                     }
                 });
+
+                let visualColCount = 0;
+                Array.from(tr.children).forEach(cell => {
+                    visualColCount += parseInt(cell.dataset.origColspan || '1', 10);
+                });
+                if (visualColCount !== ths.length) return;
 
                 if (!hasColspan) {
                     Array.from(tr.children).forEach((cell, colIdx) => {
