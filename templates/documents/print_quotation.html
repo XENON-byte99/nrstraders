@@ -24,29 +24,29 @@
         .invoice-title { font-size: 42px; font-weight: 800; margin: 0; font-family: 'Playfair Display', serif; }
         .invoice-subtitle { font-size: 11px; opacity: 0.9; margin-top: 4px; font-weight: 500; text-transform: uppercase; }
         
-        .section-title { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 8px; }
+        .section-title { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
         .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
         .info-block { line-height: 1.6; }
         .info-value { font-size: 11px; font-weight: 500; color: #1e293b; }
-        .company-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: #059669; margin-bottom: 2px; }
-        .divider { height: 1px; background: linear-gradient(to right, transparent, #059669, transparent); margin: 12px 0; }
+        .company-name { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+        .divider { height: 1px; background: linear-gradient(to right, transparent, var(--accent), transparent); margin: 12px 0; }
         .invoice-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; padding-bottom: 12px; }
-        .detail-item { border-left: 2px solid #059669; padding-left: 8px; }
-        .detail-label { font-size: 8px; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 2px; }
+        .detail-item { border-left: 2px solid var(--accent); padding-left: 8px; }
+        .detail-label { font-size: 8px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 2px; }
         .detail-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px; table-layout: fixed; }
-        th { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
+        th { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); color: white; padding: 6px 4px; text-align: left; font-weight: 700; font-size: 8px; text-transform: uppercase; }
         td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
         tbody tr:nth-child(odd) { background: #f8fafc; }
         .amount-section { display: grid; grid-template-columns: 1fr 250px; gap: 16px; margin-bottom: 8px; }
         /* One merged totals box: rows share a single border/radius, no gaps */
-        .amount-box { border: 1.5px solid #059669; border-radius: 8px; overflow: hidden; background: #f8fafc; align-self: start; }
+        .amount-box { border: 1.5px solid var(--accent); border-radius: 8px; overflow: hidden; background: #f8fafc; align-self: start; }
         .amount-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; padding: 5px 8px; background: transparent; border-bottom: 1px solid #e2e8f0; margin: 0; }
         .amount-row .amount-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .amount-row .amount-value { white-space: nowrap; flex-shrink: 0; }
         .amount-box .amount-row:last-child { border-bottom: none; }
         .display-base { margin: 0; padding: 0; border: none; }
-        .amount-row.total { background: linear-gradient(135deg, #059669 0%, #064e3b 100%); color: white; font-weight: 800; border-bottom: none; }
+        .amount-row.total { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); color: white; font-weight: 800; border-bottom: none; }
 
         .category-badge {
             display: inline-block;
@@ -109,6 +109,11 @@
         .signature-line { border-bottom: 1.5px solid var(--ink); width: 100%; height: 44px; margin-bottom: 5px; }
         .sig-name { font-weight: 800; font-size: 11px; color: var(--ink); }
         .sig-title { font-size: 9px; color: var(--muted); }
+    
+        /* -- Per-supplier colour theme (matches print_invoice.html) -- */
+        .theme-blue    { --accent:#1e3a8a; --accent-2:#2563eb; --accent-soft:#eef2ff; }
+        .theme-claude  { --accent:#8f4227; --accent-2:#c15f3c; --accent-soft:#fbf1ea; }
+        .theme-crimson { --accent:#7f1225; --accent-2:#be123c; --accent-soft:#fef2f4; }
     </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -151,7 +156,7 @@
                 <button onclick="downloadPDF()" style="flex: 1; padding:10px 15px; background:#dc2626; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Download PDF</button>
             </div>
         </div>
-        <div class="a4-invoice mode-base" id="quotationContent"
+        <div class="a4-invoice mode-base theme-{{ transaction.supplier_party.color_theme|default:'blue' }}" id="quotationContent"
              data-decimal-mode="{{ transaction.decimal_display_mode }}"
              data-discount-flat="{{ transaction.discount_flat }}"
              data-vat-0="{{ transaction.vat_percentage }}"

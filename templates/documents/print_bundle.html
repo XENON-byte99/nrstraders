@@ -18,7 +18,7 @@
             .page-break { margin-top: 0; }
             @page { margin: 0; }
         }
-        #controls { position: fixed; top: 20px; right: 20px; z-index: 9999; display: none; gap: 10px; flex-direction: column; }
+        #controls { position: fixed; top: 20px; right: 20px; z-index: 9999; display: none; gap: 10px; flex-direction: column; width: 270px; max-height: calc(100vh - 40px); overflow-y: auto; }
         
         /* Challan scaling in portrait bundle layout */
         .bundle-doc-challan {
@@ -95,9 +95,70 @@
         </div>
         <div style="background: white; padding: 10px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;">
             <label style="font-size: 11px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                <input type="checkbox" onchange="toggleEditMode(this.checked)"> 
+                <input type="checkbox" onchange="toggleEditMode(this.checked)">
                 Enable Edit & Live Calculation
             </label>
+        </div>
+
+        <!-- ── Full editing panel (parity with the single-document template manager) ── -->
+        <div id="editPanel" style="display:none; background:#1e293b; color:#e2e8f0; padding:12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.2); flex-direction:column; gap:10px; font-size:11px;">
+
+            <div style="display:flex; align-items:center; gap:6px;">
+                <strong style="font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:#38bdf8;">Bundle Editor</strong>
+                <button id="undoBtn" type="button" title="Undo (Ctrl+Z)" style="margin-left:auto; width:28px; height:24px; background:#475569; color:#fff; border:none; border-radius:5px; cursor:pointer;"><i class="fas fa-undo"></i></button>
+                <button id="redoBtn" type="button" title="Redo (Ctrl+Y / Ctrl+Shift+Z)" style="width:28px; height:24px; background:#475569; color:#fff; border:none; border-radius:5px; cursor:pointer;"><i class="fas fa-redo"></i></button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:56px; color:#94a3b8;">Scale</span>
+                <input type="range" id="bFontScale" min="70" max="130" step="5" value="100" style="flex:1;">
+                <span id="bFontScaleVal" style="width:34px; text-align:right;">100%</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:56px; color:#94a3b8;">Sidebar</span>
+                <input type="range" id="bSidebarWidth" min="20" max="45" step="1" value="33" style="flex:1;">
+                <span id="bSidebarWidthVal" style="width:34px; text-align:right;">33%</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:56px; color:#94a3b8;">Font</span>
+                <select id="bFontFamily" style="flex:1; min-width:0; padding:4px; border-radius:6px; font-size:11px; background:#334155; color:#fff; border:1px solid #475569;">
+                    <option value="">Default</option>
+                    <option value="'Poppins', sans-serif">Poppins</option>
+                    <option value="'Playfair Display', serif">Playfair Display</option>
+                    <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Georgia, serif">Georgia</option>
+                </select>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:56px; color:#94a3b8;">Colour</span>
+                <input type="color" id="bTextColor" value="#1e293b" style="width:36px; height:24px; border:none; background:none; cursor:pointer;">
+                <button id="bResetTypography" type="button" style="margin-left:auto; padding:3px 8px; background:#475569; color:#e2e8f0; border:none; border-radius:6px; font-size:10px; cursor:pointer;">Reset</button>
+            </div>
+
+            <div style="border-top:1px dashed rgba(255,255,255,.2); padding-top:8px; display:flex; align-items:center; gap:4px;">
+                <span style="width:56px; color:#94a3b8;">Selected</span>
+                <select id="bSelFontSize" title="Size of selection" style="width:56px; padding:3px; border-radius:6px; font-size:10px; background:#334155; color:#fff; border:1px solid #475569;">
+                    <option value="">Size</option>
+                    <option value="1">8px</option><option value="2">10px</option><option value="3">12px</option>
+                    <option value="4">14px</option><option value="5">18px</option><option value="6">24px</option>
+                </select>
+                <input type="color" id="bSelColor" title="Colour of selection" value="#dc2626" style="width:26px; height:22px; border:none; background:none; cursor:pointer;">
+                <button id="bSelBold" type="button" onmousedown="event.preventDefault()" title="Bold selection" style="width:24px; height:22px; background:#475569; color:#fff; border:none; border-radius:5px; font-weight:900; cursor:pointer;">B</button>
+                <button id="bSelItalic" type="button" onmousedown="event.preventDefault()" title="Italic selection" style="width:24px; height:22px; background:#475569; color:#fff; border:none; border-radius:5px; font-style:italic; cursor:pointer;">I</button>
+            </div>
+
+            <div style="border-top:1px dashed rgba(255,255,255,.2); padding-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <button id="bShowHidden" type="button" style="padding:6px; background:#0ea5e9; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-eye"></i> Restore Hidden Columns/Rows</button>
+                <button id="bSaveLayout" type="button" style="padding:6px; background:#10b981; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-save"></i> Save Layout</button>
+                <button id="bResetLayout" type="button" style="padding:6px; background:#ef4444; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-trash"></i> Reset Layout to Default</button>
+            </div>
+
+            <div id="bSaveStatus" style="font-size:10px; color:#94a3b8; min-height:12px;"></div>
         </div>
         <div style="display: flex; gap: 10px;">
             <button onclick="window.print()" style="flex: 1; padding:10px 15px; background:#4f46e5; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Print Bundle</button>
@@ -185,6 +246,11 @@
                     if (content) {
                         const wrapper = document.createElement('div');
                         wrapper.className = 'bundle-doc-' + task.type;
+                        // Layouts are stored per (bill, doc_type) -- keep that identity on the
+                        // wrapper so save/load can address the right bill.
+                        wrapper.dataset.txId = task.txId;
+                        wrapper.dataset.docType = task.type;
+                        wrapper.id = 'bdoc-' + task.txId + '-' + task.type;
                         if (i > 0) {
                             wrapper.classList.add('page-break', 'html2pdf__page-break');
                         }
@@ -317,167 +383,153 @@
             }
         }
 
+        // Layouts are keyed per (bill, doc_type). Fetch the active template for one bill.
+        async function fetchLayoutState(txId, type) {
+            try {
+                const url = '/api/print-layouts/' + txId + '/' + type + '/';
+                const response = await fetch(url);
+                if (!response.ok) {
+                    logDiag(`Layout fetch ${url} -> HTTP ${response.status}`);
+                    return null;
+                }
+                const responseData = await response.json();
+                const store = responseData && responseData.store;
+                if (!store || !store.templates) return null;
+                const activeTemp = store.activeTemplate || "Default Layout";
+                const state = store.templates[activeTemp] || Object.values(store.templates)[0] || null;
+                if (state) logDiag(`Bill ${txId}/${type}: using template "${activeTemp}"`);
+                return state;
+            } catch (e) {
+                logDiag(`Error loading layout for bill ${txId}/${type}: ${e.message}`);
+                return null;
+            }
+        }
+
+        function applyLayoutToWrapper(wrapper, state) {
+            if (!wrapper || !state) return;
+
+            // 1. Column layout (hide / rename / resize)
+            wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
+                const tState = state.tables && state.tables[tIdx];
+                if (!tState || !tState.cols) return;
+                const ths = Array.from(table.querySelectorAll('thead th'));
+                if (tState.cols.length !== ths.length) {
+                    logDiag(`Table ${tIdx} column count mismatch: expected ${tState.cols.length}, got ${ths.length}`);
+                    return;
+                }
+                tState.cols.forEach(function (colState, colIdx) {
+                    const th = ths[colIdx];
+                    if (!th) return;
+                    if (colState.text) th.innerHTML = colState.text;
+                    if (colState.width) th.style.width = colState.width;
+                    th.classList.toggle('hidden-col', !!colState.hidden);
+                });
+                syncColspans(table);
+            });
+
+            // 2. Hidden amount rows
+            wrapper.querySelectorAll('.amount-row').forEach(function (r) { r.classList.remove('hidden-row'); });
+            if (state.hiddenRows) {
+                state.hiddenRows.forEach(function (rowId) {
+                    wrapper.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) {
+                        r.classList.add('hidden-row');
+                    });
+                });
+            }
+
+            // 3. Sidebar width
+            if (state.sidebarWidth) {
+                const invoice = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
+                if (invoice) invoice.style.setProperty('--sidebar-width', state.sidebarWidth + '%');
+            }
+
+            // 4. Totals box width
+            if (state.totalsWidth) {
+                const sect = wrapper.querySelector('.amount-section');
+                if (sect) sect.style.gridTemplateColumns = '1fr ' + state.totalsWidth + 'px';
+            }
+
+            // 5. Section order + transforms
+            const bodyContainer = wrapper.querySelector('.invoice-body');
+            if (bodyContainer) {
+                Array.from(bodyContainer.children).forEach((el, idx) => {
+                    if (!el.dataset.secId) el.dataset.secId = 'sec-' + idx;
+                });
+                if (state.sectionOrder && state.sectionOrder.length) {
+                    state.sectionOrder.forEach(secId => {
+                        const el = bodyContainer.querySelector(`[data-sec-id="${secId}"]`);
+                        if (el) bodyContainer.appendChild(el);
+                    });
+                }
+                if (state.sections) {
+                    state.sections.forEach(secState => {
+                        const el = bodyContainer.querySelector(`[data-sec-id="${secState.secId}"]`);
+                        if (el) el.style.transform = secState.transform || '';
+                    });
+                }
+            }
+
+            // 6. Signature transforms
+            if (state.signatures) {
+                wrapper.querySelectorAll('.signature-box').forEach((box, idx) => {
+                    const sigState = state.signatures[idx];
+                    if (sigState) box.style.transform = sigState.transform || '';
+                });
+            }
+
+            // 7. Typography -- scoped to THIS document only (layouts are per bill)
+            const s = '#' + wrapper.id;
+            const styleId = 'bulkLayoutStyle-' + wrapper.id;
+            let styleEl = document.getElementById(styleId);
+            let css = '';
+            const t = state.typography;
+            if (t) {
+                if (t.scale && t.scale !== 100) {
+                    css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container, ' + s + ' .copies-container { zoom: ' + (t.scale / 100) + '; }\n';
+                }
+                if (t.family) {
+                    css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + t.family + ' !important; }\n';
+                }
+                if (t.color) {
+                    css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container { color: ' + t.color + '; }\n';
+                    css += s + ' .a4-invoice *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *), ' +
+                           s + ' .quotation-container *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *) { color: ' + t.color + ' !important; }\n';
+                }
+            }
+            if (css) {
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = styleId;
+                    document.head.appendChild(styleEl);
+                }
+                styleEl.textContent = css;
+            } else if (styleEl) {
+                styleEl.textContent = '';
+            }
+
+            fitBundleDocumentToPage(wrapper);
+        }
+
         async function applyBulkLayouts() {
             const cont = document.getElementById('multiPrintContainer');
             if (!cont) return;
-            
-            logDiag(`Starting applyBulkLayouts for docTypes: ${JSON.stringify(docTypes)}`);
 
-            // Loop through each document type we have to pull saved templates
-            for (let type of docTypes) {
-                let state = null;
-                let responseData = null;
-                try {
-                    const url = '/api/print-layouts/' + type + '/';
-                    logDiag(`Fetching layout from server: ${url}`);
-                    const response = await fetch(url);
-                    responseData = await response.json();
-                    
-                    if (responseData && responseData.store) {
-                        const store = responseData.store;
-                        logDiag(`Loaded store for ${type}. Active template: ${store.activeTemplate}`);
-                        
-                        if (store.templates) {
-                            const activeTemp = store.activeTemplate || "Default Layout";
-                            state = store.templates[activeTemp] || Object.values(store.templates)[0];
-                            if (state) {
-                                logDiag(`Using state from template: "${activeTemp}" (found: ${!!store.templates[activeTemp]})`);
-                            }
-                        }
-                    }
-                } catch (e) { 
-                    logDiag(`Error loading layout for ${type}: ${e.message}`);
-                    continue; 
-                }
-                
-                if (!state) {
-                    logDiag(`No saved state found for ${type}. Skipping.`);
-                    continue;
-                }
+            const wrappers = Array.from(cont.querySelectorAll('[data-tx-id]'));
+            logDiag(`Starting applyBulkLayouts for ${wrappers.length} documents`);
 
-                const wrappers = cont.querySelectorAll('.bundle-doc-' + type);
-                logDiag(`Found ${wrappers.length} documents of type "${type}" to style.`);
-
-                wrappers.forEach(function (wrapper, wIdx) {
-                    logDiag(`Applying layouts to wrapper ${wIdx + 1} of type ${type}`);
-                    
-                    // 1. Column layout (hide / rename / resize)
-                    wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
-                        const tState = state.tables && state.tables[tIdx];
-                        if (!tState || !tState.cols) {
-                            logDiag(`Table ${tIdx} state not found. Skipping table styling.`);
-                            return;
-                        }
-                        const ths = Array.from(table.querySelectorAll('thead th'));
-                        if (tState.cols.length !== ths.length) {
-                            logDiag(`Table ${tIdx} column count mismatch: expected ${tState.cols.length}, got ${ths.length}`);
-                            return;
-                        }
-                        tState.cols.forEach(function (colState, colIdx) {
-                            const th = ths[colIdx];
-                            if (!th) return;
-                            if (colState.text) th.innerHTML = colState.text;
-                            if (colState.width) th.style.width = colState.width;
-                            if (colState.hidden) {
-                                th.classList.add('hidden-col');
-                            }
-                        });
-                        syncColspans(table);
-                    });
-
-                    // 2. Hidden amount rows
-                    if (state.hiddenRows) {
-                        state.hiddenRows.forEach(function (rowId) {
-                            wrapper.querySelectorAll('.amount-row[data-amount-row-id="' + rowId + '"]').forEach(function (r) { 
-                                r.classList.add('hidden-row'); 
-                            });
-                        });
-                    }
-
-                    // 3. Sidebar Width
-                    if (state.sidebarWidth) {
-                        const invoice = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
-                        if (invoice) {
-                            invoice.style.setProperty('--sidebar-width', state.sidebarWidth + '%');
-                            logDiag(`Set sidebar width to ${state.sidebarWidth}% for wrapper ${wIdx + 1}`);
-                        }
-                    }
-
-                    // 4. Totals box width
-                    if (state.totalsWidth) {
-                        const sect = wrapper.querySelector('.amount-section');
-                        if (sect) {
-                            sect.style.gridTemplateColumns = '1fr ' + state.totalsWidth + 'px';
-                        }
-                    }
-
-                    // 5. Section reordering
-                    const bodyContainer = wrapper.querySelector('.invoice-body');
-                    if (bodyContainer) {
-                        Array.from(bodyContainer.children).forEach((el, idx) => {
-                            if (!el.dataset.secId) el.dataset.secId = 'sec-' + idx;
-                        });
-                        
-                        if (state.sectionOrder && state.sectionOrder.length) {
-                            state.sectionOrder.forEach(secId => {
-                                const el = bodyContainer.querySelector(`[data-sec-id="${secId}"]`);
-                                if (el) bodyContainer.appendChild(el);
-                            });
-                        }
-
-                        // Apply transforms to sections
-                        if (state.sections) {
-                            state.sections.forEach(secState => {
-                                const el = bodyContainer.querySelector(`[data-sec-id="${secState.secId}"]`);
-                                if (el && secState.transform) {
-                                    el.style.transform = secState.transform;
-                                }
-                            });
-                        }
-                    }
-
-                    // 6. Signatures transforms
-                    if (state.signatures) {
-                        wrapper.querySelectorAll('.signature-box').forEach((box, idx) => {
-                            const sigState = state.signatures[idx];
-                            if (sigState && sigState.transform) {
-                                box.style.transform = sigState.transform;
-                            }
-                        });
-                    }
-                    
-                    // Trigger manual scaling to fit the A4 page height
+            for (const wrapper of wrappers) {
+                const txId = wrapper.dataset.txId;
+                const type = wrapper.dataset.docType;
+                const state = await fetchLayoutState(txId, type);
+                if (state) {
+                    applyLayoutToWrapper(wrapper, state);
+                } else {
+                    logDiag(`No saved layout for bill ${txId}/${type}`);
                     fitBundleDocumentToPage(wrapper);
-                });
-
-                // 7. Typography (font scale, family, text color theme)
-                if (state.typography) {
-                    const t = state.typography;
-                    let css = '';
-                    const s = '#multiPrintContainer .bundle-doc-' + type;
-                    logDiag(`Applying typography: family="${t.family}", color="${t.color}", scale="${t.scale}"`);
-                    
-                    if (t.scale && t.scale !== 100) {
-                        css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container, ' + s + ' .copies-container { zoom: ' + (t.scale / 100) + '; }\n';
-                    }
-                    if (t.family) {
-                        css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + t.family + ' !important; }\n';
-                    }
-                    if (t.color) {
-                        css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container { color: ' + t.color + '; }\n';
-                        css += s + ' .a4-invoice *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *), ' +
-                               s + ' .quotation-container *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *) { color: ' + t.color + ' !important; }\n';
-                    }
-                    
-                    let styleEl = document.getElementById('bulkLayoutStyle-' + type);
-                    if (!styleEl) { 
-                        styleEl = document.createElement('style'); 
-                        styleEl.id = 'bulkLayoutStyle-' + type; 
-                        document.head.appendChild(styleEl); 
-                    }
-                    styleEl.textContent = css;
                 }
             }
+            // Seed undo history once the saved layouts are on screen.
+            if (window.__bundleHistoryInit) window.__bundleHistoryInit();
         }
 
         function downloadJointPDF() {
@@ -535,10 +587,17 @@
         }
 
         async function saveDocumentState(wrapper, type) {
-            logDiag(`Saving state for "${type}"...`);
+            const txId = wrapper && wrapper.dataset ? wrapper.dataset.txId : null;
+            if (!txId) { logDiag('Cannot save: wrapper has no bill id'); return; }
+            const apiUrl = '/api/print-layouts/' + txId + '/' + type + '/';
+            logDiag(`Saving state for bill ${txId} / "${type}"...`);
+
+            // Column hide/rename/resize and section drags all land here -- record an
+            // undo step, except when we are replaying history ourselves.
+            if (window.BundleHistory && !window.__replayingHistory) BundleHistory.push();
             let store = { activeTemplate: "Default Layout", templates: {} };
             try {
-                const srv = await fetch('/api/print-layouts/' + type + '/').then(r => r.json());
+                const srv = await fetch(apiUrl).then(r => r.ok ? r.json() : null);
                 if (srv && srv.store) {
                     store = srv.store;
                 }
@@ -554,8 +613,9 @@
                 hiddenRows: [],
                 sections: [],
                 sectionOrder: existingState.sectionOrder || [],
-                typography: existingState.typography || {},
-                sidebarWidth: existingState.sidebarWidth,
+                // Prefer whatever the editor panel currently has on screen.
+                typography: (window.__bundleTypography && window.__bundleTypography[wrapper.id]) || existingState.typography || {},
+                sidebarWidth: (wrapper.__sidebarWidth !== undefined ? wrapper.__sidebarWidth : existingState.sidebarWidth),
                 totalsWidth: existingState.totalsWidth
             };
 
@@ -615,12 +675,12 @@
             store.templates[activeTemp] = state;
 
             try {
-                await fetch('/api/print-layouts/' + type + '/', {
+                await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                     body: JSON.stringify(store)
                 });
-                logDiag(`Saved layout template "${activeTemp}" for "${type}" successfully!`);
+                logDiag(`Saved layout for bill ${txId} / "${type}" (template "${activeTemp}")`);
             } catch (e) {
                 logDiag(`Failed saving template to server: ${e.message}`);
             }
@@ -809,8 +869,239 @@
             });
         }
 
+
+        /* ──────────────────────────────────────────────────────────────
+           Bundle editor: undo/redo history + the full typography panel.
+           Typography is held per wrapper so saveDocumentState() can persist
+           whatever is currently on screen rather than the last server value.
+           ────────────────────────────────────────────────────────────── */
+        window.__bundleTypography = window.__bundleTypography || {};
+
+        const BundleHistory = {
+            stack: [], idx: -1, max: 25, suspended: false,
+
+            snapshot() {
+                const cont = document.getElementById('multiPrintContainer');
+                const styles = {};
+                document.querySelectorAll('style[id^="bulkLayoutStyle-"]').forEach(s => { styles[s.id] = s.textContent; });
+                return {
+                    html: cont ? cont.innerHTML : '',
+                    styles: styles,
+                    typography: JSON.parse(JSON.stringify(window.__bundleTypography || {}))
+                };
+            },
+
+            push() {
+                if (this.suspended) return;
+                const snap = this.snapshot();
+                const cur = this.stack[this.idx];
+                if (cur && cur.html === snap.html && JSON.stringify(cur.typography) === JSON.stringify(snap.typography)) return;
+                this.stack = this.stack.slice(0, this.idx + 1);
+                this.stack.push(snap);
+                if (this.stack.length > this.max) this.stack.shift();
+                this.idx = this.stack.length - 1;
+                this.sync();
+            },
+
+            restore(snap) {
+                this.suspended = true;
+                const cont = document.getElementById('multiPrintContainer');
+                if (cont) cont.innerHTML = snap.html;
+
+                document.querySelectorAll('style[id^="bulkLayoutStyle-"]').forEach(s => { s.textContent = ''; });
+                Object.keys(snap.styles).forEach(id => {
+                    let el = document.getElementById(id);
+                    if (!el) { el = document.createElement('style'); el.id = id; document.head.appendChild(el); }
+                    el.textContent = snap.styles[id];
+                });
+
+                window.__bundleTypography = JSON.parse(JSON.stringify(snap.typography || {}));
+
+                // innerHTML replacement drops listeners -- rewire if edit mode is on.
+                if (document.body.classList.contains('edit-mode-active') && cont) {
+                    cont.querySelectorAll('[data-tx-id]').forEach(w => {
+                        w.querySelector('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+                        setupDocumentEditControls(w, w.dataset.docType);
+                    });
+                    cont.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container')
+                        .forEach(c => { c.contentEditable = "true"; });
+                }
+                this.suspended = false;
+                this.sync();
+            },
+
+            undo() {
+                if (this.idx <= 0) return;
+                this.idx--; this.restore(this.stack[this.idx]); this.persistAll();
+            },
+            redo() {
+                if (this.idx >= this.stack.length - 1) return;
+                this.idx++; this.restore(this.stack[this.idx]); this.persistAll();
+            },
+
+            persistAll() {
+                window.__replayingHistory = true;
+                document.querySelectorAll('#multiPrintContainer [data-tx-id]').forEach(w => {
+                    saveDocumentState(w, w.dataset.docType);
+                });
+                window.__replayingHistory = false;
+            },
+
+            sync() {
+                const u = document.getElementById('undoBtn'), r = document.getElementById('redoBtn');
+                if (u) { u.disabled = this.idx <= 0; u.style.opacity = u.disabled ? .4 : 1; }
+                if (r) { r.disabled = this.idx >= this.stack.length - 1; r.style.opacity = r.disabled ? .4 : 1; }
+            }
+        };
+        window.BundleHistory = BundleHistory;
+        window.__bundleHistoryInit = function () { BundleHistory.stack = []; BundleHistory.idx = -1; BundleHistory.push(); };
+
+        function bundleStatus(msg, ok) {
+            const el = document.getElementById('bSaveStatus');
+            if (!el) return;
+            el.textContent = msg;
+            el.style.color = ok === false ? '#f87171' : (ok ? '#34d399' : '#94a3b8');
+        }
+
+        // Recompute the per-document typography <style> from the panel values.
+        function applyBundleTypography(record) {
+            const scale = parseInt(document.getElementById('bFontScale').value, 10);
+            const family = document.getElementById('bFontFamily').value;
+            const color = document.getElementById('bTextColor').dataset.touched === '1'
+                ? document.getElementById('bTextColor').value : '';
+            const sidebar = parseInt(document.getElementById('bSidebarWidth').value, 10);
+
+            document.querySelectorAll('#multiPrintContainer [data-tx-id]').forEach(wrapper => {
+                const t = { scale: scale, family: family, color: color };
+                window.__bundleTypography[wrapper.id] = t;
+
+                const s = '#' + wrapper.id;
+                let css = '';
+                if (scale && scale !== 100) {
+                    css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container, ' + s + ' .copies-container { zoom: ' + (scale / 100) + '; }\n';
+                }
+                if (family) {
+                    css += s + ' *:not(.mono):not(.fas):not(.far):not(.fab) { font-family: ' + family + ' !important; }\n';
+                }
+                if (color) {
+                    css += s + ' .a4-invoice, ' + s + ' .mushok-form, ' + s + ' .quotation-container { color: ' + color + '; }\n';
+                    css += s + ' .a4-invoice *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *), ' +
+                           s + ' .quotation-container *:not(th):not(th *):not(.amount-row.total):not(.amount-row.total *):not(.invoice-header):not(.invoice-header *) { color: ' + color + ' !important; }\n';
+                }
+                const id = 'bulkLayoutStyle-' + wrapper.id;
+                let styleEl = document.getElementById(id);
+                if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = id; document.head.appendChild(styleEl); }
+                styleEl.textContent = css;
+
+                const inv = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
+                if (inv && sidebar) inv.style.setProperty('--sidebar-width', sidebar + '%');
+                wrapper.__sidebarWidth = sidebar;
+            });
+
+            if (record !== false) {
+                BundleHistory.push();
+                BundleHistory.persistAll();
+                bundleStatus('Saved', true);
+            }
+        }
+
+        function initBundleEditorPanel() {
+            const panel = document.getElementById('editPanel');
+            if (!panel || panel.dataset.bound === '1') return;
+            panel.dataset.bound = '1';
+
+            const scale = document.getElementById('bFontScale');
+            const scaleVal = document.getElementById('bFontScaleVal');
+            const side = document.getElementById('bSidebarWidth');
+            const sideVal = document.getElementById('bSidebarWidthVal');
+            const fam = document.getElementById('bFontFamily');
+            const col = document.getElementById('bTextColor');
+
+            scale.addEventListener('input', () => { scaleVal.textContent = scale.value + '%'; applyBundleTypography(false); });
+            scale.addEventListener('change', () => applyBundleTypography());
+            side.addEventListener('input', () => { sideVal.textContent = side.value + '%'; applyBundleTypography(false); });
+            side.addEventListener('change', () => applyBundleTypography());
+            fam.addEventListener('change', () => applyBundleTypography());
+            col.addEventListener('input', () => { col.dataset.touched = '1'; applyBundleTypography(false); });
+            col.addEventListener('change', () => { col.dataset.touched = '1'; applyBundleTypography(); });
+
+            document.getElementById('bResetTypography').addEventListener('click', () => {
+                scale.value = 100; scaleVal.textContent = '100%';
+                side.value = 33; sideVal.textContent = '33%';
+                fam.value = ''; col.value = '#1e293b'; delete col.dataset.touched;
+                applyBundleTypography();
+            });
+
+            // Selection-level formatting (documents are contenteditable in edit mode).
+            document.getElementById('bSelBold').addEventListener('click', () => { document.execCommand('bold'); BundleHistory.push(); });
+            document.getElementById('bSelItalic').addEventListener('click', () => { document.execCommand('italic'); BundleHistory.push(); });
+            document.getElementById('bSelColor').addEventListener('input', e => { document.execCommand('foreColor', false, e.target.value); BundleHistory.push(); });
+            document.getElementById('bSelFontSize').addEventListener('change', e => {
+                if (e.target.value) document.execCommand('fontSize', false, e.target.value);
+                BundleHistory.push();
+            });
+
+            document.getElementById('bShowHidden').addEventListener('click', () => {
+                document.querySelectorAll('#multiPrintContainer .hidden-col').forEach(el => el.classList.remove('hidden-col'));
+                document.querySelectorAll('#multiPrintContainer .hidden-row').forEach(el => el.classList.remove('hidden-row'));
+                document.querySelectorAll('#multiPrintContainer table').forEach(t => syncColspans(t));
+                BundleHistory.push();
+                BundleHistory.persistAll();
+                bundleStatus('Hidden columns/rows restored', true);
+            });
+
+            document.getElementById('bSaveLayout').addEventListener('click', async () => {
+                bundleStatus('Saving...');
+                BundleHistory.persistAll();
+                bundleStatus('Layout saved for all documents', true);
+            });
+
+            document.getElementById('bResetLayout').addEventListener('click', async () => {
+                if (!confirm('Reset the saved layout for every document in this bundle? This cannot be undone after reload.')) return;
+                bundleStatus('Resetting...');
+                const wrappers = Array.from(document.querySelectorAll('#multiPrintContainer [data-tx-id]'));
+                for (const w of wrappers) {
+                    try {
+                        await fetch('/api/print-layouts/' + w.dataset.txId + '/' + w.dataset.docType + '/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                            body: JSON.stringify({ activeTemplate: 'Default Layout', templates: {} })
+                        });
+                    } catch (e) {}
+                }
+                bundleStatus('Layout reset - reloading...', true);
+                setTimeout(() => location.reload(), 600);
+            });
+
+            document.getElementById('undoBtn').addEventListener('click', () => BundleHistory.undo());
+            document.getElementById('redoBtn').addEventListener('click', () => BundleHistory.redo());
+
+            document.addEventListener('keydown', e => {
+                if (!(e.ctrlKey || e.metaKey)) return;
+                const k = e.key.toLowerCase();
+                if (k === 'z' && !e.shiftKey) { e.preventDefault(); BundleHistory.undo(); }
+                else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); BundleHistory.redo(); }
+            });
+
+            // Text edits inside the documents feed the history too (debounced).
+            let typingTimer = null;
+            document.getElementById('multiPrintContainer').addEventListener('input', () => {
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => BundleHistory.push(), 700);
+            });
+
+            BundleHistory.sync();
+        }
+
         function toggleEditMode(enabled) {
             document.body.classList.toggle('edit-mode-active', enabled);
+
+            const panel = document.getElementById('editPanel');
+            if (panel) {
+                panel.style.display = enabled ? 'flex' : 'none';
+                if (enabled) initBundleEditorPanel();
+            }
+
             const containers = document.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
             containers.forEach(container => {
                 container.contentEditable = enabled ? "true" : "false";
@@ -820,9 +1111,8 @@
             });
 
             if (enabled) {
-                document.getElementById('multiPrintContainer').querySelectorAll('[class^="bundle-doc-"]').forEach(wrapper => {
-                    const type = Array.from(wrapper.classList).find(c => c.startsWith('bundle-doc-')).split('-').pop();
-                    setupDocumentEditControls(wrapper, type);
+                document.getElementById('multiPrintContainer').querySelectorAll('[data-tx-id]').forEach(wrapper => {
+                    setupDocumentEditControls(wrapper, wrapper.dataset.docType);
                 });
 
                 if (!window.liveCalcBound) {
