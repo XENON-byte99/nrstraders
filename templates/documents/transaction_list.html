@@ -1,272 +1,846 @@
 {% extends 'base.html' %}
-<!-- Tailwind Safelist:
-bg-gray-50 hover:bg-gray-100 border-gray-500 bg-gray-200 text-gray-800
-bg-blue-50 hover:bg-blue-100 border-blue-500 bg-blue-200 text-blue-800
-bg-purple-50 hover:bg-purple-100 border-purple-500 bg-purple-200 text-purple-800
-bg-green-50 hover:bg-green-100 border-green-500 bg-green-200 text-green-800
-bg-red-50 hover:bg-red-100 border-red-500 bg-red-200 text-red-800
-bg-yellow-50 hover:bg-yellow-100 border-yellow-500 bg-yellow-200 text-yellow-800
-bg-indigo-50 hover:bg-indigo-100 border-indigo-500 bg-indigo-200 text-indigo-800
-bg-pink-50 hover:bg-pink-100 border-pink-500 bg-pink-200 text-pink-800
-bg-orange-50 hover:bg-orange-100 border-orange-500 bg-orange-200 text-orange-800
-bg-teal-50 hover:bg-teal-100 border-teal-500 bg-teal-200 text-teal-800
--->
-
 {% load whatsapp_tags %}
-{% block content %}
-<div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-    <h2 class="text-xl md:text-2xl font-bold">Transactions &amp; Bills</h2>
-    {% if user.p_create_bill or user.is_superuser %}
-    <a href="{% url 'transaction_create' %}" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm">+ New Quotation</a>
-    {% endif %}
-</div>
 
-<!-- ── Filter Bar ── -->
-<form method="get" class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-4">
-    <div class="flex flex-wrap items-end gap-3">
-        <div class="flex-1 min-w-[180px]">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Search</label>
-            <div class="relative">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
-                <input type="text" name="q" value="{{ filter_q }}" placeholder="Invoice, challan, party, or item…"
-                       class="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+{% block content %}
+<style>
+    /* ── Futuristic Dial & Workspace Animations ── */
+    .command-workspace {
+        height: calc(100vh - 100px);
+    }
+    
+    .dial-container {
+        position: relative;
+        width: 220px;
+        height: 220px;
+        margin: 0 auto;
+    }
+    
+    .dial-core {
+        position: absolute;
+        inset: 40px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #f43f5e 0%, #be123c 60%, #4c0519 100%);
+        box-shadow: 0 0 25px rgba(244, 63, 94, 0.4), inset 0 2px 5px rgba(255, 255, 255, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transition: all 0.3s ease;
+    }
+
+    .dial-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px dashed rgba(244, 63, 94, 0.25);
+        animation: spinSlow 60s linear infinite;
+    }
+    @keyframes spinSlow {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+
+    .cat-node {
+        position: absolute;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #18050a;
+        border: 2px solid rgba(244, 63, 94, 0.35);
+        color: #fecdd3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        z-index: 20;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    .cat-node:hover, .cat-node.active-node {
+        background: linear-gradient(135deg, #e11d48 0%, #9f1239 100%);
+        border-color: #f43f5e;
+        color: #ffffff;
+        transform: scale(1.2);
+        box-shadow: 0 0 20px rgba(244, 63, 94, 0.7);
+        z-index: 30;
+    }
+
+    /* Floating Hover Popup Tooltip */
+    .cat-node .cat-tooltip {
+        position: absolute;
+        bottom: 120%;
+        left: 50%;
+        transform: translateX(-50%) translateY(6px);
+        background: rgba(24, 4, 10, 0.95);
+        border: 1px solid rgba(244, 63, 94, 0.4);
+        color: #ffffff;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        letter-spacing: 0.02em;
+    }
+    .cat-node:hover .cat-tooltip {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .queue-card {
+        border-left: 4px solid transparent;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .queue-card:hover {
+        transform: translateX(3px);
+        background: rgba(255, 241, 242, 0.6);
+    }
+    .queue-card.active-card {
+        background: #ffffff !important;
+        border-left-color: #e11d48 !important;
+        box-shadow: 0 8px 20px -4px rgba(225, 29, 72, 0.15), 0 2px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .inspector-panel {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+    }
+</style>
+
+<div class="flex flex-col h-full space-y-4">
+
+    <!-- ═══ TOP COMMAND HEADER ═══ -->
+    <div class="bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-sm border border-rose-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-crimson to-red-700 text-white flex items-center justify-center shadow-md shadow-rose-900/30">
+                <i class="fas fa-radar text-base animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    BILLS COMMAND CENTER
+                    <span class="text-[10px] font-extrabold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-200 uppercase tracking-widest">Live Studio</span>
+                </h1>
+                <p class="text-xs text-slate-500 font-semibold">Interactive zero-scroll workspace with live category roller &amp; invoice inspector</p>
             </div>
         </div>
-        <div class="min-w-[130px]">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-            <select name="status" class="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 outline-none">
-                <option value="">All</option>
+
+        <!-- Filter & Search Bar -->
+        <form method="get" id="filterForm" class="flex flex-wrap items-center gap-2">
+            <div class="relative min-w-[180px]">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 text-xs"></i>
+                <input type="text" name="q" value="{{ filter_q }}" placeholder="Search invoice, party..."
+                       class="w-full pl-8 pr-3 py-1.5 text-xs border border-rose-200 rounded-xl bg-rose-50/30 focus:bg-white focus:ring-2 focus:ring-rose-500/20 outline-none font-medium">
+            </div>
+            <input type="hidden" name="category" id="selectedCatInput" value="{{ filter_category }}">
+            
+            <select name="status" onchange="this.form.submit()" class="px-2.5 py-1.5 text-xs border border-rose-200 rounded-xl bg-rose-50/30 font-bold text-slate-700 outline-none cursor-pointer">
+                <option value="">All Statuses</option>
                 {% for value, label in status_choices %}
                 <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-        </div>
-        <div class="min-w-[150px]">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
-            <select name="category" class="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 outline-none">
-                <option value="">All</option>
-                {% for cat in categories %}
-                <option value="{{ cat.id }}" {% if filter_category == cat.id|stringformat:'s' %}selected{% endif %}>{{ cat.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="min-w-[130px]">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">From</label>
-            <input type="date" name="date_from" value="{{ filter_date_from }}"
-                   class="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 outline-none">
-        </div>
-        <div class="min-w-[130px]">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">To</label>
-            <input type="date" name="date_to" value="{{ filter_date_to }}"
-                   class="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 outline-none">
-        </div>
-        <div class="flex gap-2">
-            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition">
-                <i class="fas fa-filter text-xs mr-1"></i> Filter
-            </button>
-            {% if filters_active %}
-            <a href="{% url 'transaction_list' %}" class="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition" title="Clear filters">
-                <i class="fas fa-times"></i>
+
+            {% if user.p_create_bill or user.is_superuser %}
+            <a href="{% url 'transaction_create' %}" class="btn-glow inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white px-3.5 py-1.5 rounded-xl shadow-md shadow-rose-600/25 text-xs font-extrabold transition-all">
+                <i class="fas fa-plus text-[10px]"></i> New Bill
             </a>
             {% endif %}
-        </div>
+        </form>
     </div>
-    {% if filters_active %}
-    <div class="mt-2 text-xs text-gray-500 font-medium">
-        <i class="fas fa-list-ul mr-1"></i>{{ result_count }} result{{ result_count|pluralize }} found
-    </div>
-    {% endif %}
-</form>
 
-<!-- Desktop table (hidden on mobile) -->
-<div class="hidden md:block bg-white rounded-lg shadow overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="min-w-full">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice/Challan</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
+    <!-- ═══ MASTER-DETAIL COMMAND WORKSPACE (ZERO SCROLL) ═══ -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
+
+        <!-- ── COLUMN 1: ACTIVE BILL QUEUE (3 COLUMNS) ── -->
+        <div class="lg:col-span-3 bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
+            <div class="p-3.5 border-b border-rose-100 bg-rose-50/40 flex items-center justify-between shrink-0">
+                <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                    <i class="fas fa-list-ul text-rose-500 text-xs"></i>
+                    Bill Queue (<span id="queueCount">{{ result_count }}</span>)
+                </h3>
+                <span class="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full" id="activeCatLabel">
+                    {% if filter_category %}Category Filtered{% else %}All Categories{% endif %}
+                </span>
+            </div>
+
+            <!-- Queue Cards List -->
+            <div class="flex-1 overflow-y-auto p-2.5 space-y-2" id="billQueueList">
                 {% for item in transactions %}
-                <tr class="bg-{{ item.transaction_category.color_theme|default:'gray' }}-50 hover:bg-{{ item.transaction_category.color_theme|default:'gray' }}-100 border-l-4 border-{{ item.transaction_category.color_theme|default:'gray' }}-500 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="font-medium text-gray-900">{{ item.invoice_number|default:"-" }} / {{ item.challan_number|default:"-" }}</div>
-                        <div class="text-xs mt-1 font-semibold uppercase tracking-wider inline-block px-2 py-0.5 rounded bg-{{ item.transaction_category.color_theme|default:'gray' }}-200 text-{{ item.transaction_category.color_theme|default:'gray' }}-800">
-                            <i class="fas fa-tag mr-1"></i> {{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
+                <div class="queue-card p-3 rounded-xl bg-slate-50/60 border border-slate-200/70 cursor-pointer"
+                     data-pk="{{ item.pk }}"
+                     data-invoice="{{ item.invoice_number|default:'-' }}"
+                     data-challan="{{ item.challan_number|default:'-' }}"
+                     data-category-id="{{ item.transaction_category.id|default:'' }}"
+                     data-category-name="{{ item.transaction_category.name|default:'General' }}"
+                     data-category-color="{{ item.transaction_category.color_theme|default:'gray' }}"
+                     data-buyer="{{ item.buyer_name|escapejs }}"
+                     data-supplier="{{ item.supplier_name|default:'-'|escapejs }}"
+                     data-status="{{ item.status }}"
+                     data-date="{{ item.created_at|date:'M d, Y' }}"
+                     data-subtotal="{{ item.display_subtotal|floatformat:2 }}"
+                     data-service-charge="{{ item.total_service_charge|floatformat:2 }}"
+                     data-grand="{{ item.grand_total|floatformat:2 }}"
+                     data-vat="{{ item.total_vat|floatformat:2 }}"
+                     data-duty="{{ item.total_duty|floatformat:2 }}"
+                     data-tax="{{ item.total_tax|floatformat:2 }}"
+                     onclick="selectBillCard(this)">
+                    <div class="flex items-start justify-between gap-1.5 mb-1.5">
+                        <div class="font-extrabold text-slate-900 text-xs tracking-tight truncate">
+                            {{ item.invoice_number|default:"-" }}
                         </div>
-                    </td>
-                    <td class="px-6 py-4">
-                        {% with items=item.items.all %}
-                        {% with first=items|first %}
-                        <div class="text-sm text-gray-800 truncate max-w-[240px]" title="{% for it in items %}{{ it.display_description }}{% if not forloop.last %}, {% endif %}{% endfor %}">
-                            {{ first.display_description|default:"(no items)"|truncatechars:45 }}
-                        </div>
-                        <div class="text-xs text-gray-500 mt-0.5">
-                            {{ items|length }} item{{ items|length|pluralize }}{% if item.supplier_name %} · <span class="font-medium">{{ item.supplier_name|truncatechars:28 }}</span>{% endif %}
-                        </div>
-                        {% endwith %}
-                        {% endwith %}
-                    </td>
-                    <td class="px-6 py-4 text-sm">{{ item.buyer_name }}</td>
-                    <td class="px-6 py-4">
-                        {% if user.p_edit_bill or user.is_superuser or user.role == 'OWNER' %}
-                        <form method="post" action="{% url 'transaction_update_status' item.pk %}">{% csrf_token %}
-                          <select name="status" onchange="this.form.submit()" class="border rounded px-2 py-1 text-xs bg-white font-bold {% if item.status == 'APPROVED' %}text-yellow-600{% elif item.status == 'SUBMITTED' %}text-blue-600{% else %}text-green-600{% endif %}">
-                            <option value="DRAFT" {% if item.status == 'DRAFT' %}selected{% endif %}>Draft</option>
-                            <option value="PRICED" {% if item.status == 'PRICED' %}selected{% endif %}>Priced</option>
-                            <option value="APPROVED" {% if item.status == 'APPROVED' %}selected{% endif %}>Approved</option>
-                            <option value="SUBMITTED" {% if item.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
-                            <option value="RELEASED" {% if item.status == 'RELEASED' %}selected{% endif %}>Released</option>
-                          </select>
-                        </form>
-                        {% else %}
-                        <span class="status-badge status-{{ item.status }}">
+                        <span class="status-badge status-{{ item.status }} shrink-0 text-[9px] px-2 py-0.5">
                             {{ item.status }}
                         </span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ item.created_at|date:"M d, Y" }}</td>
-                    <td class="px-6 py-4 text-sm font-medium flex flex-wrap gap-2">
-                        {% if item.status == 'DRAFT' %}
-                            <a href="{% whatsapp_link item 'supplier' %}" target="_blank" class="text-green-600 hover:text-green-800" title="Ask Supplier for Pricing">
-                                <i class="fab fa-whatsapp text-lg"></i>
-                            </a>
-                        {% elif item.status == 'PRICED' %}
-                            <a href="{% whatsapp_link item 'owner' %}" target="_blank" class="text-orange-500 hover:text-orange-700" title="Notify Owner for Approval">
-                                <i class="fab fa-whatsapp text-lg"></i>
-                            </a>
-                        {% elif item.status == 'APPROVED' or item.status == 'RELEASED' or item.status == 'SUBMITTED' %}
-                            <a href="{% whatsapp_link item 'buyer' %}" target="_blank" class="text-blue-600 hover:text-blue-800" title="Notify Buyer">
-                                <i class="fab fa-whatsapp text-lg"></i>
-                            </a>
-                        {% endif %}
-                        {% if item.status == 'DRAFT' %}{% if user.p_price_bill or user.is_superuser %}<a href="{% url 'transaction_pricing' item.pk %}" class="text-blue-600 hover:text-blue-900">Enter Prices</a>{% endif %}{% endif %}
-                        {% if user.p_approve_bill or user.is_superuser %}
-                            {% if item.status == 'PRICED' or item.status == 'DRAFT' or user.role == 'OWNER' or user.is_superuser %}
-                                <a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 hover:text-indigo-900">
-                                    {% if item.status == 'APPROVED' or item.status == 'SUBMITTED' or item.status == 'RELEASED' %}Edit Pricing{% else %}Review &amp; Approve{% endif %}
-                                </a>
-                            {% endif %}
-                        {% endif %}
-                        {% if item.status == 'APPROVED' %}
-                            <a href="{% url 'print_invoice' item.pk %}" target="_blank" class="text-green-600 hover:text-green-900">Invoice</a>
-                            <a href="{% url 'print_quotation' item.pk %}" target="_blank" class="text-purple-600 hover:text-purple-900">Quotation</a>
-                            <a href="{% url 'print_challan' item.pk %}" target="_blank" class="text-orange-600 hover:text-orange-900">Challan</a>
-                            <a href="{% url 'print_mushok' item.pk %}" target="_blank" class="text-teal-600 hover:text-teal-900">Mushok</a>
-                            <a href="{% url 'transaction_approve' item.pk %}" class="text-blue-600 hover:text-blue-900 ml-2" title="View History"><i class="fas fa-history text-sm"></i> History</a>
-                        {% endif %}
-                        {% if user.is_superuser or user.role == 'OWNER' %}
-                            <a href="{% url 'transaction_update' item.pk %}" class="text-blue-600 hover:text-blue-900 ml-2" title="Edit"><i class="fas fa-edit"></i></a>
-                            <a href="{% url 'transaction_delete' item.pk %}" class="text-red-600 hover:text-red-900 ml-1" title="Delete"><i class="fas fa-trash"></i></a>
-                        {% else %}
-                            {% if item.status == 'DRAFT' %}
-                                {% if user.p_edit_bill %}
-                                    <a href="{% url 'transaction_update' item.pk %}" class="text-blue-600 hover:text-blue-900 ml-2" title="Edit"><i class="fas fa-edit"></i></a>
-                                {% endif %}
-                                {% if user.p_delete_bill %}
-                                    <a href="{% url 'transaction_delete' item.pk %}" class="text-red-600 hover:text-red-900 ml-1" title="Delete"><i class="fas fa-trash"></i></a>
-                                {% endif %}
-                            {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                {% if not transactions %}
-                <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">{% if filters_active %}No bills match your filters.{% else %}No transactions found.{% endif %}</td></tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] text-slate-600 font-semibold mb-1">
+                        <span class="truncate max-w-[130px]"><i class="fas fa-user-tie text-rose-400 text-[10px] mr-1"></i>{{ item.buyer_name|truncatechars:18 }}</span>
+                        <span class="font-mono font-black text-rose-700">৳{{ item.grand_total|floatformat:0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/50">
+                        <span><i class="fas fa-tag text-slate-300 mr-1"></i>{{ item.transaction_category.name|default:"General" }}</span>
+                        <span>{{ item.created_at|date:"M d" }}</span>
+                    </div>
 
-<!-- Mobile card list (only visible on small screens) -->
-<div class="md:hidden space-y-3">
-    {% for item in transactions %}
-    <div class="bg-white rounded-xl shadow border-l-4 border-{{ item.transaction_category.color_theme|default:'gray' }}-500 overflow-hidden">
-        <div class="p-4 bg-{{ item.transaction_category.color_theme|default:'gray' }}-50">
-            <div class="flex justify-between items-start gap-2 mb-2">
-                <div>
-                    <div class="font-bold text-gray-900 text-sm">{{ item.invoice_number|default:"-" }} / {{ item.challan_number|default:"-" }}</div>
-                    <div class="text-xs font-semibold uppercase tracking-wider inline-block px-2 py-0.5 rounded bg-{{ item.transaction_category.color_theme|default:'gray' }}-200 text-{{ item.transaction_category.color_theme|default:'gray' }}-800 mt-1">
-                        <i class="fas fa-tag mr-1"></i>{{ item.transaction_category.name|default:"General" }}{% if item.secondary_category %} &amp; {{ item.secondary_category.name }}{% endif %}
+                    <!-- Hidden JSON data for itemized line items -->
+                    <script type="application/json" class="raw-items-data">
+                    [
+                        {% for it in item.items.all %}
+                        {
+                            "id": {{ it.pk }},
+                            "description": "{{ it.display_description|escapejs }}",
+                            "quantity": {{ it.quantity|default:0 }},
+                            "unit": "{{ it.unit|default:'Pcs'|escapejs }}",
+                            "base_price": "{{ it.base_price|floatformat:2 }}",
+                            "unit_price_uplifted": "{{ it.unit_price_uplifted|default:it.base_price|floatformat:2 }}",
+                            "billed_total": "{{ it.billed_total|floatformat:2 }}"
+                        }{% if not forloop.last %},{% endif %}
+                        {% endfor %}
+                    ]
+                    </script>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-slate-400 text-xs font-semibold">
+                    <i class="fas fa-inbox text-2xl text-slate-300 mb-2 block"></i>
+                    No bills in this queue
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ── COLUMN 2: LIVE ITEMIZED INVOICE INSPECTOR & QUICK EDIT STUDIO (6 COLUMNS) ── -->
+        <div class="lg:col-span-6 inspector-panel rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
+            <div id="inspectorContent" class="flex flex-col h-full">
+                <!-- Inspector Header -->
+                <div class="p-4 border-b border-rose-100 bg-gradient-to-r from-rose-900/90 via-rose-950 to-slate-950 text-white flex items-center justify-between shrink-0 shadow-sm">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base font-black tracking-tight" id="inspInvoiceNum">Select a Bill</h2>
+                            <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500/30 text-rose-200 border border-rose-400/30" id="inspCatBadge">Category</span>
+                        </div>
+                        <p class="text-xs text-rose-200/80 font-medium mt-0.5" id="inspPartySubtitle">Click any bill card on the left queue to inspect &amp; edit</p>
+                    </div>
+                    <div id="inspStatusContainer">
+                        <span class="status-badge status-DRAFT" id="inspStatusBadge">READY</span>
                     </div>
                 </div>
-                {% if user.p_edit_bill or user.is_superuser or user.role == 'OWNER' %}
-                <form method="post" action="{% url 'transaction_update_status' item.pk %}" class="flex-shrink-0">{% csrf_token %}
-                  <select name="status" onchange="this.form.submit()" class="border rounded px-1.5 py-0.5 text-xs bg-white font-bold {% if item.status == 'APPROVED' %}text-yellow-600{% elif item.status == 'SUBMITTED' %}text-blue-600{% else %}text-green-600{% endif %}">
-                    <option value="DRAFT" {% if item.status == 'DRAFT' %}selected{% endif %}>Draft</option>
-                    <option value="PRICED" {% if item.status == 'PRICED' %}selected{% endif %}>Priced</option>
-                    <option value="APPROVED" {% if item.status == 'APPROVED' %}selected{% endif %}>Approved</option>
-                    <option value="SUBMITTED" {% if item.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
-                    <option value="RELEASED" {% if item.status == 'RELEASED' %}selected{% endif %}>Released</option>
-                  </select>
-                </form>
-                {% else %}
-                <span class="status-badge status-{{ item.status }} flex-shrink-0">
-                    {{ item.status }}
-                </span>
-                {% endif %}
+
+                <!-- Quick Action & Dynamic Live Edit Studio Bar -->
+                <div class="px-4 py-2.5 bg-rose-50/50 border-b border-rose-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                        <span><i class="fas fa-truck text-rose-500 mr-1"></i>Challan: <strong id="inspChallanNum">-</strong></span>
+                        <span class="text-slate-300">|</span>
+                        <span><i class="fas fa-calendar-alt text-rose-500 mr-1"></i>Date: <strong id="inspDate">-</strong></span>
+                    </div>
+                    
+                    <!-- Dynamic Live Edit Mode Toggle & Print Buttons -->
+                    <div class="flex items-center gap-1.5 flex-wrap" id="inspActions">
+                        <!-- ZERO REDIRECT LIVE IN-PLACE EDIT BUTTON -->
+                        <button type="button" id="btnToggleLiveEdit" onclick="toggleLiveEditMode()" class="px-3 py-1 text-xs font-extrabold rounded-lg bg-gradient-to-r from-rose-600 to-red-700 text-white hover:from-rose-500 hover:to-red-600 transition shadow-md shadow-rose-600/20 flex items-center gap-1.5">
+                            <i class="fas fa-bolt text-[10px] text-yellow-300"></i> <span id="btnLiveEditText">Live Edit</span>
+                        </button>
+
+                        <a id="btnPrimaryEdit" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1">
+                            <i class="fas fa-edit text-[10px]"></i> <span id="btnPrimaryEditText">Edit Form</span>
+                        </a>
+
+                        <span class="text-slate-300">|</span>
+
+                        <a id="btnPrintInvoice" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">Invoice</a>
+                        <a id="btnPrintQuote" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition">Quote</a>
+                        <a id="btnPrintChallan" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">Challan</a>
+                        <a id="btnPrintMushok" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition">Mushok</a>
+                    </div>
+                </div>
+
+                <!-- Live Itemized Breakdown Table & Live Edit Mode View -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    
+                    <!-- IN-PLACE LIVE EDIT HEADER FORM -->
+                    <div id="liveEditHeaderPanel" class="hidden bg-slate-900 text-white rounded-xl p-3.5 border border-rose-500/30 space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <h4 class="text-xs font-black text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-pen-fancy text-rose-400"></i> Live Header &amp; Metadata Editor
+                            </h4>
+                            <span class="text-[10px] bg-rose-950 text-rose-200 px-2 py-0.5 rounded border border-rose-800">Zero Redirect Mode</span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Invoice #</label>
+                                <input type="text" id="editInvoiceInput" class="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-rose-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Challan #</label>
+                                <input type="text" id="editChallanInput" class="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-rose-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Buyer Name</label>
+                                <input type="text" id="editBuyerInput" class="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:border-rose-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Supplier Name</label>
+                                <input type="text" id="editSupplierInput" class="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:border-rose-500 outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line Items Table -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <i class="fas fa-boxes-stacked text-rose-500"></i> Itemized Line Items
+                            </h4>
+                            <button type="button" id="btnAddLiveRowBtn" onclick="addLiveEditRow()" class="hidden px-2.5 py-1 text-[11px] font-extrabold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition flex items-center gap-1 shadow-sm">
+                                <i class="fas fa-plus text-[9px]"></i> Add Item Row
+                            </button>
+                        </div>
+
+                        <div class="rounded-xl border border-slate-200/80 overflow-hidden shadow-sm">
+                            <table class="w-full text-xs text-left">
+                                <thead class="bg-slate-50 border-b border-slate-200 text-slate-400 font-extrabold uppercase text-[10px]">
+                                    <tr>
+                                        <th class="py-2.5 px-3">Item Description</th>
+                                        <th class="py-2.5 px-2 text-center w-20">Qty</th>
+                                        <th class="py-2.5 px-3 text-right w-24">Base Rate</th>
+                                        <th class="py-2.5 px-3 text-right w-24">Selling Rate</th>
+                                        <th class="py-2.5 px-3 text-right w-28">Billed Total</th>
+                                        <th class="py-2.5 px-2 text-center w-10 live-edit-col hidden">Act</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" id="inspItemsBody">
+                                    <tr>
+                                        <td colspan="6" class="py-8 text-center text-slate-400 font-medium italic">
+                                            Select a transaction from the queue to inspect line items
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Live Quick Status Edit & Save Panel -->
+                    <div class="bg-rose-50/40 rounded-xl p-3.5 border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-sliders text-rose-500 text-sm"></i>
+                            <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bill Status:</span>
+                            <select name="status" id="inspStatusSelect" class="px-3 py-1.5 text-xs font-extrabold border border-rose-200 rounded-xl bg-white text-slate-800 shadow-sm outline-none cursor-pointer">
+                                <option value="DRAFT">Draft</option>
+                                <option value="PRICED">Priced</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="SUBMITTED">Submitted</option>
+                                <option value="RELEASED">Released</option>
+                            </select>
+                        </div>
+
+                        <!-- ZERO REDIRECT SAVE ALL BUTTON -->
+                        <button type="button" id="btnSaveLiveChanges" onclick="saveLiveEditsAJAX()" class="hidden bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white px-5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5">
+                            <i class="fas fa-check-circle text-sm"></i> SAVE ALL CHANGES LIVE
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Inspector Footer Totals Deck (5-Pillar Breakdown including Service Charge) -->
+                <div class="p-3 border-t border-rose-100 bg-slate-900 text-white shrink-0 grid grid-cols-5 gap-1.5 text-center rounded-b-2xl">
+                    <div>
+                        <p class="text-[9px] font-extrabold text-slate-400 uppercase">Subtotal</p>
+                        <p class="font-mono font-bold text-xs text-slate-200" id="inspSubtotal">৳0</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-extrabold text-slate-400 uppercase">Service Chg</p>
+                        <p class="font-mono font-bold text-xs text-cyan-300" id="inspServiceCharge">৳0</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-extrabold text-slate-400 uppercase">VAT</p>
+                        <p class="font-mono font-bold text-xs text-amber-300" id="inspVat">৳0</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-extrabold text-slate-400 uppercase">Duty / Tax</p>
+                        <p class="font-mono font-bold text-xs text-rose-300" id="inspTax">৳0</p>
+                    </div>
+                    <div class="bg-rose-950/80 rounded-lg p-1 border border-rose-500/30">
+                        <p class="text-[9px] font-black text-rose-300 uppercase">Grand Total</p>
+                        <p class="font-mono font-black text-xs text-white" id="inspGrand">৳0</p>
+                    </div>
+                </div>
+
             </div>
-            {% with items=item.items.all %}
-            {% with first=items|first %}
-            <div class="text-sm text-gray-800 font-medium truncate">{{ first.display_description|default:"(no items)"|truncatechars:50 }}</div>
-            <div class="text-xs text-gray-500 mb-1">{{ items|length }} item{{ items|length|pluralize }}{% if item.supplier_name %} · {{ item.supplier_name|truncatechars:30 }}{% endif %}</div>
-            {% endwith %}
-            {% endwith %}
-            <div class="text-sm text-gray-700"><span class="font-semibold">Buyer:</span> {{ item.buyer_name }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">{{ item.created_at|date:"M d, Y" }}</div>
         </div>
-        <div class="px-4 py-3 flex flex-wrap gap-x-4 gap-y-2 text-sm border-t border-gray-100 bg-white">
-            {% if item.status == 'DRAFT' %}
-                <a href="{% whatsapp_link item 'supplier' %}" target="_blank" class="text-green-600 font-medium">
-                    <i class="fab fa-whatsapp mr-1 text-base"></i>Notify Supplier
-                </a>
-            {% elif item.status == 'PRICED' %}
-                <a href="{% whatsapp_link item 'owner' %}" target="_blank" class="text-orange-500 font-medium">
-                    <i class="fab fa-whatsapp mr-1 text-base"></i>Notify Owner
-                </a>
-            {% elif item.status == 'APPROVED' or item.status == 'RELEASED' or item.status == 'SUBMITTED' %}
-                <a href="{% whatsapp_link item 'buyer' %}" target="_blank" class="text-blue-600 font-medium">
-                    <i class="fab fa-whatsapp mr-1 text-base"></i>Notify Buyer
-                </a>
-            {% endif %}
-            {% if item.status == 'DRAFT' %}{% if user.p_price_bill or user.is_superuser %}<a href="{% url 'transaction_pricing' item.pk %}" class="text-blue-600 font-medium"><i class="fas fa-dollar-sign mr-1"></i>Prices</a>{% endif %}{% endif %}
-            {% if user.p_approve_bill or user.is_superuser %}
-                {% if item.status == 'PRICED' or item.status == 'DRAFT' or user.role == 'OWNER' or user.is_superuser %}
-                    <a href="{% url 'transaction_approve' item.pk %}" class="text-indigo-600 font-medium">
-                        <i class="fas fa-check-circle mr-1"></i>{% if item.status == 'APPROVED' or item.status == 'SUBMITTED' or item.status == 'RELEASED' %}Edit Pricing{% else %}Review{% endif %}
-                    </a>
-                {% endif %}
-            {% endif %}
-            {% if item.status == 'APPROVED' %}
-            <a href="{% url 'print_invoice' item.pk %}" target="_blank" class="text-green-600 font-medium"><i class="fas fa-file-invoice mr-1"></i>Invoice</a>
-            <a href="{% url 'print_quotation' item.pk %}" target="_blank" class="text-purple-600 font-medium"><i class="fas fa-file-alt mr-1"></i>Quote</a>
-            <a href="{% url 'print_challan' item.pk %}" target="_blank" class="text-orange-600 font-medium"><i class="fas fa-truck mr-1"></i>Challan</a>
-            <a href="{% url 'print_mushok' item.pk %}" target="_blank" class="text-teal-600 font-medium"><i class="fas fa-receipt mr-1"></i>Mushok</a>
-            {% endif %}
-            {% if user.is_superuser or user.role == 'OWNER' %}
-                <a href="{% url 'transaction_update' item.pk %}" class="text-blue-500"><i class="fas fa-edit"></i> Edit</a>
-                <a href="{% url 'transaction_delete' item.pk %}" class="text-red-500"><i class="fas fa-trash"></i> Delete</a>
-            {% else %}
-                {% if item.status == 'DRAFT' %}
-                    {% if user.p_edit_bill %}
-                        <a href="{% url 'transaction_update' item.pk %}" class="text-blue-500"><i class="fas fa-edit"></i> Edit</a>
-                    {% endif %}
-                    {% if user.p_delete_bill %}
-                        <a href="{% url 'transaction_delete' item.pk %}" class="text-red-500"><i class="fas fa-trash"></i> Delete</a>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
+
+        <!-- ── COLUMN 3: FUTURISTIC CIRCULAR CATEGORY ROLLER DIAL (3 COLUMNS) ── -->
+        <div class="lg:col-span-3 bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm p-4 flex flex-col items-center justify-between min-h-0 overflow-y-auto">
+            
+            <div class="text-center w-full">
+                <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
+                    <i class="fas fa-circle-notch text-rose-500 animate-spin" style="animation-duration: 10s;"></i>
+                    Category Roller
+                </h3>
+                <p class="text-[10px] text-slate-400 font-medium">Hover over nodes for popup names, click to filter</p>
+            </div>
+
+            <!-- Interactive 3D Circular Category Dial Widget -->
+            <div class="py-4 my-auto">
+                <div class="dial-container">
+                    <div class="dial-ring"></div>
+                    
+                    <!-- Dial Core Display -->
+                    <div class="dial-core text-white text-center cursor-pointer" onclick="selectCategoryDial('', 'All Categories')">
+                        <i class="fas fa-boxes-stacked text-lg text-rose-200 mb-0.5"></i>
+                        <span class="text-[10px] font-black uppercase tracking-wider text-white" id="dialCoreText">ALL</span>
+                        <span class="text-[9px] font-bold text-rose-200 font-mono" id="dialCoreCount">{{ result_count }} Bills</span>
+                    </div>
+
+                    <!-- Category Nodes Rotated Around Orbit Radius -->
+                    <div id="catNodesWrapper">
+                        {% for cat in categories %}
+                        <div class="cat-node {% if filter_category == cat.id|stringformat:'s' %}active-node{% endif %}"
+                             data-cat-id="{{ cat.id }}"
+                             data-cat-name="{{ cat.name }}"
+                             onclick="selectCategoryDial('{{ cat.id }}', '{{ cat.name|escapejs }}')">
+                            <i class="fas fa-tag text-xs"></i>
+                            <!-- Floating Hover Tooltip Popup -->
+                            <div class="cat-tooltip">{{ cat.name }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Category Metrics Footer -->
+            <div class="w-full bg-rose-50/50 rounded-xl p-3 border border-rose-100 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span class="font-bold text-[10px] uppercase text-slate-400">Active Category:</span>
+                    <span class="font-extrabold text-rose-700" id="catMetricName">{% if filter_category %}Filtered{% else %}All Categories{% endif %}</span>
+                </div>
+                <div class="flex justify-between items-center font-mono">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">Queue Count:</span>
+                    <span class="font-black text-slate-800" id="catMetricCount">{{ result_count }}</span>
+                </div>
+                <button type="button" onclick="selectCategoryDial('', 'All Categories')" class="w-full text-center py-1 bg-white hover:bg-rose-100 text-rose-700 text-[10px] font-black rounded-lg border border-rose-200 transition mt-1">
+                    <i class="fas fa-rotate-left mr-1"></i> Reset Category Filter
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ═══ BOTTOM SUMMARY KPI DECK ═══ -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+        <div class="bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center font-black text-xs shrink-0">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div>
+                <p class="text-[9px] font-extrabold text-slate-400 uppercase">Filtered Bills</p>
+                <p class="text-sm font-black text-slate-900 tracking-tight">{{ result_count }}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center font-black text-xs shrink-0">
+                <i class="fas fa-bangladeshi-taka-sign"></i>
+            </div>
+            <div>
+                <p class="text-[9px] font-extrabold text-slate-400 uppercase">Status Active</p>
+                <p class="text-xs font-black text-emerald-700">{% if filter_status %}{{ filter_status }}{% else %}All Statuses{% endif %}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center font-black text-xs shrink-0">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div>
+                <p class="text-[9px] font-extrabold text-slate-400 uppercase">Date Filter</p>
+                <p class="text-xs font-bold text-slate-700">{% if filter_date_from %}{{ filter_date_from }}{% else %}All Time{% endif %}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center font-black text-xs shrink-0">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div>
+                <p class="text-[9px] font-extrabold text-slate-400 uppercase">Category Mode</p>
+                <p class="text-xs font-bold text-purple-700" id="bottomCatMode">{% if filter_category %}Filtered{% else %}All Categories{% endif %}</p>
+            </div>
         </div>
     </div>
-    {% empty %}
-    <div class="text-center text-gray-500 py-12 bg-white rounded-xl shadow">{% if filters_active %}No bills match your filters.{% else %}No transactions found.{% endif %}</div>
-    {% endfor %}
+
 </div>
+
+<!-- ═══ CLIENT-SIDE INTERACTION SCRIPTS ═══ -->
+<script>
+    let isLiveEditMode = false;
+    let activeSelectedCard = null;
+
+    // Safe helper functions
+    function setElemText(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val || '-';
+    }
+    function setElemVal(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    }
+
+    // Arrange category nodes circularly around the dial
+    function layoutCategoryDial() {
+        const nodes = document.querySelectorAll('.cat-node');
+        const count = nodes.length;
+        if (!count) return;
+        const radius = 85; // px from center
+        const center = 110; // px center offset
+
+        nodes.forEach((node, i) => {
+            const angle = (i / count) * 2 * Math.PI - (Math.PI / 2);
+            const x = center + radius * Math.cos(angle) - 22;
+            const y = center + radius * Math.sin(angle) - 22;
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+        });
+    }
+    layoutCategoryDial();
+
+    // Category Selector Dial Action
+    function selectCategoryDial(catId, catName) {
+        setElemVal('selectedCatInput', catId);
+        const filterForm = document.getElementById('filterForm');
+        if (filterForm) filterForm.submit();
+    }
+
+    // Toggle Live Edit Mode inside Inspector
+    function toggleLiveEditMode() {
+        isLiveEditMode = !isLiveEditMode;
+        const btnText = document.getElementById('btnLiveEditText');
+        const headerPanel = document.getElementById('liveEditHeaderPanel');
+        const addBtn = document.getElementById('btnAddLiveRowBtn');
+        const saveBtn = document.getElementById('btnSaveLiveChanges');
+        const liveCols = document.querySelectorAll('.live-edit-col');
+
+        if (isLiveEditMode) {
+            if (btnText) btnText.textContent = 'Exit Live Edit';
+            if (headerPanel) headerPanel.classList.remove('hidden');
+            if (addBtn) addBtn.classList.remove('hidden');
+            if (saveBtn) saveBtn.classList.remove('hidden');
+            liveCols.forEach(c => c.classList.remove('hidden'));
+
+            if (activeSelectedCard) {
+                populateLiveEditInputs(activeSelectedCard);
+            }
+        } else {
+            if (btnText) btnText.textContent = 'Live Edit';
+            if (headerPanel) headerPanel.classList.add('hidden');
+            if (addBtn) addBtn.classList.add('hidden');
+            if (saveBtn) saveBtn.classList.add('hidden');
+            liveCols.forEach(c => c.classList.add('hidden'));
+
+            if (activeSelectedCard) {
+                renderNormalViewTable(activeSelectedCard);
+            }
+        }
+    }
+
+    // Select & Inspect Bill Card (REBUST & SAFE)
+    function selectBillCard(cardEl) {
+        if (!cardEl) return;
+        activeSelectedCard = cardEl;
+
+        document.querySelectorAll('.queue-card').forEach(c => c.classList.remove('active-card'));
+        cardEl.classList.add('active-card');
+
+        const d = cardEl.dataset;
+        setElemText('inspInvoiceNum', 'Invoice #' + (d.invoice || '-'));
+        setElemText('inspChallanNum', d.challan || '-');
+        setElemText('inspCatBadge', d.categoryName || 'Category');
+        setElemText('inspPartySubtitle', 'Buyer: ' + (d.buyer || '-') + (d.supplier && d.supplier !== '-' ? ' · Supplier: ' + d.supplier : ''));
+        setElemText('inspDate', d.date || '-');
+
+        const badge = document.getElementById('inspStatusBadge');
+        if (badge) {
+            badge.className = 'status-badge status-' + d.status;
+            badge.textContent = d.status || 'DRAFT';
+        }
+
+        setElemVal('inspStatusSelect', d.status || 'DRAFT');
+
+        setElemText('inspSubtotal', '৳' + (d.subtotal || '0.00'));
+        setElemText('inspServiceCharge', '৳' + (d.serviceCharge || '0.00'));
+        setElemText('inspVat', '৳' + (d.vat || '0.00'));
+        setElemText('inspTax', '৳' + (d.tax || '0.00'));
+        setElemText('inspGrand', '৳' + (d.grand || '0.00'));
+
+        // Header inputs for live edit mode
+        setElemVal('editInvoiceInput', d.invoice || '');
+        setElemVal('editChallanInput', d.challan === '-' ? '' : (d.challan || ''));
+        setElemVal('editBuyerInput', d.buyer || '');
+        setElemVal('editSupplierInput', d.supplier === '-' ? '' : (d.supplier || ''));
+
+        // ACCURATE EDIT ROUTING LINKS
+        const btnPrimaryEdit = document.getElementById('btnPrimaryEdit');
+        const btnPrimaryEditText = document.getElementById('btnPrimaryEditText');
+        const btnFullEdit = document.getElementById('btnFullEdit');
+
+        if (btnPrimaryEdit && btnPrimaryEditText) {
+            if (d.status === 'DRAFT') {
+                btnPrimaryEdit.href = '/bills/' + d.pk + '/pricing/';
+                btnPrimaryEditText.textContent = 'Enter Prices';
+                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1';
+            } else if (d.status === 'PRICED') {
+                btnPrimaryEdit.href = '/bills/' + d.pk + '/approve/';
+                btnPrimaryEditText.textContent = 'Review & Approve';
+                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1';
+            } else {
+                btnPrimaryEdit.href = '/bills/' + d.pk + '/approve/';
+                btnPrimaryEditText.textContent = 'Edit Pricing';
+                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition shadow-sm flex items-center gap-1';
+            }
+        }
+
+        if (btnFullEdit) {
+            btnFullEdit.href = '/bills/' + d.pk + '/edit/';
+        }
+
+        // Update Print Links
+        const btnInv = document.getElementById('btnPrintInvoice');
+        if (btnInv) btnInv.href = '/bills/' + d.pk + '/print/invoice/';
+
+        const btnQ = document.getElementById('btnPrintQuote');
+        if (btnQ) btnQ.href = '/bills/' + d.pk + '/print/quotation/';
+
+        const btnC = document.getElementById('btnPrintChallan');
+        if (btnC) btnC.href = '/bills/' + d.pk + '/print/challan/';
+
+        const btnM = document.getElementById('btnPrintMushok');
+        if (btnM) btnM.href = '/bills/' + d.pk + '/print/mushok/';
+
+        if (isLiveEditMode) {
+            populateLiveEditInputs(cardEl);
+        } else {
+            renderNormalViewTable(cardEl);
+        }
+    }
+
+    // Render Normal View Items Table
+    function renderNormalViewTable(cardEl) {
+        const rawJsonEl = cardEl.querySelector('.raw-items-data');
+        const itemsBody = document.getElementById('inspItemsBody');
+        if (!itemsBody) return;
+        itemsBody.innerHTML = '';
+
+        if (rawJsonEl) {
+            try {
+                const items = JSON.parse(rawJsonEl.textContent);
+                if (items.length) {
+                    items.forEach(it => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-rose-50/30 transition';
+                        tr.innerHTML = `
+                            <td class="py-2.5 px-3 font-semibold text-slate-800">${it.description}</td>
+                            <td class="py-2.5 px-2 text-center font-bold text-slate-600">${it.quantity} ${it.unit}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-slate-400">৳${it.base_price}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-indigo-600 font-semibold">৳${it.unit_price_uplifted}</td>
+                            <td class="py-2.5 px-3 text-right font-mono font-bold text-rose-700">৳${it.billed_total}</td>
+                            <td class="py-2.5 px-2 text-center live-edit-col hidden">-</td>
+                        `;
+                        itemsBody.appendChild(tr);
+                    });
+                } else {
+                    itemsBody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-400 italic">No line items in this bill</td></tr>';
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    }
+
+    // Populate Editable Inputs inside Table for Live Edit Mode
+    function populateLiveEditInputs(cardEl) {
+        const rawJsonEl = cardEl.querySelector('.raw-items-data');
+        const itemsBody = document.getElementById('inspItemsBody');
+        if (!itemsBody) return;
+        itemsBody.innerHTML = '';
+
+        if (rawJsonEl) {
+            try {
+                const items = JSON.parse(rawJsonEl.textContent);
+                items.forEach(it => {
+                    addLiveEditRow(it);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    }
+
+    // Add Live Edit Table Row
+    function addLiveEditRow(it = {}) {
+        const itemsBody = document.getElementById('inspItemsBody');
+        if (!itemsBody) return;
+        const tr = document.createElement('tr');
+        tr.className = 'live-item-row bg-rose-50/20';
+
+        tr.dataset.itemId = it.id || '';
+
+        tr.innerHTML = `
+            <td class="py-2 px-2">
+                <input type="text" value="${it.description || ''}" class="row-desc w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs outline-none focus:border-rose-500 font-medium" placeholder="Item name...">
+            </td>
+            <td class="py-2 px-1">
+                <input type="number" step="any" value="${it.quantity || 1}" oninput="recalcLiveRow(this)" class="row-qty w-full px-1.5 py-1 bg-white border border-slate-200 rounded text-xs text-center outline-none focus:border-rose-500 font-mono font-bold">
+            </td>
+            <td class="py-2 px-1">
+                <input type="number" step="any" value="${it.base_price || 0}" oninput="recalcLiveRow(this)" class="row-base w-full px-1.5 py-1 bg-white border border-slate-200 rounded text-xs text-right outline-none focus:border-rose-500 font-mono">
+            </td>
+            <td class="py-2 px-1">
+                <input type="number" step="any" value="${it.unit_price_uplifted || 0}" oninput="recalcLiveRow(this)" class="row-uplift w-full px-1.5 py-1 bg-white border border-rose-200 rounded text-xs text-right text-rose-700 outline-none focus:border-rose-500 font-mono font-bold">
+            </td>
+            <td class="py-2 px-2 text-right font-mono font-bold text-rose-700 row-billed-total">
+                ৳${it.billed_total || '0.00'}
+            </td>
+            <td class="py-2 px-1 text-center live-edit-col">
+                <button type="button" onclick="this.closest('tr').remove(); recalcLiveTotals();" class="w-6 h-6 text-rose-500 hover:text-white hover:bg-rose-600 rounded flex items-center justify-center transition">
+                    <i class="fas fa-trash text-[10px]"></i>
+                </button>
+            </td>
+        `;
+
+        itemsBody.appendChild(tr);
+    }
+
+    // Live Row Calculation
+    function recalcLiveRow(inputEl) {
+        const tr = inputEl.closest('tr');
+        const qty = parseFloat(tr.querySelector('.row-qty').value) || 0;
+        const uplift = parseFloat(tr.querySelector('.row-uplift').value) || 0;
+        const total = (qty * uplift).toFixed(2);
+        tr.querySelector('.row-billed-total').textContent = '৳' + total;
+        recalcLiveTotals();
+    }
+
+    // Live Totals Deck Calculation
+    function recalcLiveTotals() {
+        let sum = 0;
+        document.querySelectorAll('.live-item-row').forEach(tr => {
+            const qty = parseFloat(tr.querySelector('.row-qty').value) || 0;
+            const uplift = parseFloat(tr.querySelector('.row-uplift').value) || 0;
+            sum += (qty * uplift);
+        });
+        setElemText('inspSubtotal', '৳' + sum.toFixed(2));
+        setElemText('inspGrand', '৳' + sum.toFixed(2));
+    }
+
+    // Zero Redirect AJAX Save
+    function saveLiveEditsAJAX() {
+        if (!activeSelectedCard) return;
+        const pk = activeSelectedCard.dataset.pk;
+
+        const payload = {
+            invoice_number: document.getElementById('editInvoiceInput').value,
+            challan_number: document.getElementById('editChallanInput').value,
+            buyer_name: document.getElementById('editBuyerInput').value,
+            supplier_name: document.getElementById('editSupplierInput').value,
+            status: document.getElementById('inspStatusSelect').value,
+            items: []
+        };
+
+        document.querySelectorAll('.live-item-row').forEach(tr => {
+            payload.items.push({
+                id: tr.dataset.itemId || null,
+                description: tr.querySelector('.row-desc').value,
+                quantity: parseFloat(tr.querySelector('.row-qty').value) || 1,
+                unit: 'Pcs',
+                base_price: parseFloat(tr.querySelector('.row-base').value) || 0,
+                unit_price_uplifted: parseFloat(tr.querySelector('.row-uplift').value) || 0
+            });
+        });
+
+        const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrf = csrfEl ? csrfEl.value : '';
+
+        fetch('/api/bills/' + pk + '/inline-save/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                // Update card datasets in-place
+                activeSelectedCard.dataset.invoice = data.invoice_number;
+                activeSelectedCard.dataset.challan = data.challan_number;
+                activeSelectedCard.dataset.buyer = data.buyer_name;
+                activeSelectedCard.dataset.supplier = data.supplier_name;
+                activeSelectedCard.dataset.status = data.status;
+                activeSelectedCard.dataset.grand = data.grand_total;
+                activeSelectedCard.dataset.subtotal = data.subtotal;
+
+                // Update card text
+                const invTextEl = activeSelectedCard.querySelector('.font-extrabold.text-slate-900');
+                if (invTextEl) invTextEl.textContent = data.invoice_number;
+
+                const statusBadge = activeSelectedCard.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.className = 'status-badge status-' + data.status + ' shrink-0 text-[9px] px-2 py-0.5';
+                    statusBadge.textContent = data.status;
+                }
+
+                const priceEl = activeSelectedCard.querySelector('.font-mono.font-black.text-rose-700');
+                if (priceEl) priceEl.textContent = '৳' + Math.round(data.grand_total);
+
+                // Update raw items json
+                const rawJsonEl = activeSelectedCard.querySelector('.raw-items-data');
+                if (rawJsonEl) {
+                    rawJsonEl.textContent = JSON.stringify(data.items);
+                }
+
+                // Switch back to normal view with fresh updated values
+                toggleLiveEditMode();
+                selectBillCard(activeSelectedCard);
+
+                // Show Toast Notification
+                alert('✓ Bill #' + data.invoice_number + ' saved successfully live in-place!');
+            } else {
+                alert('Error saving bill: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Failed to save changes. Please try again.');
+        });
+    }
+
+    // Auto select first bill card on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        const firstCard = document.querySelector('.queue-card');
+        if (firstCard) {
+            selectBillCard(firstCard);
+        }
+    });
+</script>
 {% endblock %}

@@ -2,75 +2,81 @@
 {% load whatsapp_tags %}
 {% load billing_tags %}
 {% block content %}
-<div class="w-full max-w-7xl mx-auto px-3 sm:px-5 py-4 md:py-8 space-y-4 md:space-y-6">
+<div class="w-full max-w-7xl mx-auto px-3 sm:px-5 py-4 md:py-8 space-y-5 md:space-y-6">
 
   <!-- ═══ HEADER & FILTER PANEL ═══ -->
-  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <div class="p-4 md:p-6 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-indigo-500">
-      <h2 class="text-xl md:text-2xl font-black text-white"><i class="fas fa-chart-pie mr-2 opacity-80"></i>Bill Summary Dashboard</h2>
-      <p class="text-xs text-indigo-200 mt-1">Approved / Submitted / Released transactions</p>
-    </div>
-    <form method="get" class="p-4 md:p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+  <div class="bg-white rounded-2xl shadow-sm border border-rose-100 overflow-hidden">
+    <div class="p-5 md:p-6 border-b border-rose-100 bg-gradient-to-r from-rose-700 via-rose-800 to-red-950 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-        <select name="status" onchange="this.form.submit()" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
-          <option value="ALL" {% if current_status == 'ALL' %}selected{% endif %}>All</option>
+        <h2 class="text-xl md:text-2xl font-black tracking-tight flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-rose-100 shadow-inner">
+            <i class="fas fa-chart-pie"></i>
+          </span>
+          Bill Summary Dashboard
+        </h2>
+        <p class="text-xs text-rose-100/90 font-medium mt-1">Analytics for Approved, Submitted, and Released transactions</p>
+      </div>
+    </div>
+    <form method="get" class="p-4 md:p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 bg-slate-50/40">
+      <div>
+        <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Status</label>
+        <select name="status" onchange="this.form.submit()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none">
+          <option value="ALL" {% if current_status == 'ALL' %}selected{% endif %}>All Statuses</option>
           <option value="DRAFT" {% if current_status == 'DRAFT' %}selected{% endif %}>Draft</option>
           <option value="PRICED" {% if current_status == 'PRICED' %}selected{% endif %}>Priced</option>
           <option value="APPROVED" {% if current_status == 'APPROVED' %}selected{% endif %}>Approved</option>
           <option value="SUBMITTED" {% if current_status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
           <option value="RELEASED" {% if current_status == 'RELEASED' %}selected{% endif %}>Released</option>
-
         </select>
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sort By</label>
-        <select name="sort" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
-          <option value="-created_at" {% if current_sort == '-created_at' %}selected{% endif %}>Newest</option>
-          <option value="created_at" {% if current_sort == 'created_at' %}selected{% endif %}>Oldest</option>
-          <option value="status" {% if current_sort == 'status' %}selected{% endif %}>Status↑</option>
-          <option value="-status" {% if current_sort == '-status' %}selected{% endif %}>Status↓</option>
-          <option value="invoice_number" {% if current_sort == 'invoice_number' %}selected{% endif %}>Invoice↑</option>
-          <option value="-invoice_number" {% if current_sort == '-invoice_number' %}selected{% endif %}>Invoice↓</option>
+        <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Sort By</label>
+        <select name="sort" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none">
+          <option value="-created_at" {% if current_sort == '-created_at' %}selected{% endif %}>Newest First</option>
+          <option value="created_at" {% if current_sort == 'created_at' %}selected{% endif %}>Oldest First</option>
+          <option value="status" {% if current_sort == 'status' %}selected{% endif %}>Status ↑</option>
+          <option value="-status" {% if current_sort == '-status' %}selected{% endif %}>Status ↓</option>
+          <option value="invoice_number" {% if current_sort == 'invoice_number' %}selected{% endif %}>Invoice ↑</option>
+          <option value="-invoice_number" {% if current_sort == '-invoice_number' %}selected{% endif %}>Invoice ↓</option>
         </select>
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">From</label>
-        <input type="date" name="date_from" value="{{ date_from }}" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+        <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">From</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none">
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">To</label>
-        <input type="date" name="date_to" value="{{ date_to }}" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-indigo-400 outline-none">
+        <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">To</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none">
       </div>
       <div class="col-span-2 sm:col-span-1 flex gap-2 items-end">
-        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition"><i class="fas fa-filter mr-1"></i>Apply</button>
-        <a href="{% url 'bill_summary' %}" class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded-lg text-sm font-bold transition">Clear</a>
+        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition shadow-sm flex items-center justify-center gap-1.5"><i class="fas fa-filter text-xs"></i>Apply</button>
+        <a href="{% url 'bill_summary' %}" class="flex-1 text-center bg-slate-200/80 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold transition">Clear</a>
       </div>
     </form>
   </div>
 
   <!-- ═══ KPI CARDS ═══ -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase mb-1">Total Bills</p>
-      <p class="text-2xl md:text-3xl font-black text-indigo-900">{{ total_bills }}</p>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 card-hover">
+      <p class="text-[10px] md:text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-1">Total Bills</p>
+      <p class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{{ total_bills }}</p>
     </div>
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase mb-1">Grand Revenue</p>
-      <p class="text-base md:text-xl font-black text-gray-800 font-mono leading-tight">&#2547;{{ grand_revenue|floatformat:3 }}</p>
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 card-hover">
+      <p class="text-[10px] md:text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-1">Grand Revenue</p>
+      <p class="text-base md:text-xl font-black text-slate-800 font-mono leading-tight">&#2547;{{ grand_revenue|floatformat:3 }}</p>
     </div>
-    <div class="bg-white rounded-xl border border-orange-100 shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-orange-400 uppercase mb-1">VAT Collected</p>
-      <p class="text-base md:text-xl font-black text-orange-500 font-mono leading-tight">&#2547;{{ total_vat|floatformat:3 }}</p>
+    <div class="bg-white rounded-2xl border border-amber-200/80 shadow-sm p-4 card-hover bg-amber-50/20">
+      <p class="text-[10px] md:text-xs font-extrabold text-amber-600 uppercase tracking-wider mb-1">VAT Collected</p>
+      <p class="text-base md:text-xl font-black text-amber-600 font-mono leading-tight">&#2547;{{ total_vat|floatformat:3 }}</p>
     </div>
-    <div class="bg-white rounded-xl border border-indigo-100 shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase mb-1">Grand Selling Total</p>
+    <div class="bg-white rounded-2xl border border-indigo-200/80 shadow-sm p-4 card-hover bg-indigo-50/20">
+      <p class="text-[10px] md:text-xs font-extrabold text-indigo-600 uppercase tracking-wider mb-1">Selling Total</p>
       <p class="text-base md:text-xl font-black text-indigo-700 font-mono leading-tight">&#2547;{{ total_upscale_revenue|floatformat:3 }}</p>
     </div>
-    <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-3 md:p-4">
-      <p class="text-[10px] md:text-xs font-bold text-green-100 uppercase mb-1"><i class="fas fa-chart-line mr-1"></i>Gross Profit</p>
+    <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-md p-4 card-hover text-white">
+      <p class="text-[10px] md:text-xs font-extrabold text-emerald-100 uppercase tracking-wider mb-1"><i class="fas fa-chart-line mr-1"></i>Gross Profit</p>
       <p class="text-base md:text-xl font-black text-white font-mono leading-tight">&#2547;{{ total_gross_profit|floatformat:3 }}</p>
-      <p class="text-[10px] text-green-200 mt-1 font-semibold">{{ profit_margin_pct|floatformat:1 }}% margin</p>
+      <p class="text-[10px] text-emerald-100 mt-1 font-bold">{{ profit_margin_pct|floatformat:1 }}% margin</p>
     </div>
   </div>
 

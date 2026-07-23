@@ -1,0 +1,160 @@
+{% load static %}
+{% load billing_tags %}
+{# ── LETTERHEAD quotation ────────────────────────────────────────────────── #}
+{# Same visual language as _letterhead_invoice.html, quotation wording and    #}
+{# quotation totals rows (service charge / discount / price after deduction). #}
+{% include 'documents/layouts/_letterhead_style.html' %}
+
+<div class="fit-wrap">
+    <div class="lh-page">
+
+        <!-- Masthead -->
+        <header class="lh-mast">
+            <div class="lh-mast-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+            <div class="lh-mast-rule"></div>
+            <div class="lh-mast-meta">
+                {% if transaction.supplier_address %}<span>{{ transaction.supplier_address }}</span>{% endif %}
+                {% if transaction.supplier_contact %}<span>{{ transaction.supplier_contact }}</span>{% endif %}
+                {% if transaction.supplier_bin %}<span>BIN {{ transaction.supplier_bin }}</span>{% endif %}
+            </div>
+        </header>
+
+        <main class="invoice-body">
+
+            <div>
+                <div class="lh-titlebar">
+                    <div class="lh-doctype">Quotation</div>
+                    <div class="lh-doctag">{{ transaction.transaction_category.name|default:"General" }}{% if transaction.secondary_category %} &amp; {{ transaction.secondary_category.name }}{% endif %}</div>
+                </div>
+                <div class="lh-hair"></div>
+            </div>
+
+            <div class="lh-parties">
+                <div>
+                    <div class="lh-h">Quoted To</div>
+                    <div class="lh-party-name">{{ transaction.buyer_name }}</div>
+                    {% if transaction.buyer_bin %}<div class="lh-line">BIN: {{ transaction.buyer_bin }}</div>{% endif %}
+                    {% if transaction.buyer_address %}<div class="lh-line">{{ transaction.buyer_address }}</div>{% endif %}
+                    {% if transaction.buyer_contact %}<div class="lh-line">{{ transaction.buyer_contact }}</div>{% endif %}
+                </div>
+                <div>
+                    <div class="lh-h">Quotation Particulars</div>
+                    <div class="lh-dl">
+                        <div class="lh-dt">Quote No.</div>
+                        <div class="lh-dd">{{ transaction.invoice_number|default:"—" }}</div>
+                        <div class="lh-dt">Issue Date</div>
+                        <div class="lh-dd">{{ transaction.created_at|date:"d F Y" }}</div>
+                        {% if transaction.challan_number %}
+                        <div class="lh-dt">Challan No.</div>
+                        <div class="lh-dd">{{ transaction.challan_number }}</div>
+                        {% endif %}
+                        <div class="lh-dt">Reference</div>
+                        <div class="lh-dd" contenteditable="true">NO REFERENCE INVOICE INCLUDED</div>
+                        <div class="lh-dt amount-row" data-amount-row-id="meta-ref-invoice" style="padding:0;border:none;background:transparent;display:block;">Related Inv.</div>
+                        <div class="lh-dd" contenteditable="true">&nbsp;</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lh-subject">
+                <b>Subject:</b> This quotation details the estimated cost for {{ transaction.transaction_category.name|default:"the goods and services" }}{% if transaction.secondary_category %} and {{ transaction.secondary_category.name }}{% endif %}, itemised below with applicable duty, tax and VAT.
+            </div>
+
+            <div class="lh-items">
+                {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                    <div class="lh-cat">{{ transaction.transaction_category.name }}</div>
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items transaction=transaction date_color="#374151" %}
+                    <div class="lh-cat" style="margin-top:10px;">{{ transaction.secondary_category.name }}</div>
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.secondary_items transaction=transaction date_color="#374151" %}
+                {% else %}
+                    {% include 'documents/_print_items_table.html' with table_items=transaction.items.all transaction=transaction date_color="#374151" show_sec_badge=True %}
+                {% endif %}
+            </div>
+
+            <div class="amount-section">
+                <div>
+                    <div class="lh-h">Terms &amp; Conditions</div>
+                    <div class="lh-note">
+                        This quotation is <b>valid for 30 days</b> from the date of issue. Prices are quoted in
+                        Bangladeshi Taka (৳) and are inclusive of the duty, tax and VAT shown above. Supply is
+                        subject to written confirmation of this quotation.
+                    </div>
+                </div>
+
+                <div class="amount-box">
+                    <div class="amount-row" data-amount-row-id="subtotal">
+                        <span class="amount-label">Subtotal</span>
+                        <span class="amount-value mono">
+                            <span class="display-base">৳{{ transaction.display_subtotal|format_billing:transaction }}</span>
+                            <span class="display-target">৳{{ transaction.grand_total|format_billing:transaction }}</span>
+                        </span>
+                    </div>
+                    <div class="display-base">
+                    {% if transaction.total_service_charge > 0 %}
+                        {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                            {% if transaction.primary_total_service_charge > 0 %}
+                            <div class="amount-row" data-category-index="0" data-amount-row-id="service-charge-0">
+                                <span class="amount-label">Service Charge ({{ transaction.transaction_category.invoice_prefix|default:"GEN" }} - {{ transaction.service_charge_percentage }}%)</span>
+                                <span class="amount-value mono">৳{{ transaction.primary_total_service_charge|format_billing:transaction }}</span>
+                            </div>
+                            {% endif %}
+                            {% if transaction.secondary_total_service_charge > 0 %}
+                            <div class="amount-row" data-category-index="1" data-amount-row-id="service-charge-1">
+                                <span class="amount-label">Service Charge ({{ transaction.secondary_category.invoice_prefix|default:"SEC" }} - {{ transaction.secondary_service_charge_percentage }}%)</span>
+                                <span class="amount-value mono">৳{{ transaction.secondary_total_service_charge|format_billing:transaction }}</span>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="amount-row" data-amount-row-id="service-charge">
+                                <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
+                                <span class="amount-value mono">৳{{ transaction.total_service_charge|format_billing:transaction }}</span>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if transaction.discount_percentage > 0 or transaction.discount_flat > 0 %}
+                    <div class="amount-row" data-amount-row-id="discount">
+                        <span class="amount-label" style="color:#b91c1c;">Discount{% if transaction.discount_percentage %} ({{ transaction.discount_percentage }}%){% endif %}{% if transaction.discount_flat %} + ৳{{ transaction.discount_flat }} flat{% endif %}</span>
+                        <span class="amount-value mono" style="color:#b91c1c;">
+                            <span class="display-base">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                            <span class="display-target">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                        </span>
+                    </div>
+                    <div class="amount-row" data-amount-row-id="price-after-deduction">
+                        <span class="amount-label" style="font-weight:600;color:#111827;">Price After Deduction</span>
+                        <span class="amount-value mono" style="font-weight:700;">
+                            <span class="display-base">৳{{ transaction.price_after_discount_base|format_billing:transaction }}</span>
+                            <span class="display-target">৳{{ transaction.price_after_discount_target|format_billing:transaction }}</span>
+                        </span>
+                    </div>
+                    {% endif %}
+                    </div>
+                    <div class="amount-row total" data-amount-row-id="grand-total">
+                        <span class="amount-label">Grand Total</span>
+                        <span class="amount-value mono">৳{{ transaction.grand_total|format_billing:transaction }}</span>
+                    </div>
+                    <div style="text-align:right;font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:#6b7280;margin-top:4px;">
+                        VAT &amp; Tax included
+                    </div>
+                </div>
+            </div>
+
+            <div class="lh-signoff">
+                <div class="lh-closing">For and on behalf of<br>{{ transaction.supplier_name|default:"the Company" }}</div>
+                <div class="signature-box">
+                    {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                        <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
+                    {% else %}
+                        <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                    {% endif %}
+                    <div class="signature-line"></div>
+                    <div class="sig-name">{{ transaction.supplier_party.ceo_name|default:"Authorized Signatory" }}</div>
+                    <div class="sig-title">{% if transaction.supplier_party.designation %}{{ transaction.supplier_party.designation }}{% else %}For {{ transaction.supplier_name|default:"the Company" }}{% endif %}</div>
+                </div>
+            </div>
+
+            <div class="lh-foot">{{ transaction.supplier_name|default:"Supplier" }} &nbsp;—&nbsp; We look forward to serving you</div>
+
+        </main>
+    </div>
+</div>

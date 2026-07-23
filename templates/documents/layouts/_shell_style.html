@@ -1,0 +1,64 @@
+{# Page-level CSS shared by every supplier design (invoice + quotation).      #}
+{# Anything design-specific belongs in that design's _*_style.html partial.   #}
+<style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: 'Poppins', sans-serif; background: #f0f4f8; }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    /* Keep every fill, tint and header bar when printing or saving to PDF.
+       Browsers drop background colours by default — phones especially, where
+       there is often no "Background graphics" checkbox to turn on. */
+    html, body, .a4-invoice, .a4-invoice * {
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    @media print {
+        @page { size: A4 portrait; margin: 0; }
+        body { background: white !important; }
+        .no-print { display: none !important; }
+        .a4-container { display: block !important; width: 100% !important; height: 100% !important; padding: 0 !important; margin: 0 !important; }
+        html, body { width: 8.27in; height: 11.69in; }
+        .a4-invoice { box-shadow: none !important; }
+        /* mix-blend-mode is not honoured by every print pipeline and can drop
+           the signature entirely — plain compositing prints reliably. */
+        .official-signature { mix-blend-mode: normal !important; }
+    }
+    .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
+
+    /* ── Per-supplier colour theme ──
+       --accent-line / --accent-tint / --zebra are pre-blended rather than
+       color-mix()'d: html2canvas (Download PDF) cannot resolve color-mix. */
+    .theme-blue    { --accent:#1e3a8a; --accent-2:#2563eb; --accent-soft:#eef2ff;
+                     --accent-line:rgba(30,58,138,.22);  --accent-tint:rgba(30,58,138,.07);  --zebra:#f6f8ff; }
+    .theme-claude  { --accent:#8f4227; --accent-2:#c15f3c; --accent-soft:#fbf1ea;
+                     --accent-line:rgba(143,66,39,.22);  --accent-tint:rgba(143,66,39,.07);  --zebra:#fdf7f3; }
+    .theme-crimson { --accent:#7f1225; --accent-2:#be123c; --accent-soft:#fef2f4;
+                     --accent-line:rgba(127,18,37,.22);  --accent-tint:rgba(127,18,37,.07);  --zebra:#fff7f8; }
+
+    /* The A4 sheet itself. Each design paints its own background on top. */
+    .a4-invoice {
+        --ink: #0f172a; --muted: #64748b;
+        /* flex:none — the sheet is a flex item of .a4-container and must never be
+           shrunk by a narrow window, or the whole page reflows off its A4 grid. */
+        width: 8.27in; height: 11.69in; flex: 0 0 auto;
+        background: #fff;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        position: relative; overflow: hidden;
+        color: var(--ink); font-size: 10px;
+    }
+    .fit-wrap { width: 8.27in; min-height: 11.69in; transform-origin: top left; }
+
+    /* Base / target amount switch + hidden rows & columns */
+    .mode-target .display-base { display: none !important; }
+    .mode-base .display-target { display: none !important; }
+    .hidden-row { display: none !important; }
+    .display-base { margin: 0; padding: 0; border: none; }
+
+    .category-badge {
+        display: inline-block; padding: 1px 5px; border-radius: 3px;
+        font-size: 8px; font-weight: 800; text-transform: uppercase;
+        background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
+        letter-spacing: 0.02em;
+    }
+</style>

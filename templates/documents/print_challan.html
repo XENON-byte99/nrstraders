@@ -1,12 +1,21 @@
+{% load static %}
 {% load billing_tags %}
 <!doctype html>
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <title>Challan - {{ transaction.challan_number|default:'Draft' }}</title>
+    <script src="{% static 'js/print_engine.js' %}"></script>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; }
+        /* Keep every fill, tint and header bar when printing or saving to PDF.
+           Browsers drop background colours by default — phones especially. */
+        html, body, .challan-wrapper, .challan-wrapper * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
         @media print {
             @page { size: A4 landscape; margin: 0; }
             .no-print { display: none !important; }
@@ -518,23 +527,23 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         function downloadPDF() {
-            const element = document.getElementById('challanContent');
-            if (!element) return;
-            
-            const challanNo = "{{ transaction.challan_number|default:'Challan' }}";
-            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
-            const filename = `Challan_${challanNo}_${buyerName}.pdf`;
-
-            const opt = {
-                margin: 0.1,
-                filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 1.5, useCORS: true, letterRendering: true },
-                jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' }
-            };
-
-            html2pdf().set(opt).from(element).save();
+            const no = "{{ transaction.challan_number|default:'Challan' }}";
+            const buyer = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            return PrintEngine.downloadPdf(document.getElementById('challanContent'),
+                `Challan_${no}_${buyer}.pdf`,
+                { scale: 1.5, format: 'a3', orientation: 'landscape', windowWidth: 1400 });
         }
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.querySelector('button[onclick*="downloadPDF"]');
+            if (!btn) return;
+            btn.removeAttribute('onclick');
+            const no = "{{ transaction.challan_number|default:'Challan' }}";
+            const buyer = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            PrintEngine.bindDownloadButton(btn,
+                () => document.getElementById('challanContent'),
+                () => `Challan_${no}_${buyer}.pdf`,
+                { scale: 1.5, format: 'a3', orientation: 'landscape', windowWidth: 1400 });
+        });
 
         // --- Live Edit and Calculation Script ---
         function toggleEditMode(enabled) {

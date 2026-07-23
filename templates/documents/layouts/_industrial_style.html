@@ -1,0 +1,88 @@
+{# Shared visual language for the industrial design (invoice + quotation) #}
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&amp;family=Barlow:wght@400;500;600;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<style>
+    .a4-invoice.layout-industrial {
+        background: #ffffff;
+        font-family: 'Barlow', sans-serif;
+        color: #18181b;
+        font-size: 10px;
+    }
+    .layout-industrial .fit-wrap { display: block; }
+    .layout-industrial .mono { font-family: 'Space Mono', monospace; }
+
+    .ind-page { min-height: 11.69in; display: flex; flex-direction: column; }
+
+    /* ── Full-bleed header band ── */
+    .ind-band { background: #18181b; color: #fff; padding: 0.32in 0.5in 0.28in; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .ind-band-l { min-width: 0; }
+    .ind-doctype { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 44px; line-height: .95; letter-spacing: .04em; text-transform: uppercase; color: #fff; margin: 0; }
+    .ind-doctype span { color: var(--accent-2); }
+    .ind-issuer { font-family: 'Oswald', sans-serif; font-weight: 400; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: #d4d4d8; margin-top: 6px; }
+    .ind-issuer-sub { font-size: 8.5px; letter-spacing: .05em; color: #a1a1aa; line-height: 1.55; margin-top: 3px; }
+    .ind-band-r { border: 1.5px solid #52525b; padding: 7px 10px; min-width: 2.15in; flex-shrink: 0; }
+    .ind-kv { display: flex; justify-content: space-between; gap: 12px; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: #a1a1aa; padding: 2.5px 0; border-bottom: 1px solid #3f3f46; }
+    .ind-kv:last-child { border-bottom: none; }
+    .ind-kv b { font-family: 'Space Mono', monospace; font-size: 9.5px; letter-spacing: 0; text-transform: none; color: #fff; font-weight: 700; }
+
+    /* Accent rule directly under the band */
+    .ind-rule { height: 6px; background: var(--accent); }
+
+    .layout-industrial .invoice-body { flex: 1; display: flex; flex-direction: column; padding: 0 0.5in 0.38in; }
+
+    /* ── Two-column info strip ── */
+    .ind-strip { display: grid; grid-template-columns: 1.15fr 1fr; margin: 14px 0 12px; border-top: 1.5px solid #18181b; border-bottom: 1.5px solid #18181b; }
+    .ind-cell { padding: 9px 12px; border-right: 1px solid #e4e4e7; }
+    .ind-cell:first-child { padding-left: 0; }
+    .ind-cell:last-child { border-right: none; padding-right: 0; }
+    .ind-h { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 8px; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+    .ind-strong { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 12.5px; letter-spacing: .02em; color: #18181b; line-height: 1.25; margin-bottom: 2px; }
+    .ind-line { font-size: 9px; color: #52525b; line-height: 1.5; }
+    .ind-line b { color: #18181b; font-weight: 600; }
+
+    .ind-scope { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .ind-chip { font-family: 'Oswald', sans-serif; font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; background: #18181b; color: #fff; padding: 3px 9px; flex-shrink: 0; }
+    .ind-scope-txt { font-size: 9px; color: #52525b; line-height: 1.5; }
+
+    /* ── Items: hard grid ── */
+    .ind-items { flex: 1 0 auto; }
+    .ind-cat { font-family: 'Oswald', sans-serif; font-size: 9px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #18181b; border-left: 4px solid var(--accent); padding-left: 7px; margin: 0 0 5px; }
+    .layout-industrial table { width: 100%; border-collapse: collapse; font-size: 8.8px; table-layout: fixed; margin-bottom: 8px; }
+    .layout-industrial th {
+        background: #18181b !important; color: #fff; padding: 6px 4px; text-align: left;
+        font-family: 'Oswald', sans-serif; font-weight: 400; font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase;
+        border-right: 1px solid #3f3f46; white-space: normal; word-break: break-word;
+    }
+    .layout-industrial th:last-child { border-right: none; }
+    .layout-industrial td { padding: 5px 4px; border-bottom: 1px solid #e4e4e7; border-right: 1px solid #f4f4f5; color: #27272a; }
+    .layout-industrial td:last-child { border-right: none; }
+    .layout-industrial tbody tr:nth-child(odd) { background: #fafafa; }
+    .layout-industrial tbody tr:last-child td { border-bottom: 1.5px solid #18181b; }
+    .layout-industrial .col-group-base { background: transparent !important; }
+    .layout-industrial .col-group-tax { background: transparent !important; }
+    .layout-industrial .col-group-vat { background: rgba(24, 24, 27, 0.05) !important; font-weight: 700; }
+
+    /* ── Totals ladder ── */
+    .layout-industrial .amount-section { display: grid; grid-template-columns: 1fr 2.8in; gap: 18px; margin-top: 10px; align-items: start; }
+    .layout-industrial .amount-box { border: none; border-radius: 0; overflow: visible; background: transparent; align-self: start; }
+    .layout-industrial .amount-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; background: #fafafa; border: none; border-left: 3px solid #d4d4d8; border-bottom: 1px solid #fff; margin: 0; }
+    .layout-industrial .amount-row:nth-child(even) { background: #f4f4f5; }
+    .layout-industrial .amount-label { font-family: 'Oswald', sans-serif; font-weight: 400; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: #52525b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .layout-industrial .amount-value { font-family: 'Space Mono', monospace; font-size: 9.5px; font-weight: 700; color: #18181b; white-space: nowrap; flex-shrink: 0; }
+    .layout-industrial .amount-row.total { background: #18181b; border-left: 3px solid var(--accent); border-bottom: none; padding: 9px 10px; margin-top: 4px; }
+    .layout-industrial .amount-row.total .amount-label { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .18em; color: #fff; }
+    .layout-industrial .amount-row.total .amount-value { font-size: 15px; font-weight: 700; color: #fff; }
+
+    .ind-notebox { border: 1.5px solid #18181b; padding: 9px 11px; }
+    .ind-note { font-size: 8.5px; line-height: 1.6; color: #52525b; }
+    .ind-note b { color: #18181b; font-weight: 600; }
+    .ind-attn-h { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 9px; letter-spacing: .22em; text-transform: uppercase; color: #b91c1c; margin: 8px 0 3px; }
+
+    /* ── Signature ── */
+    .ind-signrow { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; }
+    .ind-stamp { font-family: 'Oswald', sans-serif; font-size: 8px; letter-spacing: .24em; text-transform: uppercase; color: #a1a1aa; }
+    .layout-industrial .signature-box { position: relative; display: flex; flex-direction: column; align-items: flex-start; width: 2.4in; cursor: grab; z-index: 50; }
+    .layout-industrial .official-signature { height: 68px; position: absolute; bottom: 24px; left: 4px; transform: rotate(-3deg); mix-blend-mode: multiply; z-index: 10; }
+    .layout-industrial .signature-line { border-bottom: 2.5px solid #18181b; width: 100%; height: 32px; margin-bottom: 4px; }
+    .layout-industrial .sig-name { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #18181b; }
+    .layout-industrial .sig-title { font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: #71717a; }
+</style>

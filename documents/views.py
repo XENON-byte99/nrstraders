@@ -477,7 +477,7 @@ def audit_log_view(request):
 
 @login_required
 def print_invoice(request, pk):
-    transaction = get_object_or_404(Transaction, pk=pk, status='APPROVED')
+    transaction = get_object_or_404(Transaction, pk=pk)
     # Security Check
     if not (request.user.is_superuser or request.user.p_view_bills or (request.user.p_print_documents and transaction.creator == request.user)):
         messages.error(request, "Access Denied: You do not have permission to print this document.")
@@ -488,7 +488,7 @@ def print_invoice(request, pk):
 
 @login_required
 def print_quotation(request, pk):
-    transaction = get_object_or_404(Transaction, pk=pk, status='APPROVED')
+    transaction = get_object_or_404(Transaction, pk=pk)
     # Security Check
     if not (request.user.is_superuser or request.user.p_view_bills or (request.user.p_print_documents and transaction.creator == request.user)):
         messages.error(request, "Access Denied: You do not have permission to print this document.")
@@ -499,7 +499,7 @@ def print_quotation(request, pk):
 
 @login_required
 def print_challan(request, pk):
-    transaction = get_object_or_404(Transaction, pk=pk, status='APPROVED')
+    transaction = get_object_or_404(Transaction, pk=pk)
     # Security Check
     if not (request.user.is_superuser or request.user.p_view_bills or (request.user.p_print_documents and transaction.creator == request.user)):
         messages.error(request, "Access Denied: You do not have permission to print this document.")
@@ -547,7 +547,7 @@ def print_lunch_daily_challan(request, pk, date_str):
 
 @login_required
 def print_mushok(request, pk):
-    transaction = get_object_or_404(Transaction, pk=pk, status='APPROVED')
+    transaction = get_object_or_404(Transaction, pk=pk)
     # Security Check
     if not (request.user.is_superuser or request.user.p_view_bills or (request.user.p_print_documents and transaction.creator == request.user)):
         messages.error(request, "Access Denied: You do not have permission to print this document.")
@@ -2084,4 +2084,112 @@ def quick_bill_ai_parse(request):
         'category': ({'id': category.id, 'name': category.name} if category else None),
         'category_line': data.get('category'),
         'rows': _quick_build_rows(category, data.get('items') or []),
+    })
+
+@login_required
+def api_inline_save_transaction(request, pk):
+    """Zero-redirect in-place live edit endpoint for Bills Command Center."""
+    import json
+    from decimal import Decimal
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    
+    transaction = get_object_or_404(Transaction, pk=pk)
+    
+    try:
+        data = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception as e:
+        return JsonResponse({'error': f'Invalid JSON payload: {str(e)}'}, status=400)
+        
+    # Update Header Fields
+    if 'invoice_number' in data and data['invoice_number']:
+        transaction.invoice_number = str(data['invoice_number']).strip()
+    if 'challan_number' in data:
+        transaction.challan_number = str(data['challan_number']).strip()
+    if 'buyer_name' in data and data['buyer_name']:
+        transaction.buyer_name = str(data['buyer_name']).strip()
+    if 'supplier_name' in data:
+        transaction.supplier_name = str(data['supplier_name']).strip()
+    if 'status' in data and data['status'] in dict(Transaction.STATUS_CHOICES):
+        transaction.status = data['status']
+        
+    transaction.save()
+    
+    # Update / Recreate Line Items
+    items_data = data.get('items', [])
+    if isinstance(items_data, list) and len(items_data) > 0:
+        incoming_ids = [int(it.get('id')) for it in items_data if it.get('id') and str(it.get('id')).isdigit()]
+        transaction.items.exclude(pk__in=incoming_ids).delete()
+        
+        for item_info in items_data:
+            item_id = item_info.get('id')
+            desc = str(item_info.get('description', '')).strip()
+            try:
+                qty = float(item_info.get('quantity', 1) or 1)
+            except (ValueError, TypeError):
+                qty = 1.0
+                
+            unit = str(item_info.get('unit', 'Pcs')).strip() or 'Pcs'
+            
+            try:
+                base_price = Decimal(str(item_info.get('base_price', 0) or 0))
+            except Exception:
+                base_price = Decimal('0.00')
+                
+            try:
+                uplifted_val = item_info.get('unit_price_uplifted')
+                uplifted_price = Decimal(str(uplifted_val)) if uplifted_val is not None else base_price
+            except Exception:
+                uplifted_price = base_price
+            
+            if item_id and str(item_id).isdigit():
+                it_obj = TransactionItem.objects.filter(pk=int(item_id), transaction=transaction).first()
+                if it_obj:
+                    it_obj.description = desc
+                    it_obj.quantity = qty
+                    it_obj.unit = unit
+                    it_obj.base_price = base_price
+                    it_obj.unit_price_uplifted = uplifted_price
+                    it_obj.save()
+            else:
+                if desc:
+                    TransactionItem.objects.create(
+                        transaction=transaction,
+                        description=desc,
+                        quantity=qty,
+                        unit=unit,
+                        base_price=base_price,
+                        unit_price_uplifted=uplifted_price
+                    )
+
+    transaction.refresh_from_db()
+    _process_auto_product_saving(transaction, transaction.items.all(), user=request.user)
+    log_audit(request.user, "Inline Saved Bill", f"Live edited Bill #{transaction.invoice_number} in Command Center.", transaction=transaction)
+
+    # Build updated response payload
+    updated_items = []
+    for it in transaction.items.all():
+        updated_items.append({
+            'id': it.pk,
+            'description': it.display_description,
+            'quantity': float(it.quantity or 0),
+            'unit': it.unit or 'Pcs',
+            'base_price': f"{it.base_price:.2f}",
+            'unit_price_uplifted': f"{(it.unit_price_uplifted if it.unit_price_uplifted is not None else it.base_price):.2f}",
+            'billed_total': f"{it.billed_total:.2f}"
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'pk': transaction.pk,
+        'invoice_number': transaction.invoice_number or '-',
+        'challan_number': transaction.challan_number or '-',
+        'buyer_name': transaction.buyer_name,
+        'supplier_name': transaction.supplier_name or '-',
+        'status': transaction.status,
+        'subtotal': f"{transaction.display_subtotal:.2f}",
+        'vat': f"{transaction.total_vat:.2f}",
+        'tax': f"{transaction.total_tax:.2f}",
+        'grand_total': f"{transaction.grand_total:.2f}",
+        'items': updated_items
     })

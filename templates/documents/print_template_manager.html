@@ -214,91 +214,13 @@
         // Re-fit once webfonts finish loading (text widths settle late)
         window.addEventListener('load', () => { if (!totalsWidth) autoFitTotals(); });
 
-        function getCellAtColIndex(tr, targetColIdx) {
-            let currentColIdx = 0;
-            for (let i = 0; i < tr.children.length; i++) {
-                const td = tr.children[i];
-                const colspan = parseInt(td.getAttribute('colspan') || '1', 10);
-                if (targetColIdx >= currentColIdx && targetColIdx < currentColIdx + colspan) {
-                    return td;
-                }
-                currentColIdx += colspan;
-            }
-            return null;
-        }
-
-        function syncColspans(table) {
-            const ths = Array.from(table.querySelectorAll('thead th'));
-            if (ths.length === 0) return;
-            const isColHidden = ths.map(th => th.classList.contains('hidden-col'));
-
-            table.querySelectorAll('tbody tr').forEach(tr => {
-                let visualColCount = 0;
-                Array.from(tr.children).forEach(cell => {
-                    visualColCount += parseInt(cell.getAttribute('colspan') || '1', 10);
-                });
-                if (visualColCount !== ths.length) return;
-
-                let hasColspan = false;
-                Array.from(tr.children).forEach(cell => {
-                    let origColspan = cell.dataset.origColspan;
-                    if (!origColspan) {
-                        origColspan = cell.getAttribute('colspan') || '1';
-                        cell.dataset.origColspan = origColspan;
-                    }
-                    if (parseInt(origColspan) > 1) {
-                        hasColspan = true;
-                    }
-                });
-
-                if (!hasColspan) {
-                    Array.from(tr.children).forEach((cell, colIdx) => {
-                        if (isColHidden[colIdx]) {
-                            cell.classList.add('hidden-col');
-                        } else {
-                            cell.classList.remove('hidden-col');
-                        }
-                    });
-                    return;
-                }
-
-                let currentColIdx = 0;
-                Array.from(tr.children).forEach(cell => {
-                    let origColspan = parseInt(cell.dataset.origColspan || '1');
-                    let hiddenCount = 0;
-                    for (let c = currentColIdx; c < currentColIdx + origColspan; c++) {
-                        if (isColHidden[c]) hiddenCount++;
-                    }
-                    let newColspan = origColspan - hiddenCount;
-                    if (newColspan > 0) {
-                        cell.setAttribute('colspan', newColspan);
-                        cell.classList.remove('hidden-col');
-                    } else {
-                        cell.classList.add('hidden-col');
-                    }
-                    currentColIdx += origColspan;
-                });
-            });
-        }
+        // Column mechanics live in static/js/print_engine.js so the single-document
+        // screen and the joint bundle screen behave identically.
 
         // Apply state to DOM
         function applyTemplateState(state) {
-            // First reset all columns to default (remove hidden-col classes and innerHTML overrides)
-            document.querySelectorAll('table').forEach((table) => {
-                table.querySelectorAll('th').forEach(th => {
-                    th.classList.remove('hidden-col');
-                    if(th.dataset.origText) th.innerHTML = th.dataset.origText;
-                    th.style.width = '';
-                });
-                table.querySelectorAll('tbody tr').forEach(tr => {
-                    Array.from(tr.children).forEach(td => {
-                        td.classList.remove('hidden-col');
-                        if (td.dataset.origColspan) {
-                            td.setAttribute('colspan', td.dataset.origColspan);
-                        }
-                    });
-                });
-            });
+            // Reset every table back to the template's own columns
+            document.querySelectorAll('table').forEach(table => PrintEngine.resetTable(table));
 
             // Reset amount rows
             document.querySelectorAll('.amount-row').forEach(row => {
@@ -352,6 +274,20 @@
                 return;
             }
 
+            // Restore contenteditable text edits
+            if (state.editableContent && docContainer) {
+                docContainer.querySelectorAll('[contenteditable], [data-editable-id]').forEach((el, idx) => {
+                    let key = el.dataset.editableId;
+                    if (!key) {
+                        key = 'ed-' + idx + '-' + (el.className || 'elem').replace(/\s+/g, '_').slice(0, 20);
+                        el.dataset.editableId = key;
+                    }
+                    if (state.editableContent[key] !== undefined) {
+                        el.innerHTML = state.editableContent[key];
+                    }
+                });
+            }
+
             applySectionOrder(state.sectionOrder);
 
             if (state.sections) {
@@ -378,104 +314,30 @@
                 document.querySelectorAll('table').forEach((table, tableIdx) => {
                     const tState = state.tables[tableIdx];
                     if (!tState) return;
-
-                    const ths = Array.from(table.querySelectorAll('th'));
-                    const trs = Array.from(table.querySelectorAll('tbody tr'));
-
-                    if (tState.fingerprint) {
-                        const currentFingerprint = ths.map(th => {
-                            let clone = th.cloneNode(true);
-                            const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                            const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                            return clone.innerHTML.replace(/<[^>]*>/g, '').trim();
-                        }).join('|');
-                        if (tState.fingerprint !== currentFingerprint) {
-                            console.warn('Column layout mismatch, resetting layout for table', tableIdx);
-                            return;
+                    const ok = PrintEngine.applyTableState(table, tState, {
+                        onHeaderReplaced: (th, tbl, idx) => {
+                            if (document.body.classList.contains('edit-mode-active')) {
+                                reattachEditControls(th, tbl, idx);
+                            }
                         }
-                    }
-
-                    if (tState.cols && tState.cols.length === ths.length) {
-                        tState.cols.forEach((colState, colIdx) => {
-                            const th = ths[colIdx];
-
-                            // backup original text first time
-                            if (!th.dataset.origText) {
-                                let clone = th.cloneNode(true);
-                                const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                                const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                                th.dataset.origText = clone.innerHTML;
-                            }
-
-                            if (colState.text) {
-                                th.innerHTML = colState.text;
-                                if(document.body.classList.contains('edit-mode-active')){
-                                    reattachEditControls(th, table, colIdx);
-                                }
-                            }
-                            if (colState.width) th.style.width = colState.width;
-                            if (colState.hidden) {
-                                th.classList.add('hidden-col');
-                            }
-                        });
-                        syncColspans(table);
-                    }
+                    });
+                    if (!ok) console.warn('Column layout mismatch, keeping default columns for table', tableIdx);
                 });
             } catch(e) { console.error('Error loading template state', e); }
         }
 
+        // Edit controls for a single header cell — the engine owns the behaviour.
         function reattachEditControls(th, table, idx) {
-            th.classList.add('resizable');
-            th.contentEditable = "true";
+            PrintEngine.attachColumnControls(table, onColumnChange);
+        }
 
-            if (!th.querySelector('.resizer')) {
-                const resizer = document.createElement('div');
-                resizer.className = 'resizer no-print';
-                resizer.contentEditable = "false";
-                th.appendChild(resizer);
-
-                let startX, startW, nextTh, nextStartW;
-                resizer.addEventListener('mousedown', function(e) {
-                    startX = e.clientX;
-                    startW = th.offsetWidth;
-
-                    nextTh = th.nextElementSibling;
-                    while (nextTh && nextTh.classList.contains('hidden-col')) {
-                        nextTh = nextTh.nextElementSibling;
-                    }
-                    if (nextTh) {
-                        nextStartW = nextTh.offsetWidth;
-                    }
-
-                    const onMove = e => {
-                        let diff = e.clientX - startX;
-                        if (startW + diff < 20) diff = 20 - startW;
-                        if (nextTh && nextStartW - diff < 20) diff = nextStartW - 20;
-
-                        th.style.width = (startW + diff) + 'px';
-                        if (nextTh) {
-                            nextTh.style.width = (nextStartW - diff) + 'px';
-                        }
-                    };
-                    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveCurrentState(); };
-                    document.addEventListener('mousemove', onMove);
-                    document.addEventListener('mouseup', onUp);
-                    e.stopPropagation();
-                });
-            }
-            if (!th.querySelector('.hide-col-btn')) {
-                const hbtn = document.createElement('i');
-                hbtn.className = 'fas fa-eye-slash hide-col-btn no-print';
-                hbtn.contentEditable = "false";
-                th.appendChild(hbtn);
-                 hbtn.addEventListener('click', function(e) {
-                     th.classList.add('hidden-col');
-                     syncColspans(table);
-                     saveCurrentState();
-                     updateHiddenColumnsUI();
-                     e.stopPropagation();
-                 });
-            }
+        // Every column edit funnels through here: re-deal the widths so rows stay
+        // on one line, rescale the sheet, then persist and refresh the panel.
+        function onColumnChange(action) {
+            if (action !== 'resize') PrintEngine.reflow(docContainer);
+            else if (typeof window.fitInvoiceToPage === 'function') window.fitInvoiceToPage();
+            saveCurrentState();
+            updateHiddenColumnsUI();
         }
 
         // ── Section drag handles (edit mode) ────────────────────────
@@ -603,10 +465,7 @@
                         `;
 
                          item.querySelector('button').addEventListener('click', function() {
-                             th.classList.remove('hidden-col');
-                             syncColspans(table);
-                             saveCurrentState();
-                             updateHiddenColumnsUI();
+                             PrintEngine.showColumn(table, th, onColumnChange);
                          });
 
                         list.appendChild(item);
@@ -618,19 +477,10 @@
         }
 
         function reattachRowEditControls(row, rowId) {
-            if (rowId === 'grand-total' || rowId === 'subtotal') return;
-            if (!row.querySelector('.hide-row-btn')) {
-                const hbtn = document.createElement('i');
-                hbtn.className = 'fas fa-eye-slash hide-row-btn no-print';
-                hbtn.contentEditable = "false";
-                row.appendChild(hbtn);
-                hbtn.addEventListener('click', function(e) {
-                    row.classList.add('hidden-row');
-                    saveCurrentState();
-                    updateHiddenRowsUI();
-                    e.stopPropagation();
-                });
-            }
+            PrintEngine.attachRowControls(row.parentElement || document, function () {
+                saveCurrentState();
+                updateHiddenRowsUI();
+            });
         }
 
         function updateHiddenRowsUI() {
@@ -682,26 +532,11 @@
                 const isEdit = this.checked;
                 document.body.classList.toggle('edit-mode-active', isEdit);
 
-                document.querySelectorAll('table').forEach(table => {
-                    const ths = table.querySelectorAll('th');
-                    ths.forEach((th, idx) => {
-                        if (!th.dataset.origText) {
-                            let clone = th.cloneNode(true);
-                            const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                            const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                            th.dataset.origText = clone.innerHTML;
-                        }
-
-                        if (isEdit) {
-                            reattachEditControls(th, table, idx);
-                        } else {
-                            th.contentEditable = "false";
-                            th.classList.remove('resizable');
-                            const rs = th.querySelector('.resizer'); if(rs) rs.remove();
-                            const hb = th.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                        }
-                    });
-                });
+                if (isEdit) {
+                    PrintEngine.attachColumnControls(document, onColumnChange);
+                } else {
+                    PrintEngine.detachColumnControls(document);
+                }
 
                 document.querySelectorAll('.amount-row').forEach(row => {
                     const rowId = row.dataset.amountRowId;
@@ -867,6 +702,7 @@
                     <button id="deleteTemplateBtn" style="flex: 1; padding: 6px; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><i class="fas fa-trash"></i> Delete</button>
                 </div>
                 <div style="margin-top: 4px;">
+                    <button id="autoFitColsBtn" style="width: 100%; padding: 6px; background: #0ea5e9; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 6px;"><i class="fas fa-arrows-alt-h"></i> Fit Columns to Text</button>
                     <button id="resetLayoutBtn" style="width: 100%; padding: 6px; background: #475569; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><i class="fas fa-undo"></i> Reset Layout to Default</button>
                 </div>
                 <div id="hiddenColumnsSection" style="margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 8px; display: none;">
@@ -1020,6 +856,11 @@
                 }
             });
 
+            document.getElementById('autoFitColsBtn').addEventListener('click', function() {
+                PrintEngine.reflow(docContainer);
+                saveCurrentState();
+            });
+
             document.getElementById('resetLayoutBtn').addEventListener('click', function() {
                 if (confirm("Reset current document layout back to defaults?")) {
                     localStorage.removeItem(storageKey);
@@ -1045,27 +886,7 @@
             });
 
             document.querySelectorAll('table').forEach(table => {
-                const ths = Array.from(table.querySelectorAll('th'));
-                const fingerprint = ths.map(th => {
-                    let clone = th.cloneNode(true);
-                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                    return (th.dataset.origText || clone.innerHTML).replace(/<[^>]*>/g, '').trim();
-                }).join('|');
-
-                const tState = { fingerprint: fingerprint, cols: [] };
-                ths.forEach((th, idx) => {
-                    let clone = th.cloneNode(true);
-                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-
-                    tState.cols.push({
-                        text: clone.innerHTML,
-                        width: th.style.width,
-                        hidden: th.classList.contains('hidden-col')
-                    });
-                });
-                state.tables.push(tState);
+                state.tables.push(PrintEngine.readTableState(table));
             });
 
             document.querySelectorAll('.amount-row').forEach(row => {
@@ -1094,8 +915,35 @@
                 state.sidebarWidth = parseFloat(sidebarSlider.value);
             }
 
+            // Save contenteditable text edits
+            state.editableContent = {};
+            if (docContainer) {
+                docContainer.querySelectorAll('[contenteditable], [data-editable-id]').forEach((el, idx) => {
+                    let key = el.dataset.editableId;
+                    if (!key) {
+                        key = 'ed-' + idx + '-' + (el.className || 'elem').replace(/\s+/g, '_').slice(0, 20);
+                        el.dataset.editableId = key;
+                    }
+                    state.editableContent[key] = el.innerHTML;
+                });
+            }
+
             store.templates[store.activeTemplate] = state;
             persistStore();
+        }
+
+        // Live input & blur listeners on docContainer for contenteditable text edits
+        if (docContainer) {
+            docContainer.addEventListener('input', function(e) {
+                if (e.target && (e.target.isContentEditable || e.target.getAttribute('contenteditable') === 'true')) {
+                    saveCurrentState();
+                }
+            });
+            docContainer.addEventListener('blur', function(e) {
+                if (e.target && (e.target.isContentEditable || e.target.getAttribute('contenteditable') === 'true')) {
+                    saveCurrentState();
+                }
+            }, true);
         }
     });
 </script>

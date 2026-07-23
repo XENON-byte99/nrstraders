@@ -3,137 +3,151 @@
 
 <style>
     .glass-card {
-        background: rgba(255,255,255,0.07);
-        border: 1px solid rgba(255,255,255,0.12);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        background: rgba(28, 5, 12, 0.78);
+        border: 1px solid rgba(244, 63, 94, 0.22);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px rgba(225, 29, 72, 0.2);
     }
     .login-input {
         width: 100%;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 10px;
-        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(244, 63, 94, 0.2);
+        border-radius: 12px;
+        padding: 12px 16px;
         font-size: 14px;
         color: white;
         outline: none;
-        transition: all 0.2s;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         box-sizing: border-box;
     }
-    .login-input::placeholder { color: rgba(165,180,252,0.6); }
+    .login-input::placeholder { color: rgba(254, 205, 211, 0.5); }
     .login-input:focus {
-        border-color: rgba(165,180,252,0.7);
-        background: rgba(255,255,255,0.12);
-        box-shadow: 0 0 0 3px rgba(99,102,241,0.25);
+        border-color: rgba(244, 63, 94, 0.85);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.25);
     }
     .login-label {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 6px;
         font-size: 11px;
         font-weight: 700;
-        color: rgba(199,210,254,0.8);
+        color: rgba(254, 205, 211, 0.9);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        margin-bottom: 6px;
+        margin-bottom: 7px;
     }
     .login-btn {
         width: 100%;
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
         color: white;
         font-weight: 800;
         font-size: 15px;
-        padding: 13px;
+        padding: 13.5px;
         border-radius: 12px;
-        border: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
         cursor: pointer;
-        transition: all 0.2s;
-        margin-top: 8px;
+        transition: all 0.25s ease;
+        margin-top: 10px;
         letter-spacing: 0.02em;
+        box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.45);
     }
     .login-btn:hover {
-        background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
-        box-shadow: 0 8px 24px rgba(99,102,241,0.4);
-        transform: translateY(-1px);
+        background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+        box-shadow: 0 12px 30px -5px rgba(225, 29, 72, 0.6);
+        transform: translateY(-2px);
     }
     .login-btn:active { transform: translateY(0); }
+    
     .float-orb {
         position: absolute;
         border-radius: 50%;
-        filter: blur(60px);
-        opacity: 0.25;
+        filter: blur(90px);
+        opacity: 0.4;
         pointer-events: none;
+        animation: floatPulse 10s ease-in-out infinite alternate;
+    }
+    @keyframes floatPulse {
+        0% { transform: scale(1) translateY(0); }
+        100% { transform: scale(1.15) translateY(-20px); }
     }
 </style>
 
-<div class="relative min-h-screen min-h-dvh flex items-center justify-center px-4 py-10 overflow-hidden">
+<div class="relative min-h-screen min-h-dvh flex items-center justify-center px-4 py-10 overflow-hidden bg-stone-950">
 
-    <!-- Background orbs -->
-    <div class="float-orb w-72 h-72 bg-indigo-400 top-10 -left-20"></div>
-    <div class="float-orb w-64 h-64 bg-purple-400 bottom-10 -right-10"></div>
-    <div class="float-orb w-48 h-48 bg-blue-300 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+    <!-- Background glowing floating orbs -->
+    <div class="float-orb w-96 h-96 bg-rose-600 top-0 -left-20"></div>
+    <div class="float-orb w-80 h-80 bg-red-700 bottom-0 -right-10" style="animation-delay: -5s;"></div>
+    <div class="float-orb w-64 h-64 bg-pink-600 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style="animation-delay: -2.5s; opacity:0.25;"></div>
 
-    <div class="glass-card w-full max-w-sm rounded-2xl p-7 sm:p-9 shadow-2xl relative z-10">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-8 sm:p-10 relative z-10">
 
-        <!-- Brand -->
+        <!-- Brand Header -->
         <div class="text-center mb-8">
-            <div class="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center mb-4">
-                <i class="fas fa-boxes-stacked text-indigo-200 text-xl"></i>
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-rose-600 via-red-600 to-rose-700 border border-rose-400/30 flex items-center justify-center mb-4 shadow-lg shadow-rose-900/40">
+                <i class="fas fa-boxes-stacked text-white text-2xl"></i>
             </div>
-            <h1 class="text-2xl font-black text-white tracking-wide">NRS DATA</h1>
-            <p class="text-indigo-300 text-xs font-semibold uppercase tracking-widest mt-1">Supply Management Portal</p>
+            <h1 class="text-2xl font-black text-white tracking-tight">NRS DATA</h1>
+            <p class="text-rose-300 text-xs font-bold uppercase tracking-widest mt-1">Supply Management Portal</p>
         </div>
 
         <!-- Form -->
-        <form method="post" class="space-y-4">
+        <form method="post" class="space-y-5">
             {% csrf_token %}
 
             {% if form.errors %}
-            <div class="bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-sm flex items-center gap-2">
-                <i class="fas fa-exclamation-circle text-red-400"></i>
-                Invalid username or password. Please try again.
+            <div class="bg-rose-500/20 border border-rose-400/30 rounded-xl p-3.5 text-rose-200 text-xs font-semibold flex items-center gap-2.5 shadow-sm">
+                <i class="fas fa-exclamation-circle text-rose-400 text-base flex-shrink-0"></i>
+                <span>Invalid username or password. Please try again.</span>
             </div>
             {% endif %}
 
             <div>
-                <label class="login-label">Username</label>
+                <label class="login-label">
+                    <i class="fas fa-user text-rose-400 text-xs"></i> Username
+                </label>
                 <input type="text" name="username" autocomplete="username" required
                        class="login-input" placeholder="Enter your username">
             </div>
             <div>
-                <label class="login-label">Password</label>
+                <label class="login-label">
+                    <i class="fas fa-lock text-rose-400 text-xs"></i> Password
+                </label>
                 <div class="relative">
                     <input type="password" name="password" id="loginPassword" autocomplete="current-password" required
                            class="login-input" placeholder="Enter your password" style="padding-right:44px">
-                    <button type="button" onclick="togglePwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-white transition">
+                    <button type="button" onclick="togglePwd()" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-rose-300/80 hover:text-white transition p-1" aria-label="Toggle password visibility">
                         <i id="pwdEye" class="fas fa-eye text-sm"></i>
                     </button>
                 </div>
             </div>
             <input type="hidden" name="next" value="{{ next|default:'/' }}">
             <button type="submit" class="login-btn">
-                <i class="fas fa-sign-in-alt mr-2"></i>Sign In
+                <i class="fas fa-right-to-bracket mr-2"></i> Sign In
             </button>
         </form>
 
-        <!-- Divider (dev only: never advertise real credentials in production) -->
+        <!-- Divider (dev only) -->
         {% if debug_mode %}
         <div class="mt-8 pt-5 border-t border-white/10">
-            <p class="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-3 text-center">Demo Accounts</p>
+            <p class="text-[10px] text-rose-300 font-extrabold uppercase tracking-widest mb-3 text-center">Demo Accounts</p>
             <div class="grid grid-cols-2 gap-2">
-                <div class="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div class="bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-center">
                     <p class="text-white text-xs font-bold">accountant</p>
-                    <p class="text-indigo-400 text-[10px] font-mono">accountant123</p>
+                    <p class="text-rose-300 text-[10px] font-mono">accountant123</p>
                 </div>
-                <div class="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div class="bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-center">
                     <p class="text-white text-xs font-bold">supplier</p>
-                    <p class="text-indigo-400 text-[10px] font-mono">supplier123</p>
+                    <p class="text-rose-300 text-[10px] font-mono">supplier123</p>
                 </div>
-                <div class="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div class="bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-center">
                     <p class="text-white text-xs font-bold">owner</p>
-                    <p class="text-indigo-400 text-[10px] font-mono">owner123</p>
+                    <p class="text-rose-300 text-[10px] font-mono">owner123</p>
                 </div>
-                <div class="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div class="bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-center">
                     <p class="text-white text-xs font-bold">admin</p>
-                    <p class="text-indigo-400 text-[10px] font-mono">admin123</p>
+                    <p class="text-rose-300 text-[10px] font-mono">admin123</p>
                 </div>
             </div>
         </div>

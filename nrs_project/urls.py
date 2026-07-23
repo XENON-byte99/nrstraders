@@ -80,6 +80,7 @@ urlpatterns = [
     path('api/print-layouts/<int:pk>/<str:doc_type>/', doc_views.print_layout_api, name='print_layout_api'),
     path('api/quick-bill/parse/', doc_views.quick_bill_parse, name='quick_bill_parse'),
     path('api/quick-bill/ai-parse/', doc_views.quick_bill_ai_parse, name='quick_bill_ai_parse'),
+    path('api/bills/<int:pk>/inline-save/', doc_views.api_inline_save_transaction, name='api_inline_save_transaction'),
     path('sync/', doc_views.sync_db_view, name='sync_db'),
     path('api/sync/status/', doc_views.sync_status_api, name='sync_status_api'),
 ]

@@ -5,12 +5,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Mushok 6.3 - {{ transaction.invoice_number|default:'Draft' }}</title>
+    <script src="{% static 'js/print_engine.js' %}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         * { box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
         body { font-family: 'Arial', sans-serif; background: #f5f5f5; }
+        /* Keep every fill, tint and header bar when printing or saving to PDF.
+           Browsers drop background colours by default — phones especially. */
+        html, body, .mushok-form, .mushok-form * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
         @media print {
             @page { size: A4 portrait; margin: 0; }
             body { background: white !important; }
@@ -272,25 +280,21 @@
     </div>
     <script>
         function downloadPDF() {
-            const element = document.getElementById('mushokContent');
-            const invoiceNo = "{{ transaction.invoice_number|default:'Mushok' }}";
-            const buyerName = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
-            const filename = `Mushok_6.3_${invoiceNo}_${buyerName}.pdf`;
-
-            const opt = {
-                margin: 0.2,
-                filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-            };
-
-            // Temporarily remove shadow for clean PDF
-            element.style.boxShadow = 'none';
-            html2pdf().set(opt).from(element).save().then(() => {
-                element.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12)';
-            });
+            const no = "{{ transaction.invoice_number|default:'Mushok' }}";
+            const buyer = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            return PrintEngine.downloadPdf(document.getElementById('mushokContent'),
+                `Mushok_6.3_${no}_${buyer}.pdf`);
         }
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.querySelector('button[onclick*="downloadPDF"]');
+            if (!btn) return;
+            btn.removeAttribute('onclick');
+            const no = "{{ transaction.invoice_number|default:'Mushok' }}";
+            const buyer = "{{ transaction.buyer_name|default:'Document' }}".split(' ')[0];
+            PrintEngine.bindDownloadButton(btn,
+                () => document.getElementById('mushokContent'),
+                () => `Mushok_6.3_${no}_${buyer}.pdf`);
+        });
 
         // --- Live Edit and Calculation Script ---
         function toggleAmountDisplay(mode) {

@@ -1,0 +1,173 @@
+{% load static %}
+{% load billing_tags %}
+{# ── CLASSIC quotation ───────────────────────────────────────────────────── #}
+{# Brand sidebar + document body. Structure unchanged from the original       #}
+{# design; spacing, hierarchy and colour handled entirely in the stylesheet   #}
+{# instead of hand-tuned inline margins.                                      #}
+{% include 'documents/layouts/_classic_style.html' %}
+
+<div class="fit-wrap">
+    <!-- LEFT COLUMN -->
+    <aside class="inv-side">
+        <div class="brand-row">
+            <div class="brand-mark">{{ transaction.supplier_name|slice:":2"|upper|default:"NR" }}</div>
+            <div>
+                <div class="brand-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+                <div class="brand-tag">Supplier</div>
+            </div>
+        </div>
+
+        <!-- Supplier details -->
+        <div class="side-block">
+            <div class="side-h">From (Supplier)</div>
+            <div class="company-name">{{ transaction.supplier_name|default:"Supplier" }}</div>
+            {% if transaction.supplier_bin %}<div class="info-value">BIN: {{ transaction.supplier_bin }}</div>{% endif %}
+            {% if transaction.supplier_address %}<div class="info-value">{{ transaction.supplier_address }}</div>{% endif %}
+            {% if transaction.supplier_contact %}<div class="info-value">{{ transaction.supplier_contact }}</div>{% endif %}
+        </div>
+
+        <!-- Bill To -->
+        <div class="side-block">
+            <div class="side-h">Quoted To</div>
+            <div class="company-name">{{ transaction.buyer_name }}</div>
+            {% if transaction.buyer_bin %}<div class="info-value">BIN: {{ transaction.buyer_bin }}</div>{% endif %}
+            {% if transaction.buyer_address %}<div class="info-value">{{ transaction.buyer_address }}</div>{% endif %}
+            {% if transaction.buyer_contact %}<div class="info-value">{{ transaction.buyer_contact }}</div>{% endif %}
+        </div>
+
+        <!-- Reference -->
+        <div class="side-block">
+            <div class="side-h">Reference Invoice</div>
+            <div class="side-v"><span class="side-ref" contenteditable="true">NO REFERENCE INVOICE INCLUDED</span></div>
+        </div>
+
+        <!-- Terms, pinned to the foot of the sidebar -->
+        <div class="side-block side-foot">
+            <div class="side-h">Terms &amp; Conditions</div>
+            <div class="side-v">Valid for 30 days from the date of issue. Supply is subject to written confirmation.</div>
+        </div>
+
+        <div class="sign-row">
+            <div class="signature-box">
+                {% if transaction.supplier_party and transaction.supplier_party.signature_image %}
+                    <img src="{{ transaction.supplier_party.signature_image.url }}" alt="Authorized Signature" class="official-signature">
+                {% else %}
+                    <img src="{% static 'images/signature.png' %}" alt="Authorized Signature" class="official-signature">
+                {% endif %}
+                <div class="signature-line"></div>
+                <div class="sig-name">{{ transaction.supplier_party.ceo_name|default:"Authorized Signatory" }}</div>
+                <div class="sig-title">{% if transaction.supplier_party.designation %}{{ transaction.supplier_party.designation }}{% else %}For {{ transaction.supplier_name|default:"the Company" }}{% endif %}</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- RIGHT COLUMN -->
+    <main class="inv-main invoice-body">
+
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:10px;">
+            <div style="flex:1; display:flex; flex-direction:column; gap:7px; min-width:0;">
+                <div><span class="cat-chip">{{ transaction.transaction_category.name|default:"General" }}</span></div>
+                <div class="inv-desc">
+                    This quotation details the estimated cost for {{ transaction.transaction_category.name|default:"the goods and services" }}{% if transaction.secondary_category %} and {{ transaction.secondary_category.name }}{% endif %}, itemised below with applicable duty, tax and VAT.
+                </div>
+            </div>
+
+            <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0;">
+                <h1 class="invoice-title">QUOTATION</h1>
+                <div class="title-rule"></div>
+                <div class="meta-line" style="margin-top:8px; display:flex; flex-direction:column; align-items:flex-end;">
+                    <div>Quote No: <span class="meta-val">{{ transaction.invoice_number|default:"—" }}</span></div>
+                    <div>Issue Date: <span class="meta-val">{{ transaction.created_at|date:"M d, Y" }}</span></div>
+                    {% if transaction.challan_number %}
+                    <div>Challan No: <span class="meta-val">{{ transaction.challan_number }}</span></div>
+                    {% endif %}
+                    <div class="amount-row" data-amount-row-id="meta-ref-invoice" style="display:flex; justify-content:flex-end; align-items:center; gap:4px; padding:0 !important; background:transparent !important; border:none !important; margin:0; width:auto;">
+                        Related Inv: <span class="meta-val" style="min-width:70px; display:inline-block;" contenteditable="true"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider-bar">
+            <span class="divider-text">Items and Charges</span>
+        </div>
+
+        <!-- Items -->
+        <div style="flex:1;">
+            {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                <div class="cat-label">{{ transaction.transaction_category.name }}</div>
+                {% include 'documents/_print_items_table.html' with table_items=transaction.primary_items transaction=transaction %}
+                <div class="cat-label" style="margin-top:10px;">{{ transaction.secondary_category.name }}</div>
+                {% include 'documents/_print_items_table.html' with table_items=transaction.secondary_items transaction=transaction date_color="#7c3aed" %}
+            {% else %}
+                {% include 'documents/_print_items_table.html' with table_items=transaction.items.all transaction=transaction %}
+            {% endif %}
+        </div>
+
+        <!-- Totals -->
+        <div class="amount-section">
+            <div class="terms-note">
+                All amounts are stated in Bangladeshi Taka (৳) and include the duty, TAX and VAT
+                itemised above. <b>E &amp; O.E.</b>
+            </div>
+
+            <div class="amount-box">
+                <div class="amount-row" data-amount-row-id="subtotal">
+                    <span class="amount-label">Subtotal</span>
+                    <span class="amount-value mono">
+                        <span class="display-base">৳{{ transaction.display_subtotal|format_billing:transaction }}</span>
+                        <span class="display-target">৳{{ transaction.grand_total|format_billing:transaction }}</span>
+                    </span>
+                </div>
+                <div class="display-base">
+                {% if transaction.total_service_charge > 0 %}
+                    {% if transaction.secondary_category and transaction.secondary_items.exists %}
+                        {% if transaction.primary_total_service_charge > 0 %}
+                        <div class="amount-row" data-category-index="0" data-amount-row-id="service-charge-0">
+                            <span class="amount-label">Service Charge ({{ transaction.transaction_category.invoice_prefix|default:"GEN" }} - {{ transaction.service_charge_percentage }}%)</span>
+                            <span class="amount-value mono">৳{{ transaction.primary_total_service_charge|format_billing:transaction }}</span>
+                        </div>
+                        {% endif %}
+                        {% if transaction.secondary_total_service_charge > 0 %}
+                        <div class="amount-row" data-category-index="1" data-amount-row-id="service-charge-1">
+                            <span class="amount-label">Service Charge ({{ transaction.secondary_category.invoice_prefix|default:"SEC" }} - {{ transaction.secondary_service_charge_percentage }}%)</span>
+                            <span class="amount-value mono">৳{{ transaction.secondary_total_service_charge|format_billing:transaction }}</span>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="amount-row" data-amount-row-id="service-charge">
+                            <span class="amount-label">Service Charge ({{ transaction.service_charge_percentage }}%)</span>
+                            <span class="amount-value mono">৳{{ transaction.total_service_charge|format_billing:transaction }}</span>
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+                {% if transaction.discount_percentage > 0 or transaction.discount_flat > 0 %}
+                <div class="amount-row" data-amount-row-id="discount">
+                    <span class="amount-label" style="color:#b91c1c;">Discount{% if transaction.discount_percentage %} ({{ transaction.discount_percentage }}%){% endif %}{% if transaction.discount_flat %} + ৳{{ transaction.discount_flat }} flat{% endif %}</span>
+                    <span class="amount-value mono" style="color:#b91c1c;">
+                        <span class="display-base">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                        <span class="display-target">৳{{ transaction.discount_amount|format_billing:transaction }}</span>
+                    </span>
+                </div>
+                <div class="amount-row" data-amount-row-id="price-after-deduction">
+                    <span class="amount-label" style="font-weight:600; color:#334155;">Price After Deduction</span>
+                    <span class="amount-value mono" style="font-weight:700;">
+                        <span class="display-base">৳{{ transaction.price_after_discount_base|format_billing:transaction }}</span>
+                        <span class="display-target">৳{{ transaction.price_after_discount_target|format_billing:transaction }}</span>
+                    </span>
+                </div>
+                {% endif %}
+                </div>
+                <div class="amount-row total" data-amount-row-id="grand-total">
+                    <span class="amount-label">Grand Total</span>
+                    <span class="amount-value mono">৳{{ transaction.grand_total|format_billing:transaction }}</span>
+                </div>
+                <div class="totals-foot">&#10003; VAT &amp; Tax included</div>
+            </div>
+        </div>
+
+        <div class="main-foot">{{ transaction.supplier_name|default:"Supplier" }} &nbsp;&mdash;&nbsp; We look forward to serving you</div>
+
+    </main>
+</div>

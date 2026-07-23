@@ -711,6 +711,14 @@ class BusinessParty(SyncableModel):
         ('claude', 'Claude (Clay)'),
         ('crimson', 'Crimson'),
     ]
+    # Page architecture for this supplier's printed invoices/quotations.
+    # Each layout is a visually independent design so documents issued by
+    # different suppliers never look like they came from the same office.
+    PRINT_LAYOUTS = [
+        ('classic', 'Classic — brand sidebar'),
+        ('letterhead', 'Letterhead — centred masthead'),
+        ('industrial', 'Industrial — bold header band'),
+    ]
     party_type = models.CharField(max_length=20, choices=PARTY_TYPES)
     name = models.CharField(max_length=255)
     ceo_name = models.CharField(max_length=255, blank=True, help_text="Name of the person in charge / CEO")
@@ -720,6 +728,7 @@ class BusinessParty(SyncableModel):
     contact = models.CharField(max_length=100, blank=True)
     whatsapp_number = models.CharField(max_length=20, blank=True, help_text="e.g. 88017...")
     color_theme = models.CharField(max_length=20, choices=PRINT_THEMES, default='blue', help_text="Colour theme used on this supplier's printed invoices/quotations")
+    print_layout = models.CharField(max_length=20, choices=PRINT_LAYOUTS, default='classic', help_text="Page design used on this supplier's printed invoices/quotations")
 
     signature_image = models.ImageField(upload_to='signatures/', blank=True, null=True)
     seal_image = models.ImageField(upload_to='seals/', blank=True, null=True)

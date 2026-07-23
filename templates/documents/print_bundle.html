@@ -12,6 +12,13 @@
         .spinner { border: 4px solid rgba(0,0,0,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #4f46e5; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .page-break { page-break-before: always; margin-top: 40px; }
+        /* Keep every fill, tint and header bar when printing or saving to PDF.
+           Browsers drop background colours by default — phones especially. */
+        html, body, #multiPrintContainer, #multiPrintContainer * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .no-print { display: none !important; }
@@ -153,6 +160,7 @@
             </div>
 
             <div style="border-top:1px dashed rgba(255,255,255,.2); padding-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <button id="bAutoFitCols" type="button" style="padding:6px; background:#0ea5e9; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-arrows-alt-h"></i> Fit Columns to Text</button>
                 <button id="bShowHidden" type="button" style="padding:6px; background:#0ea5e9; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-eye"></i> Restore Hidden Columns/Rows</button>
                 <button id="bSaveLayout" type="button" style="padding:6px; background:#10b981; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-save"></i> Save Layout</button>
                 <button id="bResetLayout" type="button" style="padding:6px; background:#ef4444; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;"><i class="fas fa-trash"></i> Reset Layout to Default</button>
@@ -172,6 +180,7 @@
 
     <div id="multiPrintContainer" style="display: none; align-items: center; flex-direction: column; gap: 40px; padding-bottom: 40px;"></div>
 
+    <script src="{% static 'js/print_engine.js' %}"></script>
     <script>
         const txIds = [{% for tx in transactions %}{{ tx.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
         const docTypes = {{ doc_types_json|safe }};
@@ -279,64 +288,9 @@
             applyBulkLayouts();
         }
 
-        function syncColspans(table) {
-            const ths = Array.from(table.querySelectorAll('thead th'));
-            if (ths.length === 0) return;
-            const isColHidden = ths.map(th => th.classList.contains('hidden-col'));
-
-            table.querySelectorAll('tbody tr').forEach(tr => {
-                // Remember each cell's untouched span BEFORE measuring the row. This
-                // function rewrites colspans, so measuring the live values would make it
-                // non-idempotent: once a span had been shrunk the row no longer added up
-                // to the header width and every later run bailed out here, freezing the
-                // row (mushok's Grand Total) out of step with the rest of the table.
-                let hasColspan = false;
-                Array.from(tr.children).forEach(cell => {
-                    let origColspan = cell.dataset.origColspan;
-                    if (!origColspan) {
-                        origColspan = cell.getAttribute('colspan') || '1';
-                        cell.dataset.origColspan = origColspan;
-                    }
-                    if (parseInt(origColspan) > 1) {
-                        hasColspan = true;
-                    }
-                });
-
-                let visualColCount = 0;
-                Array.from(tr.children).forEach(cell => {
-                    visualColCount += parseInt(cell.dataset.origColspan || '1', 10);
-                });
-                if (visualColCount !== ths.length) return;
-
-                if (!hasColspan) {
-                    Array.from(tr.children).forEach((cell, colIdx) => {
-                        if (isColHidden[colIdx]) {
-                            cell.classList.add('hidden-col');
-                        } else {
-                            cell.classList.remove('hidden-col');
-                        }
-                    });
-                    return;
-                }
-
-                let currentColIdx = 0;
-                Array.from(tr.children).forEach(cell => {
-                    let origColspan = parseInt(cell.dataset.origColspan || '1');
-                    let hiddenCount = 0;
-                    for (let c = currentColIdx; c < currentColIdx + origColspan; c++) {
-                        if (isColHidden[c]) hiddenCount++;
-                    }
-                    let newColspan = origColspan - hiddenCount;
-                    if (newColspan > 0) {
-                        cell.setAttribute('colspan', newColspan);
-                        cell.classList.remove('hidden-col');
-                    } else {
-                        cell.classList.add('hidden-col');
-                    }
-                    currentColIdx += origColspan;
-                });
-            });
-        }
+        // Column mechanics come from static/js/print_engine.js — the same code the
+        // single-document print screen runs, so an edit behaves the same in both.
+        const syncColspans = (table) => PrintEngine.syncColspans(table);
 
         function logDiag(msg) {
             console.log("[Diagnostics]", msg);
@@ -351,41 +305,9 @@
         function fitBundleDocumentToPage(wrapper) {
             const a4 = wrapper.querySelector('.a4-invoice') || wrapper.querySelector('.quotation-container');
             if (!a4) return;
-            const wrap = a4.querySelector('.fit-wrap');
-            if (!wrap) return;
-            
-            // Standard A4 dimensions at 96 DPI: 793.92px width, 1122.24px height
-            const baseW = 793.92;
-            const avail = 1122.24 - 12;
-            const manual = parseFloat(a4.getAttribute('data-user-scale')) || 1;
-
-            wrap.style.transform = 'none';
-            wrap.style.width = baseW + 'px';
-            
-            let k = 1;
-            for (let iter = 0; iter < 3; iter++) {
-                wrap.style.width = (baseW / k) + 'px';
-                let nat = wrap.scrollHeight;
-                let newK = (nat > avail) ? (avail / nat) : 1;
-                newK = Math.min(newK, manual);
-                if (newK < 0.4) newK = 0.4;
-                if (Math.abs(k - newK) < 0.005) {
-                    k = newK;
-                    break;
-                }
-                k = newK;
-            }
-
-            if (k < 1) {
-                wrap.style.width = (baseW / k) + 'px';
-                wrap.style.transform = 'scale(' + k + ')';
-                a4.setAttribute('data-fit-scale', k.toFixed(3));
-                logDiag(`Fit wrap scaled to ${k.toFixed(3)} for ${a4.id}`);
-            } else {
-                wrap.style.width = baseW + 'px';
-                wrap.style.transform = 'none';
-                a4.removeAttribute('data-fit-scale');
-            }
+            // Fixed A4 metrics: in the bundle the sheet is not the element being measured.
+            const k = PrintEngine.fit(a4, { baseW: PrintEngine.A4_W, availH: PrintEngine.A4_H });
+            if (k < 1) logDiag(`Fit wrap scaled to ${k.toFixed(3)} for ${a4.id || wrapper.id}`);
         }
 
         // Layouts are keyed per (bill, doc_type). Fetch the active template for one bill.
@@ -416,20 +338,10 @@
             // 1. Column layout (hide / rename / resize)
             wrapper.querySelectorAll('table').forEach(function (table, tIdx) {
                 const tState = state.tables && state.tables[tIdx];
-                if (!tState || !tState.cols) return;
-                const ths = Array.from(table.querySelectorAll('thead th'));
-                if (tState.cols.length !== ths.length) {
-                    logDiag(`Table ${tIdx} column count mismatch: expected ${tState.cols.length}, got ${ths.length}`);
-                    return;
+                if (!tState) return;
+                if (!PrintEngine.applyTableState(table, tState)) {
+                    logDiag(`Table ${tIdx}: saved column layout does not match this document, using defaults`);
                 }
-                tState.cols.forEach(function (colState, colIdx) {
-                    const th = ths[colIdx];
-                    if (!th) return;
-                    if (colState.text) th.innerHTML = colState.text;
-                    if (colState.width) th.style.width = colState.width;
-                    th.classList.toggle('hidden-col', !!colState.hidden);
-                });
-                syncColspans(table);
             });
 
             // 2. Hidden amount rows
@@ -479,6 +391,20 @@
                 wrapper.querySelectorAll('.signature-box').forEach((box, idx) => {
                     const sigState = state.signatures[idx];
                     if (sigState) box.style.transform = sigState.transform || '';
+                });
+            }
+
+            // 6.5. Content editable text edits
+            if (state.editableContent) {
+                wrapper.querySelectorAll('[contenteditable], [data-editable-id]').forEach((el, idx) => {
+                    let key = el.dataset.editableId;
+                    if (!key) {
+                        key = 'ed-' + idx + '-' + (el.className || 'elem').replace(/\s+/g, '_').slice(0, 20);
+                        el.dataset.editableId = key;
+                    }
+                    if (state.editableContent[key] !== undefined) {
+                        el.innerHTML = state.editableContent[key];
+                    }
                 });
             }
 
@@ -541,38 +467,39 @@
             const element = document.getElementById('multiPrintContainer');
             if (!element) return;
 
-            const filename = `Document_Joint_Bundle.pdf`;
-            
-            const oldGap = element.style.gap;
-            const oldPadding = element.style.paddingBottom;
+            // Collapse the on-screen spacing so pages butt up against each other.
+            const oldGap = element.style.gap, oldPad = element.style.paddingBottom;
             element.style.gap = '0';
             element.style.paddingBottom = '0';
-            
-            const shadowItems = element.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
-            const oldShadows = [];
-            shadowItems.forEach((item, i) => {
-                oldShadows[i] = item.style.boxShadow;
-                item.style.boxShadow = 'none';
-                item.style.margin = '0';
-            });
+            const sheets = element.querySelectorAll('.a4-invoice, .mushok-form, .challan-copy, .quotation-container');
+            const oldMargins = [];
+            sheets.forEach((el, i) => { oldMargins[i] = el.style.margin; el.style.margin = '0'; });
 
-            // Standardize format: A4 portrait for the bundle
-            let opt = {
-                margin: 0,
-                filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 1.5, useCORS: true, letterRendering: true, windowWidth: 1200 },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-            };
-
-            html2pdf().set(opt).from(element).save().then(() => {
+            return PrintEngine.downloadPdf(element, 'Document_Joint_Bundle.pdf', {
+                scale: 1.5,
+                windowWidth: 1200,
+                pagebreak: { mode: ['css', 'legacy'] }
+            }).then(function (ok) {
                 element.style.gap = oldGap;
-                element.style.paddingBottom = oldPadding;
-                shadowItems.forEach((item, i) => {
-                    item.style.boxShadow = oldShadows[i];
-                });
+                element.style.paddingBottom = oldPad;
+                sheets.forEach((el, i) => { el.style.margin = oldMargins[i] || ''; });
+                return ok;
             });
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.querySelector('button[onclick*="downloadJointPDF"]');
+            if (!btn) return;
+            btn.removeAttribute('onclick');
+            btn.addEventListener('click', function () {
+                if (btn.dataset.busy === '1') return;
+                const label = btn.innerHTML;
+                btn.dataset.busy = '1'; btn.disabled = true; btn.innerHTML = 'Preparing PDF…';
+                Promise.resolve(downloadJointPDF()).then(function () {
+                    btn.dataset.busy = ''; btn.disabled = false; btn.innerHTML = label;
+                });
+            });
+        });
 
         const activeDraggablesMap = new Map();
 
@@ -631,26 +558,7 @@
 
             // 2. Tables & Columns
             wrapper.querySelectorAll('table').forEach(table => {
-                const ths = Array.from(table.querySelectorAll('th'));
-                const fingerprint = ths.map(th => {
-                    let clone = th.cloneNode(true);
-                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                    return th.innerText.replace(/<[^>]*>/g, '').trim();
-                }).join('|');
-
-                const tState = { fingerprint: fingerprint, cols: [] };
-                ths.forEach(th => {
-                    let clone = th.cloneNode(true);
-                    const rs = clone.querySelector('.resizer'); if(rs) rs.remove();
-                    const hb = clone.querySelector('.hide-col-btn'); if(hb) hb.remove();
-                    tState.cols.push({
-                        text: clone.innerHTML,
-                        width: th.style.width,
-                        hidden: th.classList.contains('hidden-col')
-                    });
-                });
-                state.tables.push(tState);
+                state.tables.push(PrintEngine.readTableState(table));
             });
 
             // 3. Hidden amount rows
@@ -676,6 +584,17 @@
                 });
                 state.sectionOrder = order;
             }
+
+            // 5. Content editable text edits
+            state.editableContent = {};
+            wrapper.querySelectorAll('[contenteditable], [data-editable-id]').forEach((el, idx) => {
+                let key = el.dataset.editableId;
+                if (!key) {
+                    key = 'ed-' + idx + '-' + (el.className || 'elem').replace(/\s+/g, '_').slice(0, 20);
+                    el.dataset.editableId = key;
+                }
+                state.editableContent[key] = el.innerHTML;
+            });
 
             store.templates[activeTemp] = state;
 
@@ -755,86 +674,20 @@
             removeDocumentEditControls(wrapper);
             const cleanups = [];
 
-            // 1. Columns adjusting and resizing
-            wrapper.querySelectorAll('table').forEach(table => {
-                const ths = table.querySelectorAll('th');
-                ths.forEach((th, idx) => {
-                    th.classList.add('resizable');
-                    th.contentEditable = "true";
-
-                    if (!th.querySelector('.resizer')) {
-                        const resizer = document.createElement('div');
-                        resizer.className = 'resizer no-print';
-                        resizer.contentEditable = "false";
-                        th.appendChild(resizer);
-
-                        let startX, startW, nextTh, nextStartW;
-                        const onMouseDown = function(e) {
-                            startX = e.clientX;
-                            startW = th.offsetWidth;
-                            nextTh = th.nextElementSibling;
-                            while (nextTh && nextTh.classList.contains('hidden-col')) {
-                                nextTh = nextTh.nextElementSibling;
-                            }
-                            if (nextTh) nextStartW = nextTh.offsetWidth;
-
-                            const onMouseMove = e => {
-                                let diff = e.clientX - startX;
-                                if (startW + diff < 20) diff = 20 - startW;
-                                if (nextTh && nextStartW - diff < 20) diff = nextStartW - 20;
-                                th.style.width = (startW + diff) + 'px';
-                                if (nextTh) nextTh.style.width = (nextStartW - diff) + 'px';
-                            };
-
-                            const onMouseUp = () => {
-                                document.removeEventListener('mousemove', onMouseMove);
-                                document.removeEventListener('mouseup', onMouseUp);
-                                saveDocumentState(wrapper, type);
-                            };
-
-                            document.addEventListener('mousemove', onMouseMove);
-                            document.addEventListener('mouseup', onMouseUp);
-                            e.stopPropagation();
-                        };
-                        resizer.addEventListener('mousedown', onMouseDown);
-                        cleanups.push(() => resizer.removeEventListener('mousedown', onMouseDown));
-                    }
-
-                    if (!th.querySelector('.hide-col-btn')) {
-                        const hbtn = document.createElement('i');
-                        hbtn.className = 'fas fa-eye-slash hide-col-btn no-print';
-                        hbtn.contentEditable = "false";
-                        th.appendChild(hbtn);
-
-                        const onClick = function(e) {
-                            th.classList.add('hidden-col');
-                            syncColspans(table);
-                            saveDocumentState(wrapper, type);
-                            e.stopPropagation();
-                        };
-                        hbtn.addEventListener('click', onClick);
-                        cleanups.push(() => hbtn.removeEventListener('click', onClick));
-                    }
-                });
+            // 1. Columns: resize, rename, hide (+ auto-fit after every hide/show)
+            PrintEngine.attachColumnControls(wrapper, function (action) {
+                if (action !== 'resize') {
+                    PrintEngine.reflow(wrapper.querySelector('.a4-invoice, .quotation-container'),
+                                       { baseW: PrintEngine.A4_W, availH: PrintEngine.A4_H });
+                } else {
+                    fitBundleDocumentToPage(wrapper);
+                }
+                saveDocumentState(wrapper, type);
             });
 
             // 2. Hide amount rows
-            wrapper.querySelectorAll('.amount-row').forEach(row => {
-                const rowId = row.dataset.amountRowId;
-                if (rowId && !row.querySelector('.hide-row-btn')) {
-                    const hbtn = document.createElement('i');
-                    hbtn.className = 'fas fa-eye-slash hide-row-btn no-print';
-                    hbtn.contentEditable = "false";
-                    row.appendChild(hbtn);
-
-                    const onClick = function(e) {
-                        row.classList.add('hidden-row');
-                        saveDocumentState(wrapper, type);
-                        e.stopPropagation();
-                    };
-                    hbtn.addEventListener('click', onClick);
-                    cleanups.push(() => hbtn.removeEventListener('click', onClick));
-                }
+            PrintEngine.attachRowControls(wrapper, function () {
+                saveDocumentState(wrapper, type);
             });
 
             // 3. Draggable invoice sections
@@ -864,14 +717,9 @@
                 cleanups.forEach(c => c());
                 activeDraggablesMap.delete(wrapper);
             }
-            wrapper.querySelectorAll('.resizer').forEach(el => el.remove());
-            wrapper.querySelectorAll('.hide-col-btn').forEach(el => el.remove());
-            wrapper.querySelectorAll('.hide-row-btn').forEach(el => el.remove());
+            PrintEngine.detachColumnControls(wrapper);
+            PrintEngine.detachRowControls(wrapper);
             wrapper.querySelectorAll('.section-drag-handle').forEach(el => el.remove());
-            wrapper.querySelectorAll('table th').forEach(th => {
-                th.classList.remove('resizable');
-                th.contentEditable = "false";
-            });
         }
 
 
@@ -1046,10 +894,25 @@
                 BundleHistory.push();
             });
 
+            document.getElementById('bAutoFitCols').addEventListener('click', () => {
+                document.querySelectorAll('#multiPrintContainer [data-tx-id]').forEach(w => {
+                    PrintEngine.reflow(w.querySelector('.a4-invoice, .quotation-container'),
+                                       { baseW: PrintEngine.A4_W, availH: PrintEngine.A4_H });
+                });
+                BundleHistory.push();
+                BundleHistory.persistAll();
+                bundleStatus('Columns fitted to their text', true);
+            });
+
             document.getElementById('bShowHidden').addEventListener('click', () => {
                 document.querySelectorAll('#multiPrintContainer .hidden-col').forEach(el => el.classList.remove('hidden-col'));
                 document.querySelectorAll('#multiPrintContainer .hidden-row').forEach(el => el.classList.remove('hidden-row'));
-                document.querySelectorAll('#multiPrintContainer table').forEach(t => syncColspans(t));
+                document.querySelectorAll('#multiPrintContainer table').forEach(t => PrintEngine.syncColspans(t));
+                // re-deal the widths so rows stay on one line, then rescale each sheet
+                document.querySelectorAll('#multiPrintContainer [data-tx-id]').forEach(w => {
+                    PrintEngine.reflow(w.querySelector('.a4-invoice, .quotation-container'),
+                                       { baseW: PrintEngine.A4_W, availH: PrintEngine.A4_H });
+                });
                 BundleHistory.push();
                 BundleHistory.persistAll();
                 bundleStatus('Hidden columns/rows restored', true);

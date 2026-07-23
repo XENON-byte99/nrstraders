@@ -1,0 +1,128 @@
+{# Shared visual language for the CLASSIC design (invoice + quotation).       #}
+{# Brand sidebar on the left, document body on the right.                     #}
+<style>
+    /* ── Sheet: soft sidebar panel + accent spine ── */
+    .a4-invoice.layout-classic {
+        background: linear-gradient(to right,
+            var(--accent-soft) var(--sidebar-width, 33.25%),
+            var(--accent)      var(--sidebar-width, 33.25%),
+            var(--accent)      calc(var(--sidebar-width, 33.25%) + 3px),
+            #fff               calc(var(--sidebar-width, 33.25%) + 3px));
+    }
+    .layout-classic .fit-wrap { display: grid; grid-template-columns: var(--sidebar-width, 33.25%) 1fr; }
+
+    .layout-classic .inv-side { display: flex; flex-direction: column; padding: 0 0 0.34in; }
+    .layout-classic .inv-main { display: flex; flex-direction: column; padding: 0.34in 0.42in 0.34in 0.4in; }
+
+    /* ── Sidebar masthead: reverse-out accent panel ── */
+    .layout-classic .brand-row {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--accent); color: #fff;
+        padding: 0.3in 0.3in 0.26in; margin-bottom: 18px;
+    }
+    .layout-classic .brand-mark {
+        width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.16); border: 1.5px solid rgba(255, 255, 255, 0.5); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Playfair Display', serif; font-weight: 800; font-size: 18px;
+    }
+    .layout-classic .brand-name { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 14.5px; color: #fff; line-height: 1.15; }
+    .layout-classic .brand-tag { font-size: 7.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); margin-top: 3px; }
+
+    /* ── Sidebar blocks: even rhythm, no hand-tuned pixel gaps ── */
+    .layout-classic .inv-side > .side-block { padding: 0 0.3in; margin: 0 0 15px; }
+    .layout-classic .side-h {
+        font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .16em;
+        color: var(--accent); margin-bottom: 6px; padding-bottom: 4px;
+        border-bottom: 1px solid var(--accent-line);
+    }
+    .layout-classic .side-v { font-size: 9.5px; color: #334155; line-height: 1.55; }
+    .layout-classic .company-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 12.5px; color: var(--ink); margin-bottom: 2px; line-height: 1.25; }
+    .layout-classic .info-value { font-size: 9.5px; color: #475569; line-height: 1.5; }
+
+    /* Attention card — present but no longer shouting */
+    .layout-classic .side-attn {
+        background: #fff; border: 1px solid #e2e8f0; border-left: 3px solid #9f1239;
+        border-radius: 0 6px 6px 0; padding: 8px 10px;
+    }
+    .layout-classic .side-attn .side-h { color: #9f1239; border-bottom-color: rgba(159, 18, 57, 0.2); }
+    .layout-classic .side-attn .side-v { font-size: 9px; line-height: 1.5; }
+    .layout-classic .attn-contact { margin-top: 4px; font-weight: 700; color: var(--ink); }
+
+    .layout-classic .side-ref { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 8.5px; color: var(--ink); letter-spacing: .02em; }
+
+    /* Terms + signature pinned to the foot of the sidebar */
+    .layout-classic .side-foot { margin-top: auto; }
+    .layout-classic .sign-row { padding: 0 0.3in; margin-top: 34px; display: flex; flex-direction: column; }
+    .layout-classic .signature-box { position: relative; display: flex; flex-direction: column; align-items: flex-start; width: 100%; cursor: grab; z-index: 50; }
+    .layout-classic .official-signature { height: 72px; position: absolute; bottom: 26px; left: 4px; transform: rotate(-2deg); mix-blend-mode: multiply; z-index: 10; }
+    .layout-classic .signature-line { border-bottom: 1.5px solid var(--ink); width: 100%; height: 38px; margin-bottom: 5px; }
+    .layout-classic .sig-name { font-weight: 800; font-size: 10.5px; color: var(--ink); }
+    .layout-classic .sig-title { font-size: 8.5px; color: var(--muted); }
+
+    /* ── Main column header ── */
+    .layout-classic .invoice-body { flex: 1; display: flex; flex-direction: column; }
+    .layout-classic .invoice-title {
+        font-family: 'Playfair Display', serif; font-weight: 800; font-size: 33px;
+        letter-spacing: .02em; color: var(--accent); margin: 0; line-height: 1;
+    }
+    .layout-classic .title-rule { width: 54px; height: 3px; background: var(--accent); margin: 7px 0 0 auto; }
+    .layout-classic .meta-line { font-size: 9px; color: var(--muted); line-height: 1.6; }
+    .layout-classic .meta-val { color: var(--accent); font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+    .layout-classic .cat-chip {
+        display: inline-block; padding: 2px 9px; border-radius: 12px; background: var(--accent); color: #fff;
+        font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    }
+    .layout-classic .inv-desc {
+        font-size: 9.5px; color: #475569; line-height: 1.55;
+        background: var(--accent-soft); border-left: 3px solid var(--accent);
+        padding: 7px 11px; border-radius: 0 6px 6px 0;
+    }
+
+    .layout-classic .divider-bar { display: flex; align-items: center; margin: 0.13in 0; }
+    .layout-classic .divider-bar::before, .layout-classic .divider-bar::after { content: ""; flex: 1; height: 1px; background: var(--accent); opacity: .22; }
+    .layout-classic .divider-text { padding: 0 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: var(--accent); letter-spacing: .18em; }
+
+    /* ── Items ── */
+    .layout-classic .cat-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; color: var(--accent); margin: 0 0 5px; }
+    .layout-classic table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 8.8px; table-layout: fixed; }
+    .layout-classic th {
+        background: var(--accent); color: #fff; padding: 6px 5px; text-align: left;
+        font-weight: 700; font-size: 7.5px; letter-spacing: .04em; text-transform: uppercase;
+        border-right: 1px solid rgba(255, 255, 255, 0.18);
+        white-space: normal; word-break: break-word;
+    }
+    .layout-classic th:last-child { border-right: none; }
+    .layout-classic td { padding: 5px; border-bottom: 1px solid #e8edf3; color: var(--ink); }
+    .layout-classic tbody tr:nth-child(odd) { background: var(--zebra); }
+    .layout-classic tbody tr:last-child td { border-bottom: 1.5px solid var(--accent); }
+    .layout-classic .col-group-base { background: transparent !important; }
+    .layout-classic .col-group-tax { background: transparent !important; }
+    .layout-classic .col-group-vat { background: var(--accent-tint) !important; font-weight: 700; }
+
+    /* ── Totals ── */
+    .layout-classic .amount-section { display: grid; grid-template-columns: 1fr 2.6in; gap: 14px; margin-top: 6px; align-items: start; }
+    .layout-classic .amount-box { border: 1.5px solid var(--accent); border-radius: 8px; overflow: hidden; background: #fff; align-self: start; }
+    .layout-classic .amount-row {
+        display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap;
+        padding: 5px 10px; background: #fff; border-bottom: 1px solid #eef2f6; margin: 0;
+    }
+    .layout-classic .amount-row:nth-child(even) { background: var(--zebra); }
+    .layout-classic .amount-box .amount-row:last-child { border-bottom: none; }
+    .layout-classic .amount-label { font-size: 9px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .layout-classic .amount-value { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 600; color: var(--ink); white-space: nowrap; flex-shrink: 0; }
+    .layout-classic .amount-row.total {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
+        color: #fff; border-bottom: none; padding: 8px 10px;
+    }
+    .layout-classic .amount-row.total .amount-label { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; }
+    .layout-classic .amount-row.total .amount-value { font-size: 13px; font-weight: 800; color: #fff; }
+
+    .layout-classic .totals-foot { text-align: right; font-size: 7.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-top: 4px; }
+    .layout-classic .terms-note { font-size: 8.5px; color: var(--muted); line-height: 1.55; }
+    .layout-classic .terms-note b { color: #334155; }
+    .layout-classic .main-foot {
+        margin-top: auto; padding-top: 8px; border-top: 1px solid #e8edf3;
+        font-size: 7.5px; letter-spacing: .16em; text-transform: uppercase; color: #94a3b8;
+    }
+</style>

@@ -78,6 +78,14 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="form-field">
+                    <label class="form-label">Invoice / Quotation Design</label>
+                    {{ form.print_layout }}
+                    <p class="text-[10px] text-gray-400 mt-1">Page design for this supplier's documents &mdash; each design is completely different, so two suppliers never print look-alike paperwork</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-field">
                     <label class="form-label">BIN Number</label>
                     {{ form.bin_number }}
                 </div>
