@@ -1,0 +1,312 @@
+{% load static %}
+{% load billing_tags %}
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <title>Audit — {{ count }} bill{{ count|pluralize }}</title>
+    <script src="{% static 'js/print_engine.js' %}"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; background:#eef2f7; margin:0; color:#0f172a; }
+        html, body, #auditRun, #auditRun * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .wrapper { width:100%; max-width:1200px; margin:0 auto; padding:16px; }
+        .run-head h1 { font-size:16px; margin:0; }
+        .run-head p { font-size:10px; color:#64748b; margin:2px 0 10px; }
+
+        /* Each bill: one compact block, flows straight after the previous one. */
+        .card {
+            border:1px solid #94a3b8; border-radius:6px; overflow:hidden; background:#fff;
+            margin-bottom:7px; break-inside:avoid; page-break-inside:avoid;
+        }
+        .card-top {
+            display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px;
+            background:#0f172a; color:#fff; padding:4px 9px; font-size:9px;
+        }
+        .card-top .seller { font-size:12px; font-weight:800; margin-right:auto; }
+        .card-top .seller small { font-weight:400; opacity:.85; font-size:8px; margin-left:6px; }
+        .card-top .kv i { font-style:normal; color:#94a3b8; text-transform:uppercase; letter-spacing:.03em; font-size:7.5px; margin-right:3px; }
+        .card-top .kv b { font-weight:700; }
+        .card-top .chip { font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+                          background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28); border-radius:4px; padding:1px 5px; }
+
+        .card-mid { display:flex; gap:0; align-items:stretch; }
+        .items { flex:1 1 66%; min-width:0; }
+        .money { flex:0 0 34%; border-left:1px solid #e2e8f0; }
+
+        table.it { width:100%; border-collapse:collapse; }
+        table.it th, table.it td { border-bottom:1px solid #eef2f7; padding:2px 6px; font-size:8.5px; text-align:left; }
+        table.it th { background:#f1f5f9; color:#475569; font-size:7.5px; letter-spacing:.03em; text-transform:uppercase; border-bottom:1px solid #cbd5e1; }
+        table.it td.n, table.it th.n { text-align:right; font-variant-numeric:tabular-nums; }
+        table.it td.c, table.it th.c { text-align:center; }
+        table.it tr:last-child td { border-bottom:none; }
+
+        .money .m-row { display:flex; justify-content:space-between; padding:2.5px 9px; font-size:9px; border-bottom:1px solid #eef2f7; }
+        .money .m-row .l { color:#64748b; font-weight:600; }
+        .money .m-row .l .pct { color:#94a3b8; font-weight:700; font-size:8px; }
+        .money .m-row .r { font-weight:700; font-variant-numeric:tabular-nums; }
+        .money .m-row.base { background:#fff7ed; }
+        .money .m-row.grand { background:#0f172a; border-bottom:none; padding:4px 9px; }
+        .money .m-row.grand .l, .money .m-row.grand .r { color:#fff; font-size:11px; font-weight:800; }
+
+        /* Run summary */
+        .summary { margin-top:8px; border:2px solid #0f172a; border-radius:6px; background:#fff; padding:12px 14px; }
+        .sum-grid, .sum-sec h3 { break-inside:avoid; }
+        table.stab tr, table.stab tr.sup-head, table.stab tr.tot { break-inside:avoid; }
+        .summary h2 { margin:0 0 8px; font-size:14px; }
+        .sum-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+        .sum-cell { border:1px solid #e2e8f0; border-radius:5px; padding:6px 9px; font-size:10px; }
+        .sum-cell i { display:block; font-style:normal; font-size:8px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+        .sum-cell b { font-size:12px; }
+        .sum-cell.grand { grid-column:span 2; background:#0f172a; color:#fff; }
+        .sum-cell.grand i { color:#cbd5e1; }
+
+        .sum-sec { margin-top:12px; }
+        .sum-sec h3 { font-size:11px; margin:0 0 5px; color:#0f172a; text-transform:uppercase; letter-spacing:.04em; }
+        table.stab { width:100%; border-collapse:collapse; }
+        table.stab th, table.stab td { border-bottom:1px solid #e2e8f0; padding:3px 8px; font-size:9px; text-align:right; }
+        table.stab th { background:#f1f5f9; color:#475569; font-size:7.5px; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid #cbd5e1; }
+        table.stab th.l, table.stab td.l { text-align:left; }
+        table.stab td.name { font-weight:700; color:#0f172a; }
+        table.stab tr.tot td { border-top:1.5px solid #0f172a; font-weight:800; background:#f8fafc; }
+        table.stab td.g { font-weight:800; }
+        /* cross view */
+        table.stab tr.sup-head td { background:#0f172a; color:#fff; font-weight:800; font-size:9.5px; }
+        table.stab tr.sup-head td .n { color:#cbd5e1; font-weight:600; font-size:8px; }
+        table.stab tr.sub td { border-top:1px solid #cbd5e1; font-weight:800; background:#eef2f7; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            body { background:#fff !important; }
+            .no-print { display:none !important; }
+            .wrapper { max-width:none; padding:0; }
+            .card { box-shadow:none !important; }
+            table.stab thead { display:table-header-group; }   /* repeat summary headers each page */
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="position:fixed; top:14px; right:14px; z-index:9999; display:flex; gap:8px;">
+        <button onclick="window.print()" style="padding:9px 15px; background:#0f172a; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,.15);">
+            <i class="fas fa-print"></i> Print
+        </button>
+        <button id="pdfBtn" style="padding:9px 15px; background:#dc2626; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,.15);">
+            <i class="fas fa-file-pdf"></i> Download PDF
+        </button>
+        <a href="{% url 'audit_ledger' %}" style="padding:9px 15px; background:#fff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; font-weight:700; text-decoration:none;">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="wrapper" id="auditRun">
+        <div class="run-head">
+            <h1>Audit Ledger — {{ count }} bill{{ count|pluralize }}</h1>
+            <p>Printed {{ printed_on|date:"d M Y, H:i" }} · items + money breakdown per bill</p>
+        </div>
+
+        {% for tx in transactions %}
+        <div class="card">
+            <div class="card-top">
+                <span class="seller">{{ tx.supplier_name|default:"—" }}{% if tx.supplier_bin %}<small>BIN: {{ tx.supplier_bin }}</small>{% endif %}</span>
+                <span class="kv"><i>Bill</i><b>{{ tx.invoice_number|default:"—" }}</b></span>
+                <span class="kv"><i>Date</i><b>{{ tx.created_at|date:"d M Y" }}</b></span>
+                <span class="kv"><i>Cat</i><b>{{ tx.transaction_category.name|default:"General" }}{% if tx.secondary_category %} &amp; {{ tx.secondary_category.name }}{% endif %}</b></span>
+                <span class="kv"><i>Buyer</i><b>{{ tx.buyer_name|default:"—" }}</b></span>
+                <span class="chip">{{ tx.status }}</span>
+            </div>
+            <div class="card-mid">
+                <div class="items">
+                    <table class="it">
+                        <thead>
+                            <tr>
+                                <th class="c" style="width:22px;">#</th>
+                                <th>Description</th>
+                                <th class="c" style="width:42px;">Unit</th>
+                                <th class="n" style="width:40px;">Qty</th>
+                                <th class="n" style="width:74px;">Base Price</th>
+                                <th class="n" style="width:82px;">Base Amt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in tx.items.all %}
+                            <tr>
+                                <td class="c">{{ forloop.counter }}</td>
+                                <td>{{ item.description }}{% if item.entry_date %} <span style="color:#94a3b8;">({{ item.entry_date|date:"d M Y" }})</span>{% endif %}</td>
+                                <td class="c">{{ item.unit }}</td>
+                                <td class="n">{{ item.quantity }}</td>
+                                <td class="n">{{ item.base_price|floatformat:2 }}</td>
+                                <td class="n">{{ item.base_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="c" style="color:#94a3b8; padding:8px;">No line items.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="money">
+                    <div class="m-row base"><span class="l">Base (cost)</span><span class="r">৳{{ tx.total_base_cost|floatformat:2 }}</span></div>
+                    <div class="m-row"><span class="l">Subtotal (billed)</span><span class="r">৳{{ tx.display_subtotal|floatformat:2 }}</span></div>
+                    <div class="m-row"><span class="l">Service Charge <span class="pct">({{ tx.service_charge_percentage|floatformat:"-2" }}%{% if tx.secondary_category and tx.secondary_service_charge_percentage != tx.service_charge_percentage %} &amp; {{ tx.secondary_service_charge_percentage|floatformat:"-2" }}%{% endif %})</span></span><span class="r">৳{{ tx.total_service_charge|floatformat:2 }}</span></div>
+                    <div class="m-row"><span class="l">Duty <span class="pct">({{ tx.duty_percentage|floatformat:"-2" }}%{% if tx.secondary_category and tx.secondary_duty_percentage != tx.duty_percentage %} &amp; {{ tx.secondary_duty_percentage|floatformat:"-2" }}%{% endif %})</span></span><span class="r">৳{{ tx.total_duty|floatformat:2 }}</span></div>
+                    <div class="m-row"><span class="l">VAT <span class="pct">({{ tx.vat_percentage|floatformat:"-2" }}%{% if tx.secondary_category and tx.secondary_vat_percentage != tx.vat_percentage %} &amp; {{ tx.secondary_vat_percentage|floatformat:"-2" }}%{% endif %})</span></span><span class="r">৳{{ tx.total_vat|floatformat:2 }}</span></div>
+                    <div class="m-row"><span class="l">TAX <span class="pct">({{ tx.tax_percentage|floatformat:"-2" }}%{% if tx.secondary_category and tx.secondary_tax_percentage != tx.tax_percentage %} &amp; {{ tx.secondary_tax_percentage|floatformat:"-2" }}%{% endif %})</span></span><span class="r">৳{{ tx.total_tax|floatformat:2 }}</span></div>
+                    <div class="m-row grand"><span class="l">Grand Total</span><span class="r">৳{{ tx.grand_total|floatformat:2 }}</span></div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card"><div style="text-align:center; color:#94a3b8; padding:24px;">No bills matched — nothing to print.</div></div>
+        {% endfor %}
+
+        {% if transactions %}
+        <div class="summary">
+            <h2><i class="fas fa-clipboard-check"></i> Run Summary — {{ count }} bill{{ count|pluralize }}</h2>
+
+            <div class="sum-grid">
+                <div class="sum-cell" style="background:#fff7ed;"><i>Total Base (supplier cost)</i><b>৳{{ totals.base|floatformat:2 }}</b></div>
+                <div class="sum-cell"><i>Total Subtotal (billed)</i><b>৳{{ totals.subtotal|floatformat:2 }}</b></div>
+                <div class="sum-cell"><i>Total Service Charge</i><b>৳{{ totals.service|floatformat:2 }}</b></div>
+                <div class="sum-cell"><i>Total Duty</i><b>৳{{ totals.duty|floatformat:2 }}</b></div>
+                <div class="sum-cell"><i>Total VAT</i><b>৳{{ totals.vat|floatformat:2 }}</b></div>
+                <div class="sum-cell"><i>Total TAX</i><b>৳{{ totals.tax|floatformat:2 }}</b></div>
+                <div class="sum-cell grand"><i>Grand Total (all bills)</i><b>৳{{ totals.grand|floatformat:2 }}</b></div>
+            </div>
+
+            <div class="sum-sec">
+                <h3><i class="fas fa-truck"></i> By Supplier</h3>
+                <table class="stab">
+                    <thead>
+                        <tr>
+                            <th class="l">Supplier</th><th>Bills</th><th>Base</th><th>Service</th>
+                            <th>Duty</th><th>VAT</th><th>TAX</th><th>Grand Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in supplier_rows %}
+                        <tr>
+                            <td class="l name">{{ s.name }}</td>
+                            <td>{{ s.count }}</td>
+                            <td>৳{{ s.base|floatformat:2 }}</td>
+                            <td>৳{{ s.service|floatformat:2 }}</td>
+                            <td>৳{{ s.duty|floatformat:2 }}</td>
+                            <td>৳{{ s.vat|floatformat:2 }}</td>
+                            <td>৳{{ s.tax|floatformat:2 }}</td>
+                            <td class="g">৳{{ s.grand|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="tot">
+                            <td class="l">All suppliers</td>
+                            <td>{{ count }}</td>
+                            <td>৳{{ totals.base|floatformat:2 }}</td>
+                            <td>৳{{ totals.service|floatformat:2 }}</td>
+                            <td>৳{{ totals.duty|floatformat:2 }}</td>
+                            <td>৳{{ totals.vat|floatformat:2 }}</td>
+                            <td>৳{{ totals.tax|floatformat:2 }}</td>
+                            <td>৳{{ totals.grand|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="sum-sec">
+                <h3><i class="fas fa-tags"></i> By Category</h3>
+                <table class="stab">
+                    <thead>
+                        <tr>
+                            <th class="l">Category</th><th>Bills</th><th>Base</th><th>Service</th>
+                            <th>Duty</th><th>VAT</th><th>TAX</th><th>Grand Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in category_rows %}
+                        <tr>
+                            <td class="l name">{{ c.name }}</td>
+                            <td>{{ c.count }}</td>
+                            <td>৳{{ c.base|floatformat:2 }}</td>
+                            <td>৳{{ c.service|floatformat:2 }}</td>
+                            <td>৳{{ c.duty|floatformat:2 }}</td>
+                            <td>৳{{ c.vat|floatformat:2 }}</td>
+                            <td>৳{{ c.tax|floatformat:2 }}</td>
+                            <td class="g">৳{{ c.grand|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="tot">
+                            <td class="l">All categories</td>
+                            <td>{{ count }}</td>
+                            <td>৳{{ totals.base|floatformat:2 }}</td>
+                            <td>৳{{ totals.service|floatformat:2 }}</td>
+                            <td>৳{{ totals.duty|floatformat:2 }}</td>
+                            <td>৳{{ totals.vat|floatformat:2 }}</td>
+                            <td>৳{{ totals.tax|floatformat:2 }}</td>
+                            <td>৳{{ totals.grand|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="sum-sec">
+                <h3><i class="fas fa-diagram-project"></i> Supplier &times; Category (interconnected)</h3>
+                <table class="stab">
+                    <thead>
+                        <tr>
+                            <th class="l">Supplier / Category</th><th>Bills</th><th>Base</th><th>Service</th>
+                            <th>Duty</th><th>VAT</th><th>TAX</th><th>Grand Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for x in cross_rows %}
+                        <tr class="sup-head">
+                            <td class="l" colspan="7">{{ x.supplier }} <span class="n">— {{ x.subtotal.count }} bill{{ x.subtotal.count|pluralize }} across {{ x.categories|length }} categor{{ x.categories|length|pluralize:"y,ies" }}</span></td>
+                            <td class="g">৳{{ x.subtotal.grand|floatformat:2 }}</td>
+                        </tr>
+                        {% for c in x.categories %}
+                        <tr>
+                            <td class="l" style="padding-left:20px;">{{ c.name }}</td>
+                            <td>{{ c.count }}</td>
+                            <td>৳{{ c.base|floatformat:2 }}</td>
+                            <td>৳{{ c.service|floatformat:2 }}</td>
+                            <td>৳{{ c.duty|floatformat:2 }}</td>
+                            <td>৳{{ c.vat|floatformat:2 }}</td>
+                            <td>৳{{ c.tax|floatformat:2 }}</td>
+                            <td class="g">৳{{ c.grand|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                        <tr class="tot">
+                            <td class="l">Grand total</td>
+                            <td>{{ count }}</td>
+                            <td>৳{{ totals.base|floatformat:2 }}</td>
+                            <td>৳{{ totals.service|floatformat:2 }}</td>
+                            <td>৳{{ totals.duty|floatformat:2 }}</td>
+                            <td>৳{{ totals.vat|floatformat:2 }}</td>
+                            <td>৳{{ totals.tax|floatformat:2 }}</td>
+                            <td>৳{{ totals.grand|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.getElementById('pdfBtn');
+            if (btn && window.PrintEngine) {
+                PrintEngine.bindDownloadButton(btn,
+                    () => document.getElementById('auditRun'),
+                    () => 'Audit_{{ count }}_bills.pdf',
+                    { scale: 1.4, format: 'a4', orientation: 'landscape', windowWidth: 1200 });
+            } else if (btn) {
+                btn.addEventListener('click', () => window.print());
+            }
+        });
+    </script>
+</body>
+</html>

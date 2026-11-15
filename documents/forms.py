@@ -18,7 +18,7 @@ class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
         fields = [
-            'transaction_category', 'secondary_category', 'invoice_number', 'challan_number', 'created_at',
+            'transaction_category', 'secondary_category', 'invoice_number', 'challan_number', 'challan_status', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
             'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin',
@@ -28,7 +28,47 @@ class TransactionForm(forms.ModelForm):
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
+            'supplier_address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
+            'buyer_address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.created_at:
+            self.initial['created_at'] = self.instance.created_at.strftime('%Y-%m-%dT%H:%M')
+
+        # Make secondary & rate fields optional in form validation so missing inputs default safely
+        optional_fields = [
+            'vat_percentage', 'duty_percentage', 'tax_percentage', 'service_charge_percentage', 'profit_margin',
+            'secondary_vat_percentage', 'secondary_duty_percentage', 'secondary_tax_percentage',
+            'secondary_service_charge_percentage', 'secondary_profit_margin',
+            'discount_percentage', 'discount_flat', 'challan_number', 'invoice_number'
+        ]
+        for fname in optional_fields:
+            if fname in self.fields:
+                self.fields[fname].required = False
+
+    def clean(self):
+        from decimal import Decimal
+        cleaned_data = super().clean()
+        decimal_defaults = {
+            'vat_percentage': '15.00',
+            'duty_percentage': '5.00',
+            'tax_percentage': '0.00',
+            'service_charge_percentage': '0.00',
+            'profit_margin': '0.00',
+            'secondary_vat_percentage': '15.00',
+            'secondary_duty_percentage': '5.00',
+            'secondary_tax_percentage': '0.00',
+            'secondary_service_charge_percentage': '0.00',
+            'secondary_profit_margin': '0.00',
+            'discount_percentage': '0.00',
+            'discount_flat': '0.00',
+        }
+        for fname, def_val in decimal_defaults.items():
+            if cleaned_data.get(fname) is None:
+                cleaned_data[fname] = Decimal(def_val)
+        return cleaned_data
 
 class TransactionHeaderForm(forms.ModelForm):
     class Meta:
@@ -36,21 +76,23 @@ class TransactionHeaderForm(forms.ModelForm):
         # NOTE: is_daily_basis is intentionally NOT here.
         # It is edited on the create/edit form, not at approval.
         fields = [
-            'invoice_number', 'challan_number', 'created_at',
+            'invoice_number', 'challan_number', 'challan_status', 'created_at',
             'supplier_name', 'supplier_bin', 'supplier_address', 'supplier_contact',
             'buyer_name', 'buyer_bin', 'buyer_address', 'buyer_contact',
             'decimal_display_mode', 'calculation_mode'
         ]
         widgets = {
             'created_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
-            'supplier_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
-            'buyer_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'supplier_address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
+            'buyer_address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
             'decimal_display_mode': forms.Select(attrs={'class': 'form-control'}),
             'calculation_mode': forms.RadioSelect(attrs={'class': 'w-4 h-4 text-indigo-600 focus:ring-indigo-500'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.created_at:
+            self.initial['created_at'] = self.instance.created_at.strftime('%Y-%m-%dT%H:%M')
         
         # Safely set initials for supplier/buyer if they are empty
         if 'supplier_name' in self.fields:
@@ -140,6 +182,9 @@ class BusinessPartyForm(forms.ModelForm):
     class Meta:
         model = BusinessParty
         fields = ['party_type', 'name', 'ceo_name', 'designation', 'bin_number', 'address', 'contact', 'whatsapp_number', 'color_theme', 'print_layout', 'signature_image', 'seal_image']
+        widgets = {
+            'address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
+        }
 
 class TransactionCategoryForm(forms.ModelForm):
     class Meta:
@@ -359,7 +404,7 @@ class CheckAuthorizationForm(forms.ModelForm):
         widgets = {
             'valid_from': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'valid_to': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'issuer_address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'issuer_address': forms.Textarea(attrs={'rows': 1, 'class': 'form-control', 'style': 'height: 38px; min-height: 38px; resize: vertical;'}),
             'reason': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
             'nominee': forms.Select(attrs={'class': 'form-control'}),
             'nominee_nid': forms.TextInput(attrs={'readonly': 'readonly', 'class': 'bg-gray-100'}),

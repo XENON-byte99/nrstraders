@@ -189,6 +189,15 @@
             </a>
             {% endif %}
 
+            {% if user.p_view_bill_summary or user.is_superuser %}
+            <a href="{% url 'audit_ledger' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+                    <i class="fas fa-clipboard-list text-amber-300 text-xs"></i>
+                </span>
+                Audit Ledger
+            </a>
+            {% endif %}
+
             {% if user.role == 'SUPPLIER' or user.p_view_bills or user.p_manage_inventory or user.is_superuser %}
             <a href="{% url 'product_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
                 <span class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
@@ -263,6 +272,40 @@
                 Requisitions
             </a>
             {% endif %}
+
+            <a href="{% url 'drive_home' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                    <i class="fas fa-hard-drive text-indigo-300 text-xs"></i>
+                </span>
+                Drive
+            </a>
+
+            <a href="{% url 'table_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <i class="fas fa-table-cells text-emerald-300 text-xs"></i>
+                </span>
+                Table Builder
+            </a>
+
+            {% if user.p_view_bills or user.role == 'OWNER' or user.is_superuser %}
+            <a href="{% url 'category_items_report' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-500/30 flex items-center justify-center shrink-0">
+                    <i class="fas fa-file-invoice-dollar text-teal-300 text-xs"></i>
+                </span>
+                Category Report
+            </a>
+            {% endif %}
+
+            <!-- Quick Notes Nav Item -->
+            <button onclick="toggleNotesSidebar()" class="w-full nav-link flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100 text-left cursor-pointer">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        <i class="fas fa-sticky-note text-amber-300 text-xs"></i>
+                    </span>
+                    Quick Notes
+                </div>
+                <span id="nav-notes-badge" class="bg-amber-500/30 text-amber-200 border border-amber-400/30 text-[10px] font-black px-2 py-0.5 rounded-full">0</span>
+            </button>
 
             {% if user.p_manage_users or user.is_superuser %}
             <div class="pt-4 pb-1 px-2">
@@ -347,6 +390,13 @@
 
             <!-- Sync & Clock Container -->
             <div class="flex items-center gap-3 ml-auto flex-shrink-0">
+                <!-- Quick Notes Toggle Button -->
+                <button id="toggle-notes-btn" onclick="toggleNotesSidebar()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100 transition shadow-sm cursor-pointer" title="Open Quick Notes">
+                    <i class="fas fa-sticky-note text-amber-600"></i>
+                    <span class="hidden sm:inline">Notes</span>
+                    <span id="header-notes-count" class="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full min-w-[18px] text-center">0</span>
+                </button>
+
                 <!-- Sync Button & Status Indicator -->
                 <div class="flex items-center gap-2">
                     <a id="sync-btn" href="{% url 'sync_db' %}" class="hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition shadow-sm" title="Sync with Supabase" onclick="document.getElementById('sync-icon').classList.add('fa-spin')">
@@ -391,6 +441,88 @@
             {% block content %}{% endblock %}
         </div>
     </main>
+
+    <!-- ═══ NOTES SIDEBAR OVERLAY & DRAWER ═══ -->
+    <div id="notes-sidebar-overlay" onclick="closeNotesSidebar()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden transition-opacity duration-300"></div>
+
+    <aside id="notes-sidebar" class="fixed top-0 right-0 h-screen h-dvh w-80 md:w-96 dark-glass-sidebar text-slate-100 z-50 transform translate-x-full transition-transform duration-300 shadow-2xl flex flex-col border-l border-rose-950/80">
+        <!-- Notes Header -->
+        <div class="p-4 border-b border-rose-950/60 flex items-center justify-between bg-black/40">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center text-white shadow-md border border-amber-400/30">
+                    <i class="fas fa-sticky-note text-xs"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-extrabold text-white flex items-center gap-2">
+                        Quick Notes
+                        <span id="notes-total-count" class="text-[10px] bg-rose-900/60 text-rose-200 px-2 py-0.5 rounded-full border border-rose-700/40">0</span>
+                    </h3>
+                    <p class="text-[10px] text-rose-300/70 uppercase font-bold tracking-wider">Personal & Workspace Notes</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button onclick="toggleNewNoteForm()" class="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1 shadow-sm border border-rose-400/30">
+                    <i class="fas fa-plus text-[10px]"></i> New
+                </button>
+                <button onclick="closeNotesSidebar()" class="p-1.5 text-rose-300 hover:text-white rounded-lg hover:bg-rose-950/60 transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="p-3 border-b border-rose-950/40 bg-black/20 space-y-2">
+            <div class="relative">
+                <i class="fas fa-search absolute left-3 top-2.5 text-xs text-rose-300/50"></i>
+                <input type="text" id="notes-search-input" oninput="filterNotes()" placeholder="Search notes..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-rose-950/40 border border-rose-900/60 rounded-xl text-rose-100 placeholder-rose-400/50 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500">
+            </div>
+        </div>
+
+        <!-- New / Edit Note Form -->
+        <div id="new-note-form" class="hidden p-3 bg-black/40 border-b border-rose-900/50 space-y-2 transition-all">
+            <input type="hidden" id="edit-note-id" value="">
+            <input type="text" id="note-title-input" placeholder="Note Title..." class="w-full px-3 py-1.5 text-xs font-bold bg-rose-950/60 border border-rose-800/60 rounded-lg text-white placeholder-rose-400/50 focus:outline-none focus:border-amber-400">
+            <textarea id="note-content-input" rows="3" placeholder="Type your note content here..." class="w-full px-3 py-2 text-xs bg-rose-950/60 border border-rose-800/60 rounded-lg text-rose-100 placeholder-rose-400/50 focus:outline-none focus:border-amber-400 resize-none"></textarea>
+            
+            <div class="flex items-center justify-between pt-1">
+                <!-- Color Selector -->
+                <div class="flex items-center gap-1.5" id="color-picker">
+                    <button type="button" onclick="selectNoteColor('yellow')" data-color="yellow" class="w-5 h-5 rounded-full bg-amber-400 border-2 border-white/80 ring-2 ring-amber-400 scale-110 transition color-btn" title="Yellow"></button>
+                    <button type="button" onclick="selectNoteColor('rose')" data-color="rose" class="w-5 h-5 rounded-full bg-rose-500 border-2 border-transparent hover:scale-105 transition color-btn" title="Rose"></button>
+                    <button type="button" onclick="selectNoteColor('emerald')" data-color="emerald" class="w-5 h-5 rounded-full bg-emerald-500 border-2 border-transparent hover:scale-105 transition color-btn" title="Emerald"></button>
+                    <button type="button" onclick="selectNoteColor('sky')" data-color="sky" class="w-5 h-5 rounded-full bg-sky-500 border-2 border-transparent hover:scale-105 transition color-btn" title="Sky"></button>
+                    <button type="button" onclick="selectNoteColor('purple')" data-color="purple" class="w-5 h-5 rounded-full bg-purple-500 border-2 border-transparent hover:scale-105 transition color-btn" title="Purple"></button>
+                    <button type="button" onclick="selectNoteColor('slate')" data-color="slate" class="w-5 h-5 rounded-full bg-slate-600 border-2 border-transparent hover:scale-105 transition color-btn" title="Slate"></button>
+                </div>
+                <input type="hidden" id="selected-note-color" value="yellow">
+
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-1 cursor-pointer text-[11px] text-rose-200">
+                        <input type="checkbox" id="note-pinned-input" class="rounded border-rose-800 text-amber-500 focus:ring-amber-500 bg-rose-950">
+                        <i class="fas fa-thumbtack text-[10px] text-amber-400"></i> Pin
+                    </label>
+                    <button type="button" onclick="saveNote()" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes List -->
+        <div id="notes-list-container" class="flex-1 overflow-y-auto p-3 space-y-3">
+            <div class="text-center py-8 text-rose-300/50 text-xs">
+                <i class="fas fa-spinner fa-spin text-lg mb-2 block"></i> Loading notes...
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-3 border-t border-rose-950/80 bg-black/40 text-center flex items-center justify-between text-[11px] text-rose-300/60">
+            <span class="flex items-center gap-1">
+                <i class="fas fa-shield-alt text-emerald-400 text-[10px]"></i> Cloud Synced
+            </span>
+            <span id="notes-last-updated">Ready</span>
+        </div>
+    </aside>
 
     {% else %}
     <!-- ═══ LOGIN LAYOUT ═══ -->
@@ -510,5 +642,297 @@
     if (document.getElementById('sync-status')) {
         checkSyncStatus();
     }
+
+    // ── QUICK NOTES SIDEBAR LOGIC ──
+    let notesData = [];
+    let currentSelectedColor = 'yellow';
+
+    function toggleNotesSidebar() {
+        const sidebar = document.getElementById('notes-sidebar');
+        const overlay = document.getElementById('notes-sidebar-overlay');
+        if (!sidebar) return;
+        const isOpen = !sidebar.classList.contains('translate-x-full');
+
+        if (isOpen) {
+            closeNotesSidebar();
+        } else {
+            sidebar.classList.remove('translate-x-full');
+            overlay.classList.remove('hidden');
+            fetchNotes();
+        }
+    }
+
+    function closeNotesSidebar() {
+        const sidebar = document.getElementById('notes-sidebar');
+        const overlay = document.getElementById('notes-sidebar-overlay');
+        if (sidebar) sidebar.classList.add('translate-x-full');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    function toggleNewNoteForm(editNote = null) {
+        const form = document.getElementById('new-note-form');
+        if (!form) return;
+        form.classList.toggle('hidden');
+        
+        if (!form.classList.contains('hidden')) {
+            if (editNote) {
+                document.getElementById('edit-note-id').value = editNote.id;
+                document.getElementById('note-title-input').value = editNote.title || '';
+                document.getElementById('note-content-input').value = editNote.content || '';
+                document.getElementById('note-pinned-input').checked = !!editNote.is_pinned;
+                selectNoteColor(editNote.color || 'yellow');
+                document.getElementById('note-title-input').focus();
+            } else {
+                document.getElementById('edit-note-id').value = '';
+                document.getElementById('note-title-input').value = '';
+                document.getElementById('note-content-input').value = '';
+                document.getElementById('note-pinned-input').checked = false;
+                selectNoteColor('yellow');
+                document.getElementById('note-title-input').focus();
+            }
+        }
+    }
+
+    function selectNoteColor(color) {
+        currentSelectedColor = color;
+        const input = document.getElementById('selected-note-color');
+        if (input) input.value = color;
+        
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            const btnColor = btn.dataset.color;
+            if (btnColor === color) {
+                btn.style.transform = 'scale(1.2)';
+                btn.style.outline = '2px solid #f59e0b';
+            } else {
+                btn.style.transform = 'scale(1)';
+                btn.style.outline = 'none';
+            }
+        });
+    }
+
+    function getCardStyles(c) {
+        const map = {
+            'yellow': 'border-amber-400/40 bg-amber-950/20 text-amber-100 hover:border-amber-400/60',
+            'rose': 'border-rose-400/40 bg-rose-950/20 text-rose-100 hover:border-rose-400/60',
+            'emerald': 'border-emerald-400/40 bg-emerald-950/20 text-emerald-100 hover:border-emerald-400/60',
+            'sky': 'border-sky-400/40 bg-sky-950/20 text-sky-100 hover:border-sky-400/60',
+            'purple': 'border-purple-400/40 bg-purple-950/20 text-purple-100 hover:border-purple-400/60',
+            'slate': 'border-slate-500/40 bg-slate-900/50 text-slate-100 hover:border-slate-500/60'
+        };
+        return map[c] || map['yellow'];
+    }
+
+    function getCsrfToken() {
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function fetchNotes() {
+        const container = document.getElementById('notes-list-container');
+        if (!container) return;
+        
+        try {
+            const res = await fetch('/api/notes/');
+            if (!res.ok) throw new Error('Failed to load notes');
+            const data = await res.json();
+            notesData = data.notes || [];
+            updateNotesBadgeCount(notesData.length);
+            renderNotes(notesData);
+        } catch (e) {
+            console.error('Fetch notes error:', e);
+            container.innerHTML = `
+                <div class="text-center py-6 text-rose-400 text-xs">
+                    <i class="fas fa-exclamation-circle text-lg mb-1 block"></i>
+                    Error loading notes
+                </div>`;
+        }
+    }
+
+    function updateNotesBadgeCount(count) {
+        const headerBadge = document.getElementById('header-notes-count');
+        const navBadge = document.getElementById('nav-notes-badge');
+        const totalCount = document.getElementById('notes-total-count');
+
+        if (headerBadge) headerBadge.textContent = count;
+        if (totalCount) totalCount.textContent = count;
+        if (navBadge) {
+            navBadge.textContent = count;
+            if (count > 0) navBadge.classList.remove('hidden');
+            else navBadge.classList.add('hidden');
+        }
+    }
+
+    function renderNotes(notes) {
+        const container = document.getElementById('notes-list-container');
+        if (!container) return;
+        
+        if (!notes || notes.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-12 px-4 text-rose-300/50 text-xs border border-dashed border-rose-900/40 rounded-xl m-2">
+                    <i class="fas fa-sticky-note text-2xl mb-2 text-rose-400/40 block"></i>
+                    No notes yet.<br>Click <strong>+ New</strong> to create one!
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = notes.map(n => {
+            const cardStyle = getCardStyles(n.color);
+            const titleHtml = n.title ? `<h4 class="font-extrabold text-xs mb-1 tracking-tight truncate text-amber-200">${escapeHtml(n.title)}</h4>` : '';
+            const contentHtml = n.content ? `<p class="text-xs leading-relaxed whitespace-pre-wrap opacity-90">${escapeHtml(n.content)}</p>` : '';
+            
+            return `
+            <div class="p-3 rounded-xl border ${cardStyle} transition-all shadow-sm group relative">
+                <div class="flex items-start justify-between gap-2 mb-1.5">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        ${n.is_pinned ? `<span title="Pinned"><i class="fas fa-thumbtack text-amber-400 text-[10px] transform -rotate-45"></i></span>` : ''}
+                        ${titleHtml || `<span class="text-[11px] font-semibold opacity-60 italic">Untitled Note</span>`}
+                    </div>
+                    <div class="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition shrink-0">
+                        <button onclick="togglePin(${n.id})" class="p-1 text-rose-300/70 hover:text-amber-400 transition" title="${n.is_pinned ? 'Unpin' : 'Pin'}">
+                            <i class="fas fa-thumbtack text-[10px] ${n.is_pinned ? 'text-amber-400' : ''}"></i>
+                        </button>
+                        <button onclick="editNote(${n.id})" class="p-1 text-rose-300/70 hover:text-white transition" title="Edit">
+                            <i class="fas fa-pencil-alt text-[10px]"></i>
+                        </button>
+                        <button onclick="copyNoteContent(${n.id})" class="p-1 text-rose-300/70 hover:text-emerald-400 transition" title="Copy">
+                            <i class="fas fa-copy text-[10px]"></i>
+                        </button>
+                        <button onclick="deleteNote(${n.id})" class="p-1 text-rose-300/70 hover:text-rose-400 transition" title="Delete">
+                            <i class="fas fa-trash-alt text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+                ${contentHtml}
+                <div class="mt-2 pt-1.5 border-t border-white/10 flex items-center justify-between text-[9px] opacity-60 font-mono">
+                    <span>${n.updated_at}</span>
+                    <span class="uppercase tracking-wider font-bold text-[8px] px-1.5 py-0.2 rounded bg-black/30">${n.color}</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
+    }
+
+    function filterNotes() {
+        const query = (document.getElementById('notes-search-input').value || '').toLowerCase();
+        if (!query) {
+            renderNotes(notesData);
+            return;
+        }
+        const filtered = notesData.filter(n => 
+            (n.title && n.title.toLowerCase().includes(query)) || 
+            (n.content && n.content.toLowerCase().includes(query))
+        );
+        renderNotes(filtered);
+    }
+
+    async function saveNote() {
+        const editId = document.getElementById('edit-note-id').value;
+        const title = document.getElementById('note-title-input').value.trim();
+        const content = document.getElementById('note-content-input').value.trim();
+        const color = document.getElementById('selected-note-color').value || 'yellow';
+        const is_pinned = document.getElementById('note-pinned-input').checked;
+
+        if (!title && !content) {
+            alert('Please enter a title or content for your note.');
+            return;
+        }
+
+        const payload = { title, content, color, is_pinned };
+        const url = editId ? `/api/notes/${editId}/` : '/api/notes/';
+        const method = editId ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error('Save failed');
+            
+            toggleNewNoteForm();
+            fetchNotes();
+        } catch (e) {
+            console.error('Save note error:', e);
+            alert('Error saving note.');
+        }
+    }
+
+    async function togglePin(id) {
+        try {
+            const res = await fetch(`/api/notes/${id}/pin/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            });
+            if (res.ok) fetchNotes();
+        } catch (e) {
+            console.error('Pin error:', e);
+        }
+    }
+
+    function editNote(id) {
+        const note = notesData.find(n => n.id === id);
+        if (note) {
+            const form = document.getElementById('new-note-form');
+            if (form.classList.contains('hidden')) {
+                toggleNewNoteForm(note);
+            } else {
+                toggleNewNoteForm(note);
+            }
+        }
+    }
+
+    function copyNoteContent(id) {
+        const note = notesData.find(n => n.id === id);
+        if (note) {
+            const text = (note.title ? note.title + "\n\n" : '') + (note.content || '');
+            navigator.clipboard.writeText(text).then(() => {
+                const statusEl = document.getElementById('notes-last-updated');
+                if (statusEl) {
+                    statusEl.textContent = 'Copied!';
+                    setTimeout(() => statusEl.textContent = 'Ready', 2000);
+                }
+            });
+        }
+    }
+
+    async function deleteNote(id) {
+        if (!confirm('Are you sure you want to delete this note?')) return;
+        try {
+            const res = await fetch(`/api/notes/${id}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            });
+            if (res.ok) fetchNotes();
+        } catch (e) {
+            console.error('Delete error:', e);
+        }
+    }
+
+    // Auto-fetch notes count on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchNotes();
+    });
 </script>
 </html>

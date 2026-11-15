@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse, HttpResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from accounts.decorators import (accountant_required, supplier_required, 
                                  owner_or_accountant_required, buyer_required, 
                                  permission_required, owner_required)
-from .models import Transaction, BusinessParty, TransactionCategory, TransactionItem, Product, VisualRequisition, CheckAuthorization
+from .models import (Transaction, BusinessParty, TransactionCategory, TransactionItem, Product,
+                     VisualRequisition, CheckAuthorization, DriveFolder, DriveFile, TableTemplate,
+                     TransactionAttachment)
 from .forms import (TransactionForm, TransactionItemFormSet, SupplierPricingFormSet,
                     LunchItemFormSet, LunchSupplierPricingFormSet, RoomItemFormSet,
                     BusinessPartyForm, TransactionCategoryForm, ProductForm,
@@ -203,7 +205,13 @@ def transaction_list(request):
     if date_to:
         transactions = transactions.filter(created_at__date__lte=date_to)
 
-    transactions = transactions.order_by('-created_at')
+    # Materialise once and back-populate each item's .transaction from the
+    # prefetch cache. Without this, every line item's money property re-fetches
+    # its parent bill (item.transaction.*) — thousands of queries on this page.
+    transactions = list(transactions.order_by('-created_at'))
+    for _t in transactions:
+        for _it in _t.items.all():
+            _it.transaction = _t
 
     filters_active = bool(q or status or category_id or date_from or date_to)
     context = {
@@ -216,7 +224,7 @@ def transaction_list(request):
         'filter_date_from': request.GET.get('date_from', ''),
         'filter_date_to': request.GET.get('date_to', ''),
         'filters_active': filters_active,
-        'result_count': transactions.count(),
+        'result_count': len(transactions),
     }
     return render(request, 'documents/transaction_list.html', context)
 
@@ -678,8 +686,13 @@ def bill_summary(request):
         tx_query = tx_query.order_by(sort_by)
 
     # Main KPI Totals
-    tx_list = list(tx_query.select_related('transaction_category').prefetch_related('items'))
-    
+    tx_list = list(tx_query.select_related('transaction_category', 'secondary_category').prefetch_related('items'))
+    # Back-populate each item's .transaction from the prefetch cache so the money
+    # properties don't re-fetch the parent bill per line item (N+1 → flat).
+    for _t in tx_list:
+        for _it in _t.items.all():
+            _it.transaction = _t
+
     total_bills = len(tx_list)
     grand_revenue = sum((tx.grand_total for tx in tx_list), 0)
     total_upscale_revenue = sum((tx.display_subtotal for tx in tx_list), 0)
@@ -851,6 +864,216 @@ def bill_summary(request):
     }
     return render(request, 'documents/bill_summary.html', context)
 
+
+def _audit_filtered_transactions(request, order='-created_at'):
+    """Shared filter for the audit ledger + its bill-by-bill print. Reads the
+    same GET params (q / status / category / date_from / date_to / ids) so the
+    on-screen selection and the printed run always match. Materialises once and
+    back-populates item.transaction from the prefetch cache so the money
+    properties don't re-fetch the parent bill per line item."""
+    from django.db.models import Q
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    category_id = request.GET.get('category', '').strip()
+    date_from = parse_date(request.GET.get('date_from', '')) if request.GET.get('date_from') else None
+    date_to = parse_date(request.GET.get('date_to', '')) if request.GET.get('date_to') else None
+    ids_raw = request.GET.get('ids', '').strip()
+
+    qs = Transaction.objects.select_related(
+        'transaction_category', 'secondary_category'
+    ).prefetch_related('items')
+
+    if ids_raw:
+        id_list = [int(x) for x in ids_raw.split(',') if x.strip().isdigit()]
+        if id_list:
+            qs = qs.filter(pk__in=id_list)
+    if q:
+        qs = qs.filter(
+            Q(invoice_number__icontains=q) |
+            Q(challan_number__icontains=q) |
+            Q(supplier_name__icontains=q) |
+            Q(buyer_name__icontains=q)
+        ).distinct()
+    if status:
+        qs = qs.filter(status=status)
+    if category_id:
+        qs = qs.filter(Q(transaction_category_id=category_id) | Q(secondary_category_id=category_id))
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+
+    tx_list = list(qs.order_by(order))
+    for _t in tx_list:
+        for _it in _t.items.all():
+            _it.transaction = _t
+    return tx_list
+
+
+@login_required
+@permission_required('p_view_bill_summary')
+def audit_print(request):
+    """Bill-by-bill audit print: every selected/filtered bill on its own page,
+    as a single-copy audit slip (seller, base cost, service charge, duty, VAT,
+    TAX, grand total) — printed like a challan but one document per bill, not
+    the 3-copy challan sheet. Same GET filters as audit_ledger."""
+    tx_list = _audit_filtered_transactions(request, order='created_at')  # chronological run
+
+    def _blank():
+        return {'count': 0, 'base': 0, 'subtotal': 0, 'service': 0, 'duty': 0, 'vat': 0, 'tax': 0, 'grand': 0}
+
+    def _add(bucket, tx, vals):
+        bucket['count'] += 1
+        bucket['base'] += vals['base']
+        bucket['subtotal'] += vals['subtotal']
+        bucket['service'] += vals['service']
+        bucket['duty'] += vals['duty']
+        bucket['vat'] += vals['vat']
+        bucket['tax'] += vals['tax']
+        bucket['grand'] += vals['grand']
+
+    totals = _blank()
+    by_supplier = {}          # supplier -> bucket
+    by_category = {}          # category -> bucket
+    cross = {}                # supplier -> {category -> bucket}
+
+    for tx in tx_list:
+        vals = {
+            'base': tx.total_base_cost,
+            'subtotal': tx.display_subtotal,
+            'service': tx.total_service_charge,
+            'duty': tx.total_duty,
+            'vat': tx.total_vat,
+            'tax': tx.total_tax,
+            'grand': tx.grand_total,
+        }
+        _add(totals, tx, vals)
+
+        sup = tx.supplier_name or '—'
+        cat = tx.transaction_category.name if tx.transaction_category else 'General'
+
+        _add(by_supplier.setdefault(sup, _blank()), tx, vals)
+        _add(by_category.setdefault(cat, _blank()), tx, vals)
+        _add(cross.setdefault(sup, {}).setdefault(cat, _blank()), tx, vals)
+
+    # Sort biggest-grand-total first for the summary tables
+    supplier_rows = sorted(
+        ({'name': k, **v} for k, v in by_supplier.items()),
+        key=lambda r: r['grand'], reverse=True)
+    category_rows = sorted(
+        ({'name': k, **v} for k, v in by_category.items()),
+        key=lambda r: r['grand'], reverse=True)
+
+    # Supplier × category cross view (the "intra-connected" breakdown):
+    # each supplier with its per-category lines + a supplier subtotal.
+    cross_rows = []
+    for sup in sorted(cross.keys(), key=lambda s: by_supplier[s]['grand'], reverse=True):
+        cats = sorted(
+            ({'name': c, **b} for c, b in cross[sup].items()),
+            key=lambda r: r['grand'], reverse=True)
+        cross_rows.append({'supplier': sup, 'subtotal': by_supplier[sup], 'categories': cats})
+
+    log_audit(request.user, "Printed Audit Ledger",
+              f"Printed bill-by-bill audit for {len(tx_list)} bill(s)")
+
+    return render(request, 'documents/audit_print.html', {
+        'transactions': tx_list,
+        'totals': totals,
+        'supplier_rows': supplier_rows,
+        'category_rows': category_rows,
+        'cross_rows': cross_rows,
+        'count': len(tx_list),
+        'printed_on': timezone.now(),
+    })
+
+
+@login_required
+@permission_required('p_view_bill_summary')
+def audit_ledger(request):
+    """Filter + select screen for the audit run. Every matching bill is one row
+    showing its money breakdown (base cost, subtotal, service charge, duty, VAT,
+    TAX, grand total) plus the seller. Filter by bill number / seller / buyer
+    (q), date range, category, status, or an explicit list of bill ids. From
+    here you print the selection bill-by-bill (audit_print) or export CSV. Column
+    show/hide, widths and extra columns are client-side (see audit_ledger.html)."""
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    category_id = request.GET.get('category', '').strip()
+    date_from = parse_date(request.GET.get('date_from', '')) if request.GET.get('date_from') else None
+    date_to = parse_date(request.GET.get('date_to', '')) if request.GET.get('date_to') else None
+    ids_raw = request.GET.get('ids', '').strip()
+
+    tx_list = _audit_filtered_transactions(request, order='-created_at')
+
+    rows = []
+    tot = {'base': 0, 'subtotal': 0, 'service': 0, 'duty': 0, 'vat': 0, 'tax': 0, 'grand': 0}
+    for tx in tx_list:
+        base_cost = sum((item.base_price * item.quantity for item in tx.items.all()), 0)
+        subtotal = tx.display_subtotal
+        service = tx.total_service_charge
+        duty = tx.total_duty
+        vat = tx.total_vat
+        tax = tx.total_tax
+        grand = tx.grand_total
+        tot['base'] += base_cost
+        tot['subtotal'] += subtotal
+        tot['service'] += service
+        tot['duty'] += duty
+        tot['vat'] += vat
+        tot['tax'] += tax
+        tot['grand'] += grand
+        rows.append({
+            'pk': tx.pk,
+            'invoice_number': tx.invoice_number or f'TX-{tx.pk}',
+            'date': tx.created_at,
+            'seller': tx.supplier_name or '—',
+            'seller_bin': tx.supplier_bin or '',
+            'buyer': tx.buyer_name or '—',
+            'category': tx.transaction_category.name if tx.transaction_category else 'General',
+            'base': base_cost,
+            'subtotal': subtotal,
+            'service': service,
+            'duty': duty,
+            'vat': vat,
+            'tax': tax,
+            'grand': grand,
+            'status': tx.status,
+        })
+
+    # CSV export honours the current filter set (all data columns).
+    if request.GET.get('export') == 'csv':
+        import csv
+        resp = HttpResponse(content_type='text/csv')
+        resp['Content-Disposition'] = 'attachment; filename="audit_ledger.csv"'
+        w = csv.writer(resp)
+        w.writerow(['Bill No', 'Date', 'Seller', 'Seller BIN', 'Buyer', 'Category',
+                    'Base', 'Subtotal', 'Service Charge', 'Duty', 'VAT', 'TAX', 'Grand Total', 'Status'])
+        for r in rows:
+            w.writerow([r['invoice_number'], r['date'].strftime('%Y-%m-%d'), r['seller'], r['seller_bin'],
+                        r['buyer'], r['category'], r['base'], r['subtotal'], r['service'],
+                        r['duty'], r['vat'], r['tax'], r['grand'], r['status']])
+        w.writerow(['TOTAL', '', '', '', '', '', tot['base'], tot['subtotal'], tot['service'],
+                    tot['duty'], tot['vat'], tot['tax'], tot['grand'], ''])
+        return resp
+
+    filters_active = bool(q or status or category_id or date_from or date_to or ids_raw)
+    context = {
+        'rows': rows,
+        'totals': tot,
+        'result_count': len(rows),
+        'categories': TransactionCategory.objects.order_by('name'),
+        'status_choices': Transaction.STATUS_CHOICES,
+        'filter_q': q,
+        'filter_status': status,
+        'filter_category': category_id,
+        'filter_date_from': request.GET.get('date_from', ''),
+        'filter_date_to': request.GET.get('date_to', ''),
+        'filter_ids': ids_raw,
+        'filters_active': filters_active,
+    }
+    return render(request, 'documents/audit_ledger.html', context)
+
+
 @login_required
 def party_list(request):
     parties = BusinessParty.objects.all().order_by('name')
@@ -893,8 +1116,8 @@ def transaction_update(request, pk):
     transaction = get_object_or_404(Transaction, pk=pk)
     # _sync_transaction_category_defaults(transaction) # DISABLED: This was overwriting user inputs with category defaults
     
-    # Immutability Check: Only Owners/Admins can edit after DRAFT
-    is_admin = request.user.role == 'OWNER' or request.user.is_superuser
+    # Immutability Check: Owners/Accountants/Users with p_edit_bill can edit after DRAFT
+    is_admin = request.user.role in ['OWNER', 'ACCOUNTANT'] or request.user.is_superuser or getattr(request.user, 'p_edit_bill', False)
     if not is_admin and transaction.status != 'DRAFT':
         messages.error(request, "Access Denied: This bill is finalized or submitted for pricing and is now immutable.")
         return redirect('transaction_list')
@@ -1114,6 +1337,40 @@ def transaction_update_status(request, pk):
 
 
 @login_required
+def api_quick_status(request, pk):
+    """Zero-redirect one-click status change (e.g. DRAFT → APPROVED) for the
+    Bills Command Center. Same forward-only rule as transaction_update_status:
+    non-admins may only move a bill forward; rolling back needs Owner/superuser."""
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
+    tx = get_object_or_404(Transaction, pk=pk)
+    try:
+        new_status = (json.loads(request.body.decode('utf-8') or '{}') or {}).get('status')
+    except Exception:
+        new_status = None
+    if new_status not in dict(Transaction.STATUS_CHOICES):
+        return JsonResponse({'ok': False, 'error': 'Invalid status'}, status=400)
+
+    old_status = tx.status
+    is_admin = request.user.role == 'OWNER' or request.user.is_superuser
+    STATUS_ORDER = ['DRAFT', 'PRICED', 'APPROVED', 'SUBMITTED', 'RELEASED']
+    if (not is_admin and new_status in STATUS_ORDER and old_status in STATUS_ORDER
+            and STATUS_ORDER.index(new_status) < STATUS_ORDER.index(old_status)):
+        return JsonResponse({'ok': False, 'error': 'Only the Owner can move a bill back to an earlier status.'}, status=403)
+
+    if old_status != new_status:
+        from django.utils import timezone
+        tx.status = new_status
+        tx.status_updated_at = timezone.now()
+        tx.save(update_fields=['status', 'status_updated_at'])
+        log_audit(request.user, "Status Update",
+                  f"Quick status change for {tx.invoice_number or tx.pk}: {old_status} → {new_status}.",
+                  transaction=tx)
+    return JsonResponse({'ok': True, 'status': new_status, 'old': old_status})
+
+
+@login_required
 @permission_required('p_view_gate_entry')
 def gate_entry(request):
     from datetime import timedelta, datetime
@@ -1266,20 +1523,78 @@ def product_list(request):
     }
     sort_field = sort_mapping.get(sort_query, 'category__name')
 
+    from django.db.models import Q
     if is_owner:
-        products = Product.objects.all().select_related('category', 'added_by').order_by(sort_field, 'name')
+        products = Product.objects.all()
     else:
-        from django.db.models import Q
         # Non-owners see approved products OR products they added themselves
-        products = Product.objects.filter(
-            Q(is_approved=True) | Q(added_by=request.user)
-        ).select_related('category', 'added_by').order_by(sort_field, 'name')
-        
+        products = Product.objects.filter(Q(is_approved=True) | Q(added_by=request.user))
+    products = products.select_related('category', 'added_by')
+
+    # ── Filters ──
+    q = request.GET.get('q', '').strip()
+    category_id = request.GET.get('category', '').strip()
+    status = request.GET.get('status', '').strip()   # 'approved' | 'pending' | ''
+    if q:
+        products = products.filter(name__icontains=q)
+    if category_id:
+        products = products.filter(category_id=category_id)
+    if status == 'approved':
+        products = products.filter(is_approved=True)
+    elif status == 'pending':
+        products = products.filter(is_approved=False)
+
+    products = products.order_by(sort_field, 'name')
+
     return render(request, 'documents/product_list.html', {
         'products': products,
         'is_owner': is_owner,
-        'current_sort': sort_query
+        'current_sort': sort_query,
+        'categories': TransactionCategory.objects.order_by('name'),
+        'filter_q': q,
+        'filter_category': category_id,
+        'filter_status': status,
+        'filters_active': bool(q or category_id or status),
+        'result_count': products.count(),
     })
+
+
+@login_required
+def product_bulk_delete(request):
+    """Delete several products at once. Owners/superusers can remove any selected
+    product; other users can only remove their own not-yet-approved products
+    (matching the single-delete rule) — anything else is skipped."""
+    if request.method != 'POST':
+        return redirect('product_list')
+
+    ids = request.POST.getlist('ids')
+    id_list = [int(i) for i in ids if str(i).isdigit()]
+    if not id_list:
+        messages.error(request, "No products selected.")
+        return redirect('product_list')
+
+    is_owner = request.user.role == 'OWNER' or request.user.is_superuser
+    qs = Product.objects.filter(pk__in=id_list)
+    if not is_owner:
+        qs = qs.filter(added_by=request.user, is_approved=False)
+
+    deletable = list(qs)
+    count = len(deletable)
+    if count == 0:
+        messages.error(request, "You do not have permission to delete the selected products.")
+        return redirect('product_list')
+
+    skipped = len(id_list) - count
+    names = ", ".join(p.name for p in deletable[:10])
+    qs.delete()
+
+    msg = f"Deleted {count} product{'s' if count != 1 else ''}."
+    if skipped:
+        msg += f" {skipped} skipped (no permission)."
+    messages.success(request, msg)
+    log_audit(request.user, "Bulk Deleted Products",
+              f"Deleted {count} product(s): {names}{'…' if count > 10 else ''}")
+    return redirect('product_list')
 
 @login_required
 def product_create(request):
@@ -1385,6 +1700,7 @@ def product_search_api(request):
             'name': p.name,
             'base_price': str(p.upscale_value), # Return Upscale Value as the default base price
             'unit': p.unit,
+            'updated': p.updated_at.strftime('%d %b %Y') if p.updated_at else '',
         })
     return JsonResponse({'results': data})
 
@@ -1712,18 +2028,19 @@ def api_get_party_details(request, party_id):
 
 @login_required
 def print_layout_api(request, pk, doc_type):
-    """Per-bill print layout store, scoped to (bill, document type).
+    """Print layout store, scoped to (bill, document type) or global (pk='global').
 
-    GET  -> {"store": <this bill's saved layout blob or null>}
+    GET  -> {"store": <layout blob or null>, "is_custom": bool, "has_bill_override": bool}
     POST -> body is the whole editor store blob; upserts and returns {"ok": true}
-    Each bill keeps its own layout, so editing one bill's print never affects
-    another, and bulk printing applies each bill's own saved layout.
     """
     from .models import PrintLayout, Transaction
     valid = {c[0] for c in PrintLayout.DOC_TYPES}
     if doc_type not in valid:
         return JsonResponse({'error': 'invalid document type'}, status=400)
-    transaction = get_object_or_404(Transaction, pk=pk)
+
+    transaction = None
+    if str(pk).lower() != 'global':
+        transaction = get_object_or_404(Transaction, pk=pk)
 
     if request.method == 'POST':
         import json
@@ -1737,10 +2054,38 @@ def print_layout_api(request, pk, doc_type):
         obj.data = data
         obj.updated_by = request.user if request.user.is_authenticated else None
         obj.save()
-        return JsonResponse({'ok': True})
+        return JsonResponse({'ok': True, 'is_global': (transaction is None)})
 
-    obj = PrintLayout.objects.filter(transaction=transaction, doc_type=doc_type).first()
-    return JsonResponse({'store': obj.data if obj else None})
+    # GET request
+    # 1. If fetching for a specific bill, check if bill has custom layout
+    if transaction:
+        obj = PrintLayout.objects.filter(transaction=transaction, doc_type=doc_type).first()
+        if obj and obj.data:
+            return JsonResponse({'store': obj.data, 'is_custom': True, 'has_bill_override': True})
+
+    # 2. Fallback to global default layout for this doc_type (transaction=None)
+    global_obj = PrintLayout.objects.filter(transaction=None, doc_type=doc_type).first()
+    if global_obj and global_obj.data:
+        return JsonResponse({'store': global_obj.data, 'is_custom': False, 'has_bill_override': False})
+
+    return JsonResponse({'store': None, 'is_custom': False, 'has_bill_override': False})
+
+
+@login_required
+def print_layout_reset_api(request, pk, doc_type):
+    """Deletes bill-specific layout override so the bill reverts to global default."""
+    from .models import PrintLayout, Transaction
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    
+    transaction = get_object_or_404(Transaction, pk=pk)
+    PrintLayout.objects.filter(transaction=transaction, doc_type=doc_type).delete()
+    
+    global_obj = PrintLayout.objects.filter(transaction=None, doc_type=doc_type).first()
+    return JsonResponse({
+        'ok': True,
+        'store': global_obj.data if (global_obj and global_obj.data) else None
+    })
 
 import os
 from django.contrib import messages
@@ -2112,7 +2457,9 @@ def api_inline_save_transaction(request, pk):
         transaction.supplier_name = str(data['supplier_name']).strip()
     if 'status' in data and data['status'] in dict(Transaction.STATUS_CHOICES):
         transaction.status = data['status']
-        
+    if 'challan_status' in data:
+        transaction.challan_status = str(data['challan_status'] or '')
+
     transaction.save()
     
     # Update / Recreate Line Items
@@ -2193,3 +2540,626 @@ def api_inline_save_transaction(request, pk):
         'grand_total': f"{transaction.grand_total:.2f}",
         'items': updated_items
     })
+
+
+# ── Quick Notes API Views ──────────────────────────────────────
+@login_required
+def notes_api_list_create(request):
+    """List notes for current user or create a new note."""
+    from documents.models import Note
+    import json
+
+    if request.method == 'GET':
+        notes = Note.objects.filter(user=request.user, is_deleted=False).order_by('-is_pinned', '-updated_at')
+        notes_data = [{
+            'id': n.id,
+            'title': n.title,
+            'content': n.content,
+            'color': n.color,
+            'is_pinned': n.is_pinned,
+            'created_at': n.created_at.strftime('%Y-%m-%d %H:%M'),
+            'updated_at': n.updated_at.strftime('%Y-%m-%d %H:%M'),
+            'updated_at_iso': n.updated_at.isoformat(),
+        } for n in notes]
+        return JsonResponse({'ok': True, 'notes': notes_data})
+
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            data = request.POST
+
+        title = str(data.get('title', '')).strip()
+        content = str(data.get('content', '')).strip()
+        color = str(data.get('color', 'yellow')).strip().lower()
+        if color not in ['yellow', 'rose', 'emerald', 'sky', 'purple', 'slate']:
+            color = 'yellow'
+        is_pinned = bool(data.get('is_pinned', False))
+
+        note = Note.objects.create(
+            user=request.user,
+            title=title,
+            content=content,
+            color=color,
+            is_pinned=is_pinned
+        )
+        return JsonResponse({
+            'ok': True,
+            'note': {
+                'id': note.id,
+                'title': note.title,
+                'content': note.content,
+                'color': note.color,
+                'is_pinned': note.is_pinned,
+                'created_at': note.created_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at_iso': note.updated_at.isoformat(),
+            }
+        }, status=201)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@login_required
+def notes_api_detail(request, pk):
+    """GET, PUT/PATCH or DELETE a specific note."""
+    from documents.models import Note
+    import json
+
+    note = get_object_or_404(Note, pk=pk, user=request.user, is_deleted=False)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'ok': True,
+            'note': {
+                'id': note.id,
+                'title': note.title,
+                'content': note.content,
+                'color': note.color,
+                'is_pinned': note.is_pinned,
+                'created_at': note.created_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at_iso': note.updated_at.isoformat(),
+            }
+        })
+
+    elif request.method in ['PUT', 'PATCH', 'POST']:
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            data = request.POST
+
+        if 'title' in data:
+            note.title = str(data['title']).strip()
+        if 'content' in data:
+            note.content = str(data['content']).strip()
+        if 'color' in data:
+            col = str(data['color']).strip().lower()
+            if col in ['yellow', 'rose', 'emerald', 'sky', 'purple', 'slate']:
+                note.color = col
+        if 'is_pinned' in data:
+            note.is_pinned = bool(data['is_pinned'])
+
+        note.save()
+        return JsonResponse({
+            'ok': True,
+            'note': {
+                'id': note.id,
+                'title': note.title,
+                'content': note.content,
+                'color': note.color,
+                'is_pinned': note.is_pinned,
+                'created_at': note.created_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'updated_at_iso': note.updated_at.isoformat(),
+            }
+        })
+
+    elif request.method == 'DELETE':
+        note.is_deleted = True
+        note.save()
+        return JsonResponse({'ok': True, 'id': pk})
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@login_required
+def notes_api_toggle_pin(request, pk):
+    """Toggle pin state for a note."""
+    from documents.models import Note
+    note = get_object_or_404(Note, pk=pk, user=request.user, is_deleted=False)
+    if request.method == 'POST':
+        note.is_pinned = not note.is_pinned
+        note.save()
+        return JsonResponse({'ok': True, 'id': note.id, 'is_pinned': note.is_pinned})
+    return JsonResponse({'error': 'POST required'}, status=405)
+
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Shared Drive
+# ══════════════════════════════════════════════════════════════════════════
+def _can_manage_drive(user):
+    return user.is_superuser or getattr(user, 'role', '') == 'OWNER' or user.p_manage_drive
+
+
+@login_required
+def drive_home(request):
+    folder_id = request.GET.get('folder')
+    folder = get_object_or_404(DriveFolder, pk=folder_id) if folder_id else None
+    subfolders = DriveFolder.objects.filter(parent=folder)
+    files = DriveFile.objects.filter(folder=folder)
+    return render(request, 'documents/drive.html', {
+        'folder': folder,
+        'breadcrumbs': folder.breadcrumbs if folder else [],
+        'subfolders': subfolders,
+        'files': files,
+        'can_manage': _can_manage_drive(request.user),
+    })
+
+
+@login_required
+@permission_required('p_manage_drive')
+def drive_folder_create(request):
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        parent_id = request.POST.get('parent') or None
+        parent = get_object_or_404(DriveFolder, pk=parent_id) if parent_id else None
+        if name:
+            DriveFolder.objects.create(name=name, parent=parent, created_by=request.user)
+            log_audit(request.user, "Drive", f"Created folder '{name}'")
+            messages.success(request, f"Folder '{name}' created.")
+        else:
+            messages.error(request, "Folder name is required.")
+        return redirect(f"/drive/?folder={parent.id}" if parent else 'drive_home')
+    return redirect('drive_home')
+
+
+@login_required
+@permission_required('p_manage_drive')
+def drive_folder_rename(request, pk):
+    folder = get_object_or_404(DriveFolder, pk=pk)
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        if name:
+            folder.name = name
+            folder.save(update_fields=['name'])
+            messages.success(request, "Folder renamed.")
+    parent = folder.parent
+    return redirect(f"/drive/?folder={parent.id}" if parent else 'drive_home')
+
+
+@login_required
+@permission_required('p_manage_drive')
+def drive_folder_delete(request, pk):
+    folder = get_object_or_404(DriveFolder, pk=pk)
+    parent = folder.parent
+    if request.method == 'POST':
+        # remove the physical files under this folder subtree first
+        stack = [folder]
+        while stack:
+            f = stack.pop()
+            stack.extend(list(f.children.all()))
+            for df in f.files.all():
+                df.file.delete(save=False)
+        name = folder.name
+        folder.delete()
+        log_audit(request.user, "Drive", f"Deleted folder '{name}' (and its contents)")
+        messages.success(request, f"Folder '{name}' and its contents deleted.")
+    return redirect(f"/drive/?folder={parent.id}" if parent else 'drive_home')
+
+
+@login_required
+@permission_required('p_manage_drive')
+def drive_upload(request):
+    if request.method == 'POST':
+        folder_id = request.POST.get('folder') or None
+        folder = get_object_or_404(DriveFolder, pk=folder_id) if folder_id else None
+        uploaded = request.FILES.getlist('files')
+        count = 0
+        for f in uploaded:
+            DriveFile.objects.create(
+                folder=folder, file=f, original_name=f.name,
+                size=f.size, content_type=getattr(f, 'content_type', '') or '',
+                uploaded_by=request.user,
+            )
+            count += 1
+        if count:
+            log_audit(request.user, "Drive", f"Uploaded {count} file(s)")
+            messages.success(request, f"Uploaded {count} file(s).")
+        else:
+            messages.error(request, "No files selected.")
+        return redirect(f"/drive/?folder={folder.id}" if folder else 'drive_home')
+    return redirect('drive_home')
+
+
+@login_required
+def drive_download(request, pk):
+    df = get_object_or_404(DriveFile, pk=pk)
+    return FileResponse(df.file.open('rb'), as_attachment=True, filename=df.original_name)
+
+
+@login_required
+@permission_required('p_manage_drive')
+def drive_file_delete(request, pk):
+    df = get_object_or_404(DriveFile, pk=pk)
+    folder = df.folder
+    if request.method == 'POST':
+        name = df.original_name
+        df.file.delete(save=False)
+        df.delete()
+        log_audit(request.user, "Drive", f"Deleted file '{name}'")
+        messages.success(request, f"Deleted '{name}'.")
+    return redirect(f"/drive/?folder={folder.id}" if folder else 'drive_home')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Custom Table Builder
+# ══════════════════════════════════════════════════════════════════════════
+def _can_manage_tables(user):
+    return user.is_superuser or getattr(user, 'role', '') == 'OWNER' or user.p_manage_tables
+
+
+def _fmt_money(val):
+    try:
+        return f"{float(val):,.2f}"
+    except (TypeError, ValueError):
+        return str(val)
+
+
+def bill_token_map(t):
+    """The {{token}} → value map for one bill. Shared by the xlsx export and the
+    editor's live-preview endpoint so both resolve identically."""
+    if t is None:
+        return {}
+    cat = t.transaction_category.name if t.transaction_category else ''
+    return {
+        'invoice_number': t.invoice_number or '',
+        'challan_number': t.challan_number or '',
+        'supplier_name': t.supplier_name or '',
+        'supplier_bin': t.supplier_bin or '',
+        'supplier_address': t.supplier_address or '',
+        'supplier_contact': t.supplier_contact or '',
+        'buyer_name': t.buyer_name or '',
+        'buyer_bin': t.buyer_bin or '',
+        'buyer_address': t.buyer_address or '',
+        'buyer_contact': t.buyer_contact or '',
+        'category': cat,
+        'date': t.created_at.strftime('%d %b %Y') if t.created_at else '',
+        'subtotal': _fmt_money(t.display_subtotal),
+        'vat': _fmt_money(t.total_vat),
+        'tax': _fmt_money(t.total_tax),
+        'duty': _fmt_money(t.total_duty),
+        'service_charge': _fmt_money(t.total_service_charge),
+        'discount': _fmt_money(t.discount_amount),
+        'grand_total': _fmt_money(t.grand_total),
+        'item_count': str(t.items.count()),
+    }
+
+
+def resolve_table_tokens(text, transaction):
+    """Replace {{token}} placeholders in a cell with live data from `transaction`.
+    Unknown tokens and a missing transaction leave the text unchanged so the
+    saved template stays reusable across bills."""
+    if not text or '{{' not in text or transaction is None:
+        return text
+    tokens = bill_token_map(transaction)
+    import re
+    return re.sub(r'\{\{\s*(\w+)\s*\}\}',
+                  lambda m: tokens.get(m.group(1), m.group(0)), text)
+
+
+@login_required
+def table_bill_tokens(request):
+    """Return the resolved token → value map for a bill, for the editor preview."""
+    t = Transaction.objects.filter(pk=request.GET.get('bill_id')).first()
+    return JsonResponse({'tokens': bill_token_map(t)})
+
+
+# The token names offered in the editor palette (label, token).
+TABLE_TOKENS = [
+    ('Invoice No', 'invoice_number'), ('Challan No', 'challan_number'),
+    ('Supplier Name', 'supplier_name'), ('Supplier BIN', 'supplier_bin'),
+    ('Supplier Address', 'supplier_address'), ('Supplier Contact', 'supplier_contact'),
+    ('Buyer Name', 'buyer_name'), ('Buyer BIN', 'buyer_bin'),
+    ('Buyer Address', 'buyer_address'), ('Buyer Contact', 'buyer_contact'),
+    ('Category', 'category'), ('Date', 'date'),
+    ('Subtotal', 'subtotal'), ('VAT', 'vat'), ('TAX', 'tax'), ('Duty', 'duty'),
+    ('Service Charge', 'service_charge'), ('Discount', 'discount'),
+    ('Grand Total', 'grand_total'), ('Item Count', 'item_count'),
+]
+
+
+@login_required
+def table_list(request):
+    templates = TableTemplate.objects.all()
+    return render(request, 'documents/table_list.html', {
+        'templates': templates,
+        'can_manage': _can_manage_tables(request.user),
+    })
+
+
+def _render_editor(request, template=None, data_json=None, initial_name=''):
+    import json
+    bills = list(Transaction.objects.order_by('-id').values('id', 'invoice_number', 'supplier_name')[:200])
+    if data_json is not None:
+        tdata = data_json
+    elif template:
+        tdata = json.dumps(template.data)
+    else:
+        tdata = 'null'
+    return render(request, 'documents/table_editor.html', {
+        'template': template,
+        'template_data_json': tdata,
+        'initial_name': initial_name,
+        'tokens': TABLE_TOKENS,
+        'bills_json': json.dumps(bills),
+        'can_manage': _can_manage_tables(request.user),
+    })
+
+
+@login_required
+def table_new(request):
+    return _render_editor(request, None)
+
+
+@login_required
+def table_edit(request, pk):
+    return _render_editor(request, get_object_or_404(TableTemplate, pk=pk))
+
+
+@login_required
+@permission_required('p_manage_tables')
+def table_save(request):
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=400)
+    payload = json.loads(request.body)
+    name = (payload.get('name') or 'Untitled Table').strip()
+    data = payload.get('data') or {}
+    tid = payload.get('id')
+    if tid:
+        tpl = get_object_or_404(TableTemplate, pk=tid)
+        tpl.name = name
+        tpl.description = payload.get('description', '')
+        tpl.data = data
+        tpl.save()
+    else:
+        tpl = TableTemplate.objects.create(
+            name=name, description=payload.get('description', ''),
+            data=data, created_by=request.user)
+    log_audit(request.user, "Table Builder", f"Saved table template '{name}'")
+    return JsonResponse({'ok': True, 'id': tpl.id, 'name': tpl.name})
+
+
+@login_required
+@permission_required('p_manage_tables')
+def table_delete(request, pk):
+    tpl = get_object_or_404(TableTemplate, pk=pk)
+    if request.method == 'POST':
+        name = tpl.name
+        tpl.delete()
+        log_audit(request.user, "Table Builder", f"Deleted table template '{name}'")
+        messages.success(request, f"Deleted '{name}'.")
+    return redirect('table_list')
+
+
+@login_required
+def table_export_xlsx(request):
+    """Build an .xlsx from the posted grid JSON, preserving merged cells and
+    styling. Live-data tokens are resolved if a bill is chosen."""
+    import json
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    payload = json.loads(request.body)
+    data = payload.get('data') or {}
+    name = (payload.get('name') or 'table').strip() or 'table'
+    bill_id = payload.get('bill_id')
+    transaction = Transaction.objects.filter(pk=bill_id).first() if bill_id else None
+
+    rows = int(data.get('rows') or 0)
+    cols = int(data.get('cols') or 0)
+    cells = data.get('cells') or {}
+    col_widths = data.get('colWidths') or []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (name[:28] or 'Table')
+    thin = Side(style='thin', color='D0D0D0')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def argb(hexval):
+        if not hexval:
+            return None
+        h = hexval.lstrip('#')
+        return ('FF' + h).upper() if len(h) == 6 else None
+
+    for r in range(rows):
+        for c in range(cols):
+            cell = cells.get(f"{r},{c}")
+            if cell is None:
+                xc = ws.cell(row=r + 1, column=c + 1, value=None)
+                xc.border = border
+                continue
+            if cell.get('hidden'):
+                continue
+            text = resolve_table_tokens(cell.get('t', ''), transaction)
+            xc = ws.cell(row=r + 1, column=c + 1, value=text)
+            rs = int(cell.get('rs') or 1)
+            cs = int(cell.get('cs') or 1)
+            if rs > 1 or cs > 1:
+                ws.merge_cells(start_row=r + 1, start_column=c + 1,
+                               end_row=r + rs, end_column=c + cs)
+            xc.font = Font(
+                bold=bool(cell.get('b') or cell.get('h')),
+                italic=bool(cell.get('i')),
+                color=argb(cell.get('fg')) or '00000000',
+            )
+            xc.alignment = Alignment(
+                horizontal=cell.get('a') or 'left',
+                vertical='center', wrap_text=True,
+            )
+            bg = argb(cell.get('bg')) or (argb('#f1f5f9') if cell.get('h') else None)
+            if bg:
+                xc.fill = PatternFill(start_color=bg, end_color=bg, fill_type='solid')
+            xc.border = border
+
+    for c in range(cols):
+        w = col_widths[c] if c < len(col_widths) and col_widths[c] else 90
+        ws.column_dimensions[get_column_letter(c + 1)].width = max(6, float(w) / 7.0)
+
+    resp = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    safe = ''.join(ch for ch in name if ch.isalnum() or ch in ' -_').strip() or 'table'
+    resp['Content-Disposition'] = f'attachment; filename="{safe}.xlsx"'
+    wb.save(resp)
+    return resp
+
+
+@login_required
+@permission_required('p_view_bills')
+def category_items_report(request):
+    """Collect every billed line item under a chosen category and open it in the
+    Table Builder editor — so it can be edited, given custom columns, and
+    exported to PDF / Excel / Print. 'Under a category' means the item's own
+    effective category (secondary items use the bill's secondary category)."""
+    import json
+    from django.db.models import Q
+    categories = TransactionCategory.objects.order_by('name')
+    cid = request.GET.get('category')
+    if not cid:
+        return render(request, 'documents/category_report.html', {
+            'categories': categories,
+            'statuses': Transaction.STATUS_CHOICES,
+            'filter_status': '', 'date_from': '', 'date_to': '',
+        })
+
+    cat = get_object_or_404(TransactionCategory, pk=cid)
+    status = request.GET.get('status', '').strip()
+    date_from = parse_date(request.GET.get('date_from', '')) if request.GET.get('date_from') else None
+    date_to = parse_date(request.GET.get('date_to', '')) if request.GET.get('date_to') else None
+
+    qs = TransactionItem.objects.filter(
+        Q(is_secondary=False, transaction__transaction_category_id=cid) |
+        Q(is_secondary=True, transaction__secondary_category_id=cid)
+    ).select_related('transaction', 'transaction__transaction_category', 'transaction__secondary_category')
+    if status:
+        qs = qs.filter(transaction__status=status)
+    if date_from:
+        qs = qs.filter(transaction__created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(transaction__created_at__date__lte=date_to)
+    items = list(qs.order_by('transaction__created_at', 'id'))
+
+    headers = ['SL', 'Date', 'Invoice', 'Supplier', 'Buyer', 'Description', 'Unit', 'Qty', 'Rate', 'Amount']
+    aligns = ['center', 'center', 'left', 'left', 'left', 'left', 'center', 'center', 'right', 'right']
+    cols = len(headers)
+    cells = {}
+    for c, h in enumerate(headers):
+        cells['0,%d' % c] = {'t': h, 'h': 1, 'b': 1, 'a': 'center', 'bg': '#f1f5f9'}
+
+    from decimal import Decimal as _D
+    total_amount = _D('0')
+    r = 1
+    for i, it in enumerate(items, 1):
+        t = it.transaction
+        amt = it.billed_total
+        try:
+            total_amount += amt
+        except Exception:
+            pass
+        row = [
+            str(i),
+            t.created_at.strftime('%d %b %Y') if t.created_at else '',
+            t.invoice_number or '',
+            t.supplier_name or '',
+            t.buyer_name or '',
+            it.display_description,
+            it.unit or '',
+            str(it.quantity),
+            _fmt_money(it.billed_unit_price),
+            _fmt_money(amt),
+        ]
+        for c, val in enumerate(row):
+            cells['%d,%d' % (r, c)] = {'t': val, 'a': aligns[c]}
+        r += 1
+
+    # Totals row: "TOTAL" merged across the label columns, sum in the Amount column.
+    cells['%d,0' % r] = {'t': 'TOTAL', 'b': 1, 'a': 'right', 'cs': cols - 1, 'bg': '#f8fafc'}
+    for c in range(1, cols - 1):
+        cells['%d,%d' % (r, c)] = {'hidden': 1}
+    cells['%d,%d' % (r, cols - 1)] = {'t': _fmt_money(total_amount), 'b': 1, 'a': 'right', 'bg': '#f8fafc'}
+    rows = r + 1
+
+    data = {'rows': rows, 'cols': cols, 'colWidths': [], 'cells': cells}
+    name = "%s — Billed Items" % cat.name
+    log_audit(request.user, "Category Report", f"Generated billed-items report for category '{cat.name}' ({len(items)} items)")
+    return _render_editor(request, None, data_json=json.dumps(data), initial_name=name)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  Per-invoice attachments (images / documents)
+# ══════════════════════════════════════════════════════════════════════════
+def _can_edit_bill(user):
+    return user.is_superuser or getattr(user, 'role', '') == 'OWNER' or user.p_edit_bill or user.p_create_bill
+
+
+@login_required
+@permission_required('p_view_bills')
+def bill_attachments(request, pk):
+    transaction = get_object_or_404(Transaction, pk=pk)
+    return render(request, 'documents/bill_attachments.html', {
+        'transaction': transaction,
+        'attachments': transaction.attachments.all(),
+        'can_edit': _can_edit_bill(request.user),
+    })
+
+
+@login_required
+def bill_attachment_upload(request, pk):
+    transaction = get_object_or_404(Transaction, pk=pk)
+    if not _can_edit_bill(request.user):
+        messages.error(request, "You do not have permission to add attachments.")
+        return redirect('bill_attachments', pk=pk)
+    if request.method == 'POST':
+        files = request.FILES.getlist('files')
+        count = 0
+        for f in files:
+            TransactionAttachment.objects.create(
+                transaction=transaction, file=f, original_name=f.name,
+                size=f.size, content_type=getattr(f, 'content_type', '') or '',
+                uploaded_by=request.user)
+            count += 1
+        if count:
+            log_audit(request.user, "Attachment",
+                      f"Uploaded {count} file(s) to Bill #{transaction.invoice_number or transaction.pk}",
+                      transaction=transaction)
+            messages.success(request, f"Uploaded {count} file(s).")
+        else:
+            messages.error(request, "No files selected.")
+    return redirect('bill_attachments', pk=pk)
+
+
+@login_required
+def bill_attachment_download(request, pk):
+    att = get_object_or_404(TransactionAttachment, pk=pk)
+    return FileResponse(att.file.open('rb'), as_attachment=True, filename=att.original_name)
+
+
+@login_required
+def bill_attachment_delete(request, pk):
+    att = get_object_or_404(TransactionAttachment, pk=pk)
+    tx_pk = att.transaction_id
+    if not _can_edit_bill(request.user):
+        messages.error(request, "You do not have permission to delete attachments.")
+        return redirect('bill_attachments', pk=tx_pk)
+    if request.method == 'POST':
+        name = att.original_name
+        att.file.delete(save=False)
+        att.delete()
+        log_audit(request.user, "Attachment", f"Deleted attachment '{name}'")
+        messages.success(request, f"Deleted '{name}'.")
+    return redirect('bill_attachments', pk=tx_pk)

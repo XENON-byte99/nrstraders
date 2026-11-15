@@ -4,92 +4,35 @@
 {% block content %}
 <style>
     /* ── Futuristic Dial & Workspace Animations ── */
-    .command-workspace {
-        height: calc(100vh - 100px);
+    @media (min-width: 1024px) {
+        .command-workspace {
+            height: calc(100vh - 105px);
+        }
+    }
+    @media (max-width: 1023px) {
+        .command-workspace {
+            height: auto;
+        }
     }
     
-    .dial-container {
-        position: relative;
-        width: 220px;
-        height: 220px;
-        margin: 0 auto;
-    }
-    
-    .dial-core {
-        position: absolute;
-        inset: 40px;
-        border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, #f43f5e 0%, #be123c 60%, #4c0519 100%);
-        box-shadow: 0 0 25px rgba(244, 63, 94, 0.4), inset 0 2px 5px rgba(255, 255, 255, 0.3);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 10;
-        transition: all 0.3s ease;
-    }
-
-    .dial-ring {
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        border: 2px dashed rgba(244, 63, 94, 0.25);
-        animation: spinSlow 60s linear infinite;
-    }
-    @keyframes spinSlow {
-        from { transform: rotate(0deg); }
-        to   { transform: rotate(360deg); }
-    }
-
-    .cat-node {
-        position: absolute;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: #18050a;
-        border: 2px solid rgba(244, 63, 94, 0.35);
-        color: #fecdd3;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        z-index: 20;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-    .cat-node:hover, .cat-node.active-node {
-        background: linear-gradient(135deg, #e11d48 0%, #9f1239 100%);
-        border-color: #f43f5e;
-        color: #ffffff;
-        transform: scale(1.2);
-        box-shadow: 0 0 20px rgba(244, 63, 94, 0.7);
-        z-index: 30;
-    }
-
-    /* Floating Hover Popup Tooltip */
-    .cat-node .cat-tooltip {
-        position: absolute;
-        bottom: 120%;
-        left: 50%;
-        transform: translateX(-50%) translateY(6px);
-        background: rgba(24, 4, 10, 0.95);
-        border: 1px solid rgba(244, 63, 94, 0.4);
-        color: #ffffff;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-size: 11px;
-        font-weight: 800;
-        white-space: nowrap;
-        pointer-events: none;
-        opacity: 0;
+    /* ── Category Roller Non-Circular Studio Deck ── */
+    .cat-card-item {
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-        letter-spacing: 0.02em;
+        border: 1.5px solid rgba(225, 29, 72, 0.15);
     }
-    .cat-node:hover .cat-tooltip {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
+    .cat-card-item:hover {
+        transform: translateY(-2px);
+        border-color: rgba(244, 63, 94, 0.4);
+        box-shadow: 0 4px 12px rgba(225, 29, 72, 0.12);
+    }
+    .cat-card-item.active-cat-item {
+        background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
+        color: #ffffff !important;
+        border-color: #f43f5e !important;
+        box-shadow: 0 6px 16px rgba(225, 29, 72, 0.35);
+    }
+    .cat-card-item.active-cat-item * {
+        color: #ffffff !important;
     }
 
     .queue-card {
@@ -157,7 +100,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
 
         <!-- ── COLUMN 1: ACTIVE BILL QUEUE (3 COLUMNS) ── -->
-        <div class="lg:col-span-3 bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
+        <div class="lg:col-span-3 h-[380px] lg:h-full bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
             <div class="p-3.5 border-b border-rose-100 bg-rose-50/40 flex items-center justify-between shrink-0">
                 <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
                     <i class="fas fa-list-ul text-rose-500 text-xs"></i>
@@ -175,6 +118,7 @@
                      data-pk="{{ item.pk }}"
                      data-invoice="{{ item.invoice_number|default:'-' }}"
                      data-challan="{{ item.challan_number|default:'-' }}"
+                     data-challan-status="{{ item.challan_status|default:''|escapejs }}"
                      data-category-id="{{ item.transaction_category.id|default:'' }}"
                      data-category-name="{{ item.transaction_category.name|default:'General' }}"
                      data-category-color="{{ item.transaction_category.color_theme|default:'gray' }}"
@@ -189,7 +133,7 @@
                      data-duty="{{ item.total_duty|floatformat:2 }}"
                      data-tax="{{ item.total_tax|floatformat:2 }}"
                      onclick="selectBillCard(this)">
-                    <div class="flex items-start justify-between gap-1.5 mb-1.5">
+                    <div class="flex items-start justify-between gap-1.5 mb-1">
                         <div class="font-extrabold text-slate-900 text-xs tracking-tight truncate">
                             {{ item.invoice_number|default:"-" }}
                         </div>
@@ -197,14 +141,34 @@
                             {{ item.status }}
                         </span>
                     </div>
-                    <div class="flex items-center justify-between text-[11px] text-slate-600 font-semibold mb-1">
-                        <span class="truncate max-w-[130px]"><i class="fas fa-user-tie text-rose-400 text-[10px] mr-1"></i>{{ item.buyer_name|truncatechars:18 }}</span>
-                        <span class="font-mono font-black text-rose-700">৳{{ item.grand_total|floatformat:0 }}</span>
+
+                    <!-- Buyer & Supplier Info -->
+                    <div class="space-y-1 mb-1.5">
+                        <div class="flex items-center justify-between text-[11px] font-semibold">
+                            <span class="truncate max-w-[140px] text-slate-800" title="Buyer: {{ item.buyer_name }}">
+                                <i class="fas fa-user-tie text-rose-500 text-[10px] mr-1"></i>{{ item.buyer_name|truncatechars:16 }}
+                            </span>
+                            <span class="font-mono font-black text-rose-700 text-xs">৳{{ item.grand_total|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center text-[10px] text-slate-500 font-medium truncate" title="Supplier: {{ item.supplier_name }}">
+                            <i class="fas fa-building text-sky-500 text-[9px] mr-1"></i>
+                            <span class="truncate">{{ item.supplier_name|default:"-"|truncatechars:18 }}</span>
+                        </div>
                     </div>
+
                     <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/50">
                         <span><i class="fas fa-tag text-slate-300 mr-1"></i>{{ item.transaction_category.name|default:"General" }}</span>
                         <span>{{ item.created_at|date:"M d" }}</span>
                     </div>
+
+                    {% if user.p_approve_bill or user.role == 'OWNER' or user.is_superuser %}
+                    {% if item.status == 'DRAFT' or item.status == 'PRICED' %}
+                    <button type="button" onclick="event.stopPropagation(); quickApprove(this, '{{ item.pk }}')"
+                            class="quick-approve-btn mt-2 w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold py-1.5 rounded-lg shadow-sm transition">
+                        <i class="fas fa-check-circle text-xs"></i> Approve
+                    </button>
+                    {% endif %}
+                    {% endif %}
 
                     <!-- Hidden JSON data for itemized line items -->
                     <script type="application/json" class="raw-items-data">
@@ -233,7 +197,7 @@
         </div>
 
         <!-- ── COLUMN 2: LIVE ITEMIZED INVOICE INSPECTOR & QUICK EDIT STUDIO (6 COLUMNS) ── -->
-        <div class="lg:col-span-6 inspector-panel rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-0 overflow-hidden">
+        <div class="lg:col-span-6 inspector-panel rounded-2xl border border-rose-100 shadow-sm flex flex-col min-h-[420px] lg:min-h-0 lg:h-full overflow-hidden">
             <div id="inspectorContent" class="flex flex-col h-full">
                 <!-- Inspector Header -->
                 <div class="p-4 border-b border-rose-100 bg-gradient-to-r from-rose-900/90 via-rose-950 to-slate-950 text-white flex items-center justify-between shrink-0 shadow-sm">
@@ -264,9 +228,24 @@
                             <i class="fas fa-bolt text-[10px] text-yellow-300"></i> <span id="btnLiveEditText">Live Edit</span>
                         </button>
 
-                        <a id="btnPrimaryEdit" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1">
-                            <i class="fas fa-edit text-[10px]"></i> <span id="btnPrimaryEditText">Edit Form</span>
+                        <a id="btnPrimaryEdit" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1" title="Full Edit Page (VAT, Tax, Service Charge, Party, Line Items)">
+                            <i class="fas fa-edit text-[10px]"></i> <span id="btnPrimaryEditText">Full Edit Form</span>
                         </a>
+
+                        <a id="btnPickAllToNewBill" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-sm flex items-center gap-1" title="Pick items from this bill to create a new bill">
+                            <i class="fas fa-hand-pointer text-[10px]"></i> Pick to New Bill
+                        </a>
+
+                        <a id="btnReviewApprove" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition shadow-sm flex items-center gap-1" title="Open the full pricing / approval page">
+                            <i class="fas fa-file-check text-[10px]"></i> <span id="btnReviewApproveText">Review &amp; Approve</span>
+                        </a>
+
+                        {% if user.p_approve_bill or user.role == 'OWNER' or user.is_superuser %}
+                        <button type="button" id="btnQuickApprove" onclick="quickApprove(this)"
+                                class="px-3 py-1 text-xs font-black rounded-lg bg-gradient-to-r from-emerald-600 to-teal-700 text-white hover:from-emerald-500 hover:to-teal-600 transition shadow-md shadow-emerald-600/30 flex items-center gap-1.5" title="One-click approve (no page load)">
+                            <i class="fas fa-check-circle text-xs"></i> Approve Now
+                        </button>
+                        {% endif %}
 
                         <span class="text-slate-300">|</span>
 
@@ -274,11 +253,20 @@
                         <a id="btnPrintQuote" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition">Quote</a>
                         <a id="btnPrintChallan" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">Challan</a>
                         <a id="btnPrintMushok" href="#" target="_blank" class="px-2 py-1 text-xs font-bold rounded-lg bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition">Mushok</a>
+
+                        <a id="btnAttachments" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition shadow-sm flex items-center gap-1" title="Images & documents attached to this bill"><i class="fas fa-paperclip text-[10px]"></i> Files</a>
+
+                        {% if user.is_superuser or user.role == 'OWNER' or user.p_delete_bill %}
+                        <span class="text-slate-300">|</span>
+                        <a id="btnDeleteBill" href="#" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition shadow-sm flex items-center gap-1" title="Delete this bill (asks for confirmation; permanent)">
+                            <i class="fas fa-trash-alt text-[10px]"></i> Delete
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
 
                 <!-- Live Itemized Breakdown Table & Live Edit Mode View -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-[260px] lg:min-h-0">
                     
                     <!-- IN-PLACE LIVE EDIT HEADER FORM -->
                     <div id="liveEditHeaderPanel" class="hidden bg-slate-900 text-white rounded-xl p-3.5 border border-rose-500/30 space-y-3">
@@ -328,12 +316,13 @@
                                         <th class="py-2.5 px-3 text-right w-24">Base Rate</th>
                                         <th class="py-2.5 px-3 text-right w-24">Selling Rate</th>
                                         <th class="py-2.5 px-3 text-right w-28">Billed Total</th>
+                                        <th class="py-2.5 px-2 text-center w-14">Pick</th>
                                         <th class="py-2.5 px-2 text-center w-10 live-edit-col hidden">Act</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100" id="inspItemsBody">
                                     <tr>
-                                        <td colspan="6" class="py-8 text-center text-slate-400 font-medium italic">
+                                        <td colspan="7" class="py-8 text-center text-slate-400 font-medium italic">
                                             Select a transaction from the queue to inspect line items
                                         </td>
                                     </tr>
@@ -343,23 +332,34 @@
                     </div>
 
                     <!-- Live Quick Status Edit & Save Panel -->
-                    <div class="bg-rose-50/40 rounded-xl p-3.5 border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <i class="fas fa-sliders text-rose-500 text-sm"></i>
-                            <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bill Status:</span>
-                            <select name="status" id="inspStatusSelect" class="px-3 py-1.5 text-xs font-extrabold border border-rose-200 rounded-xl bg-white text-slate-800 shadow-sm outline-none cursor-pointer">
-                                <option value="DRAFT">Draft</option>
-                                <option value="PRICED">Priced</option>
-                                <option value="APPROVED">Approved</option>
-                                <option value="SUBMITTED">Submitted</option>
-                                <option value="RELEASED">Released</option>
-                            </select>
+                    <div class="bg-rose-50/40 rounded-xl p-3.5 border border-rose-100 space-y-3">
+                        <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-sliders text-rose-500 text-sm"></i>
+                                <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bill Status:</span>
+                                <select name="status" id="inspStatusSelect" onchange="quickStatusFromSelect(this)" class="px-3 py-1.5 text-xs font-extrabold border border-rose-200 rounded-xl bg-white text-slate-800 shadow-sm outline-none cursor-pointer">
+                                    <option value="DRAFT">Draft</option>
+                                    <option value="PRICED">Priced</option>
+                                    <option value="APPROVED">Approved</option>
+                                    <option value="SUBMITTED">Submitted</option>
+                                    <option value="RELEASED">Released</option>
+                                </select>
+                            </div>
+
+                            <!-- ZERO REDIRECT SAVE ALL BUTTON -->
+                            <button type="button" id="btnSaveLiveChanges" onclick="saveLiveEditsAJAX()" class="hidden bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white px-5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5">
+                                <i class="fas fa-check-circle text-sm"></i> SAVE ALL CHANGES LIVE
+                            </button>
                         </div>
 
-                        <!-- ZERO REDIRECT SAVE ALL BUTTON -->
-                        <button type="button" id="btnSaveLiveChanges" onclick="saveLiveEditsAJAX()" class="hidden bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white px-5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5">
-                            <i class="fas fa-check-circle text-sm"></i> SAVE ALL CHANGES LIVE
-                        </button>
+                        <!-- Always-visible Challan Status editor -->
+                        <div class="flex items-end gap-2 border-t border-rose-100 pt-3">
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1"><i class="fas fa-truck-fast text-rose-500 mr-1"></i>Challan Status <span class="text-slate-400 font-semibold normal-case">— free text, prints on the invoice</span></label>
+                                <textarea id="editChallanStatusInput" rows="2" placeholder="e.g. Delivered on 12 Aug, received by store keeper…" class="w-full px-3 py-1.5 border border-rose-200 rounded-xl bg-white text-slate-800 text-xs outline-none focus:border-rose-400 resize-y"></textarea>
+                            </div>
+                            <button type="button" onclick="saveChallanStatus()" class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5"><i class="fas fa-floppy-disk"></i> Save</button>
+                        </div>
                     </div>
 
                 </div>
@@ -391,57 +391,83 @@
             </div>
         </div>
 
-        <!-- ── COLUMN 3: FUTURISTIC CIRCULAR CATEGORY ROLLER DIAL (3 COLUMNS) ── -->
-        <div class="lg:col-span-3 bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm p-4 flex flex-col items-center justify-between min-h-0 overflow-y-auto">
+        <!-- ── COLUMN 3: CATEGORY ROLLER STUDIO (3 COLUMNS) ── -->
+        <div class="lg:col-span-3 bg-white/90 backdrop-blur-md rounded-2xl border border-rose-100 shadow-sm p-4 flex flex-col justify-between min-h-[300px] lg:min-h-0 overflow-hidden">
             
-            <div class="text-center w-full">
-                <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
-                    <i class="fas fa-circle-notch text-rose-500 animate-spin" style="animation-duration: 10s;"></i>
-                    Category Roller
-                </h3>
-                <p class="text-[10px] text-slate-400 font-medium">Hover over nodes for popup names, click to filter</p>
+            <div class="p-1 border-b border-rose-100 pb-2.5 mb-2 shrink-0 flex items-center justify-between">
+                <div>
+                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                        <i class="fas fa-layer-group text-rose-500"></i>
+                        Category Roller
+                    </h3>
+                    <p class="text-[10px] text-slate-400 font-medium mt-0.5">Click category card to filter queue</p>
+                </div>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                    {{ categories|length }} Categories
+                </span>
             </div>
 
-            <!-- Interactive 3D Circular Category Dial Widget -->
-            <div class="py-4 my-auto">
-                <div class="dial-container">
-                    <div class="dial-ring"></div>
-                    
-                    <!-- Dial Core Display -->
-                    <div class="dial-core text-white text-center cursor-pointer" onclick="selectCategoryDial('', 'All Categories')">
-                        <i class="fas fa-boxes-stacked text-lg text-rose-200 mb-0.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-wider text-white" id="dialCoreText">ALL</span>
-                        <span class="text-[9px] font-bold text-rose-200 font-mono" id="dialCoreCount">{{ result_count }} Bills</span>
-                    </div>
-
-                    <!-- Category Nodes Rotated Around Orbit Radius -->
-                    <div id="catNodesWrapper">
-                        {% for cat in categories %}
-                        <div class="cat-node {% if filter_category == cat.id|stringformat:'s' %}active-node{% endif %}"
-                             data-cat-id="{{ cat.id }}"
-                             data-cat-name="{{ cat.name }}"
-                             onclick="selectCategoryDial('{{ cat.id }}', '{{ cat.name|escapejs }}')">
-                            <i class="fas fa-tag text-xs"></i>
-                            <!-- Floating Hover Tooltip Popup -->
-                            <div class="cat-tooltip">{{ cat.name }}</div>
+            <!-- Category Cards Roller Deck -->
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1 my-1" id="catCardsDeck">
+                <!-- All Categories Main Button -->
+                <div class="cat-card-item p-2.5 rounded-xl bg-slate-50 cursor-pointer flex items-center justify-between {% if not filter_category %}active-cat-item{% endif %}"
+                     onclick="selectCategoryDial('', 'All Categories')">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-rose-100/70 text-rose-600 flex items-center justify-center text-xs shrink-0">
+                            <i class="fas fa-boxes-stacked"></i>
                         </div>
-                        {% endfor %}
+                        <div>
+                            <p class="text-xs font-extrabold text-slate-800 tracking-tight">All Categories</p>
+                            <p class="text-[9.5px] text-slate-400 font-medium">Show all bills</p>
+                        </div>
                     </div>
+                    <span class="text-xs font-mono font-black text-rose-700 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200/60">
+                        {{ result_count }}
+                    </span>
                 </div>
+
+                {% for cat in categories %}
+                <div class="cat-card-item p-2.5 rounded-xl bg-slate-50/70 cursor-pointer flex items-center justify-between {% if filter_category == cat.id|stringformat:'s' %}active-cat-item{% endif %}"
+                     data-cat-id="{{ cat.id }}"
+                     data-cat-name="{{ cat.name }}"
+                     onclick="selectCategoryDial('{{ cat.id }}', '{{ cat.name|escapejs }}')">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <div class="w-7 h-7 rounded-lg bg-rose-100/70 text-rose-600 flex items-center justify-center text-xs shrink-0">
+                            <i class="fas fa-tag"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-extrabold text-slate-800 tracking-tight truncate">{{ cat.name }}</p>
+                            <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                                <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700">VAT {{ cat.default_vat }}%</span>
+                                <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700">TAX {{ cat.default_tax }}%</span>
+                                {% if cat.default_duty > 0 %}
+                                <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">Duty {{ cat.default_duty }}%</span>
+                                {% endif %}
+                                {% if cat.default_service_charge > 0 %}
+                                <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">SC {{ cat.default_service_charge }}%</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if filter_category == cat.id|stringformat:'s' %}
+                    <span class="text-[10px] font-black text-white bg-rose-800 px-2 py-0.5 rounded-full uppercase ml-1 shrink-0">Active</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
 
             <!-- Active Category Metrics Footer -->
-            <div class="w-full bg-rose-50/50 rounded-xl p-3 border border-rose-100 space-y-1.5 text-xs">
+            <div class="w-full bg-rose-50/50 rounded-xl p-3 border border-rose-100 space-y-1.5 text-xs shrink-0 mt-2">
                 <div class="flex justify-between items-center text-slate-600">
                     <span class="font-bold text-[10px] uppercase text-slate-400">Active Category:</span>
-                    <span class="font-extrabold text-rose-700" id="catMetricName">{% if filter_category %}Filtered{% else %}All Categories{% endif %}</span>
+                    <span class="font-extrabold text-rose-700 truncate max-w-[120px]" id="catMetricName">{% if filter_category %}Filtered{% else %}All Categories{% endif %}</span>
                 </div>
                 <div class="flex justify-between items-center font-mono">
                     <span class="text-[10px] text-slate-400 font-bold uppercase">Queue Count:</span>
                     <span class="font-black text-slate-800" id="catMetricCount">{{ result_count }}</span>
                 </div>
-                <button type="button" onclick="selectCategoryDial('', 'All Categories')" class="w-full text-center py-1 bg-white hover:bg-rose-100 text-rose-700 text-[10px] font-black rounded-lg border border-rose-200 transition mt-1">
-                    <i class="fas fa-rotate-left mr-1"></i> Reset Category Filter
+                <button type="button" onclick="selectCategoryDial('', 'All Categories')" class="w-full text-center py-1 bg-white hover:bg-rose-100 text-rose-700 text-[10px] font-black rounded-lg border border-rose-200 transition mt-1 flex items-center justify-center gap-1">
+                    <i class="fas fa-rotate-left text-[9px]"></i> Reset Category Filter
                 </button>
             </div>
 
@@ -496,6 +522,75 @@
     let isLiveEditMode = false;
     let activeSelectedCard = null;
 
+    // ── One-click status change (no page reload) ─────────────────────────────
+    // Used by the per-card "Approve" button, the inspector "Approve Now" button,
+    // and the inspector status dropdown. Hits /api/bills/<pk>/quick-status/.
+    function quickApprove(triggerEl, pk, status) {
+        status = status || 'APPROVED';
+        pk = pk || (activeSelectedCard && activeSelectedCard.dataset.pk);
+        if (!pk) { alert('Select a bill first.'); return; }
+        const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrf = csrfEl ? csrfEl.value : '';
+        if (triggerEl) { triggerEl.disabled = true; triggerEl.style.opacity = '0.6'; }
+        fetch('/api/bills/' + pk + '/quick-status/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ status: status })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+              if (!res.ok || !res.d.ok) { alert((res.d && res.d.error) || 'Could not update status.'); return; }
+              applyStatusToUI(pk, res.d.status);
+              toastMsg('Bill ' + res.d.status.charAt(0) + res.d.status.slice(1).toLowerCase() + ' ✓');
+          }).catch(function () { alert('Network error updating status.'); })
+          .finally(function () { if (triggerEl) { triggerEl.disabled = false; triggerEl.style.opacity = ''; } });
+    }
+
+    function quickStatusFromSelect(selEl) {
+        quickApprove(selEl, null, selEl.value);
+    }
+
+    // Save just the challan status for the selected bill (no page reload,
+    // no need for Live Edit mode). Posts a partial payload to inline-save.
+    function saveChallanStatus() {
+        if (!activeSelectedCard) { alert('Select a bill first.'); return; }
+        const pk = activeSelectedCard.dataset.pk;
+        const val = document.getElementById('editChallanStatusInput').value;
+        const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrf = csrfEl ? csrfEl.value : '';
+        fetch('/api/bills/' + pk + '/inline-save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ challan_status: val })
+        }).then(function (r) { return r.json(); })
+          .then(function (d) {
+              if (d && d.ok) { activeSelectedCard.dataset.challanStatus = val; toastMsg('Challan status saved ✓'); }
+              else { alert('Could not save challan status.'); }
+          }).catch(function () { alert('Network error saving challan status.'); });
+    }
+
+    function applyStatusToUI(pk, status) {
+        const card = document.querySelector('.queue-card[data-pk="' + pk + '"]');
+        if (card) {
+            card.dataset.status = status;
+            const badge = card.querySelector('.status-badge');
+            if (badge) { badge.className = 'status-badge status-' + status + ' shrink-0 text-[9px] px-2 py-0.5'; badge.textContent = status; }
+            const qb = card.querySelector('.quick-approve-btn');
+            if (qb && status !== 'DRAFT' && status !== 'PRICED') qb.remove();
+        }
+        if (activeSelectedCard && activeSelectedCard.dataset.pk === String(pk)) {
+            const sel = document.getElementById('inspStatusSelect'); if (sel) sel.value = status;
+            const ib = document.getElementById('inspStatusBadge'); if (ib) { ib.className = 'status-badge status-' + status; ib.textContent = status; }
+        }
+    }
+
+    function toastMsg(msg) {
+        const el = document.createElement('div');
+        el.textContent = msg;
+        el.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:9px 18px;border-radius:10px;font-weight:800;font-size:13px;z-index:99999;box-shadow:0 6px 18px rgba(0,0,0,.25)';
+        document.body.appendChild(el);
+        setTimeout(function () { el.remove(); }, 1800);
+    }
+
     // Safe helper functions
     function setElemText(id, val) {
         const el = document.getElementById(id);
@@ -511,22 +606,32 @@
         const nodes = document.querySelectorAll('.cat-node');
         const count = nodes.length;
         if (!count) return;
-        const radius = 85; // px from center
-        const center = 110; // px center offset
+        const radius = 95; // px from center
+        const center = 120; // px center offset
 
         nodes.forEach((node, i) => {
             const angle = (i / count) * 2 * Math.PI - (Math.PI / 2);
-            const x = center + radius * Math.cos(angle) - 22;
-            const y = center + radius * Math.sin(angle) - 22;
+            const x = center + radius * Math.cos(angle);
+            const y = center + radius * Math.sin(angle);
             node.style.left = `${x}px`;
             node.style.top = `${y}px`;
+            node.style.transform = 'translate(-50%, -50%)';
         });
     }
     layoutCategoryDial();
 
-    // Category Selector Dial Action
+    // Category Selector Dial Action (Toggle OFF if already active)
     function selectCategoryDial(catId, catName) {
-        setElemVal('selectedCatInput', catId);
+        const currentInput = document.getElementById('selectedCatInput');
+        const currentVal = currentInput ? currentInput.value : '';
+
+        // If clicking the already selected category, toggle it OFF (reset filter to all)
+        if (String(currentVal) === String(catId) && catId !== '') {
+            setElemVal('selectedCatInput', '');
+        } else {
+            setElemVal('selectedCatInput', catId);
+        }
+
         const filterForm = document.getElementById('filterForm');
         if (filterForm) filterForm.submit();
     }
@@ -597,30 +702,40 @@
         setElemVal('editChallanInput', d.challan === '-' ? '' : (d.challan || ''));
         setElemVal('editBuyerInput', d.buyer || '');
         setElemVal('editSupplierInput', d.supplier === '-' ? '' : (d.supplier || ''));
+        setElemVal('editChallanStatusInput', d.challanStatus || '');
 
         // ACCURATE EDIT ROUTING LINKS
         const btnPrimaryEdit = document.getElementById('btnPrimaryEdit');
         const btnPrimaryEditText = document.getElementById('btnPrimaryEditText');
-        const btnFullEdit = document.getElementById('btnFullEdit');
+        const btnReviewApprove = document.getElementById('btnReviewApprove');
+        const btnReviewApproveText = document.getElementById('btnReviewApproveText');
 
-        if (btnPrimaryEdit && btnPrimaryEditText) {
-            if (d.status === 'DRAFT') {
-                btnPrimaryEdit.href = '/bills/' + d.pk + '/pricing/';
-                btnPrimaryEditText.textContent = 'Enter Prices';
-                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1';
-            } else if (d.status === 'PRICED') {
-                btnPrimaryEdit.href = '/bills/' + d.pk + '/approve/';
-                btnPrimaryEditText.textContent = 'Review & Approve';
-                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm flex items-center gap-1';
-            } else {
-                btnPrimaryEdit.href = '/bills/' + d.pk + '/approve/';
-                btnPrimaryEditText.textContent = 'Edit Pricing';
-                btnPrimaryEdit.className = 'px-2.5 py-1 text-xs font-extrabold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition shadow-sm flex items-center gap-1';
-            }
+        if (btnPrimaryEdit) {
+            btnPrimaryEdit.href = '/bills/' + d.pk + '/edit/';
+            if (btnPrimaryEditText) btnPrimaryEditText.textContent = 'Full Edit Form';
         }
 
-        if (btnFullEdit) {
-            btnFullEdit.href = '/bills/' + d.pk + '/edit/';
+        const btnPickAll = document.getElementById('btnPickAllToNewBill');
+        if (btnPickAll) {
+            const rawJsonEl = cardEl.querySelector('.raw-items-data');
+            let itemIds = [];
+            if (rawJsonEl) {
+                try {
+                    const items = JSON.parse(rawJsonEl.textContent);
+                    itemIds = items.map(i => i.id).filter(Boolean);
+                } catch(e){}
+            }
+            btnPickAll.href = '/bills/new/?pick_items=' + itemIds.join(',');
+        }
+
+        if (btnReviewApprove) {
+            if (d.status === 'DRAFT') {
+                btnReviewApprove.href = '/bills/' + d.pk + '/pricing/';
+                if (btnReviewApproveText) btnReviewApproveText.textContent = 'Enter Prices';
+            } else {
+                btnReviewApprove.href = '/bills/' + d.pk + '/approve/';
+                if (btnReviewApproveText) btnReviewApproveText.textContent = 'Review & Approve';
+            }
         }
 
         // Update Print Links
@@ -635,6 +750,20 @@
 
         const btnM = document.getElementById('btnPrintMushok');
         if (btnM) btnM.href = '/bills/' + d.pk + '/print/mushok/';
+
+        const btnAtt = document.getElementById('btnAttachments');
+        if (btnAtt) btnAtt.href = '/bills/' + d.pk + '/attachments/';
+
+        // Delete link — same 2-step flow as the URL (opens a confirmation page).
+        const btnDel = document.getElementById('btnDeleteBill');
+        if (btnDel) {
+            btnDel.href = '/bills/' + d.pk + '/delete/';
+            // Admins (Owner/superuser) may delete any status; others only DRAFT.
+            // The server enforces this regardless — this just hides a button that
+            // would otherwise bounce with a permission message.
+            const billAdmin = {% if user.is_superuser or user.role == 'OWNER' %}true{% else %}false{% endif %};
+            btnDel.style.display = (billAdmin || (d.status || 'DRAFT') === 'DRAFT') ? '' : 'none';
+        }
 
         if (isLiveEditMode) {
             populateLiveEditInputs(cardEl);
@@ -663,12 +792,17 @@
                             <td class="py-2.5 px-3 text-right font-mono text-slate-400">৳${it.base_price}</td>
                             <td class="py-2.5 px-3 text-right font-mono text-indigo-600 font-semibold">৳${it.unit_price_uplifted}</td>
                             <td class="py-2.5 px-3 text-right font-mono font-bold text-rose-700">৳${it.billed_total}</td>
+                            <td class="py-2.5 px-2 text-center">
+                                <a href="/bills/new/?pick_items=${it.id}" class="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-extrabold border border-indigo-200 transition" title="Pick row to create new bill">
+                                    <i class="fas fa-hand-pointer text-[9px]"></i> Pick
+                                </a>
+                            </td>
                             <td class="py-2.5 px-2 text-center live-edit-col hidden">-</td>
                         `;
                         itemsBody.appendChild(tr);
                     });
                 } else {
-                    itemsBody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-400 italic">No line items in this bill</td></tr>';
+                    itemsBody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-400 italic">No line items in this bill</td></tr>';
                 }
             } catch (e) {
                 console.error(e);
@@ -760,6 +894,7 @@
         const payload = {
             invoice_number: document.getElementById('editInvoiceInput').value,
             challan_number: document.getElementById('editChallanInput').value,
+            challan_status: document.getElementById('editChallanStatusInput').value,
             buyer_name: document.getElementById('editBuyerInput').value,
             supplier_name: document.getElementById('editSupplierInput').value,
             status: document.getElementById('inspStatusSelect').value,
@@ -799,6 +934,7 @@
                 activeSelectedCard.dataset.status = data.status;
                 activeSelectedCard.dataset.grand = data.grand_total;
                 activeSelectedCard.dataset.subtotal = data.subtotal;
+                activeSelectedCard.dataset.challanStatus = payload.challan_status;
 
                 // Update card text
                 const invTextEl = activeSelectedCard.querySelector('.font-extrabold.text-slate-900');

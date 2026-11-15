@@ -321,14 +321,14 @@
         opts = opts || {};
         var ths = headers(table);
         if (tState.cols.length !== ths.length) return false;
-        if (tState.fingerprint && tState.fingerprint !== fingerprint(table)) return false;
+        if (tState.fingerprint && !opts.skipFingerprintCheck && tState.fingerprint !== fingerprint(table)) return false;
 
         tState.cols.forEach(function (colState, i) {
             var th = ths[i];
             if (!th) return;
             if (!th.dataset.origText) th.dataset.origText = thHtml(th);
             if (th.dataset.origWidth === undefined) th.dataset.origWidth = th.style.width || '';
-            if (colState.text) {
+            if (colState.text && !opts.skipText) {
                 th.innerHTML = colState.text;
                 if (opts.onHeaderReplaced) opts.onHeaderReplaced(th, table, i);
             }
@@ -444,36 +444,27 @@
        directions. Used by the single-document pages and by the bundle, so a
        document is scaled the same either way.                               */
     function fit(a4, opts) {
+        // Paged mode: the sheet is allowed to grow and paginate onto more A4
+        // pages, so we NEVER shrink it to fit one page's height — that is what
+        // used to make long bills render in tiny text. We only (a) honour an
+        // explicit manual zoom, and (b) guard against a table that is wider than
+        // the sheet (a horizontal overflow, unrelated to row count).
         if (!a4) return 1;
         var wrap = a4.querySelector('.fit-wrap');
         if (!wrap) return 1;
         opts = opts || {};
 
         var baseW = opts.baseW || a4.clientWidth || A4_W;
-        var avail = (opts.availH || a4.clientHeight || A4_H) - 12;
         var manual = parseFloat(a4.getAttribute('data-user-scale')) || 1;
 
         wrap.style.transform = 'none';
         wrap.style.width = baseW + 'px';
 
         var k = 1;
-        for (var iter = 0; iter < 5; iter++) {
-            wrap.style.width = (baseW / k) + 'px';
-            var natH = wrap.scrollHeight;
-            var natW = wrap.scrollWidth;
-
-            var newK = 1;
-            if (natH > avail) newK = Math.min(newK, avail / natH);
-            // Saved column widths can add up to more than the sheet is wide
-            // (fixed px widths resized on a roomier screen). Without this the
-            // extra width simply ran off the right edge.
-            if (natW > baseW) newK = Math.min(newK, baseW / natW);
-
-            newK = Math.min(newK, manual);
-            if (newK < 0.4) newK = 0.4;
-            if (Math.abs(k - newK) < 0.005) { k = newK; break; }
-            k = newK;
-        }
+        var natW = wrap.scrollWidth;
+        if (natW > baseW) k = baseW / natW;   // horizontal safety only
+        k = Math.min(k, manual);
+        if (k < 0.4) k = 0.4;
 
         if (k < 1) {
             wrap.style.width = (baseW / k) + 'px';

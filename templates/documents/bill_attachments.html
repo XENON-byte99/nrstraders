@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+            <a href="{% url 'transaction_list' %}" class="text-gray-400 hover:text-gray-700 text-sm"><i class="fas fa-arrow-left"></i> Bills</a>
+            <h2 class="text-xl md:text-2xl font-black text-gray-800 mt-1">
+                <i class="fas fa-paperclip text-indigo-500 mr-2"></i>Attachments
+            </h2>
+            <p class="text-sm text-gray-500 mt-0.5">
+                Bill <b>{{ transaction.invoice_number|default:transaction.pk }}</b>
+                {% if transaction.supplier_name %}· {{ transaction.supplier_name }}{% endif %}
+                {% if transaction.buyer_name %}→ {{ transaction.buyer_name }}{% endif %}
+            </p>
+        </div>
+        {% if can_edit %}
+        <form method="post" action="{% url 'bill_attachment_upload' transaction.pk %}" enctype="multipart/form-data" id="attachForm">
+            {% csrf_token %}
+            <label class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition cursor-pointer">
+                <i class="fas fa-upload text-xs"></i> Upload images / documents
+                <input type="file" name="files" multiple class="hidden" onchange="document.getElementById('attachForm').submit()">
+            </label>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if attachments %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {% for a in attachments %}
+        <div class="group relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition overflow-hidden">
+            <a href="{% url 'bill_attachment_download' a.id %}" class="block">
+                {% if a.is_image %}
+                <img src="{{ a.file.url }}" alt="{{ a.original_name }}" class="w-full h-32 object-cover bg-gray-50">
+                {% else %}
+                <div class="w-full h-32 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+                    <i class="fas fa-file-lines text-4xl text-slate-300"></i>
+                </div>
+                {% endif %}
+                <div class="p-2.5">
+                    <div class="text-xs font-bold text-gray-700 truncate" title="{{ a.original_name }}">{{ a.original_name }}</div>
+                    <div class="text-[10px] text-gray-400 mt-0.5">{{ a.size_display }} · {{ a.uploaded_at|date:'M d, Y' }}</div>
+                </div>
+            </a>
+            <div class="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <a href="{% url 'bill_attachment_download' a.id %}" title="Download" class="w-7 h-7 rounded-lg bg-white/90 shadow flex items-center justify-center text-indigo-600 hover:text-indigo-800"><i class="fas fa-download text-xs"></i></a>
+                {% if can_edit %}
+                <form method="post" action="{% url 'bill_attachment_delete' a.id %}" onsubmit="return confirm('Delete \'{{ a.original_name|escapejs }}\'?');">
+                    {% csrf_token %}
+                    <button type="submit" title="Delete" class="w-7 h-7 rounded-lg bg-white/90 shadow flex items-center justify-center text-red-500 hover:text-red-700"><i class="fas fa-trash-alt text-xs"></i></button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-16 text-gray-400">
+        <i class="fas fa-paperclip text-4xl mb-3"></i>
+        <p class="text-sm font-semibold">No attachments on this bill yet.</p>
+        {% if can_edit %}<p class="text-xs mt-1">Use <b>Upload</b> to add images or documents.</p>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

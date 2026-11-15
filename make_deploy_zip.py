@@ -28,8 +28,10 @@ def main():
                 rel_path = os.path.relpath(local_path, LOCAL_ROOT)
                 
                 if f == "db.sqlite3":
-                    zipf.write(local_path, "db_deploy.sqlite3")
-                    print("Added db.sqlite3 as db_deploy.sqlite3")
+                    zipf.write(local_path, "db.sqlite3")
+                    print("Added db.sqlite3 to archive")
+                elif f == "db_copy.sqlite3":
+                    pass
                 else:
                     zipf.write(local_path, rel_path)
                 count += 1

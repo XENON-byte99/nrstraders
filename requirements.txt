@@ -25,3 +25,4 @@ pillow
 # Optional: AI free-form bill parsing (Quick Bill "Read with AI").
 # Needs ANTHROPIC_API_KEY in .env; the feature degrades gracefully without it.
 anthropic
+openpyxl>=3.1

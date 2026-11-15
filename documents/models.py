@@ -73,7 +73,7 @@ class Transaction(SyncableModel):
         ('TRUNCATE', 'Truncate'),
         ('ROUND', 'Round Nearest'),
     )
-    decimal_display_mode = models.CharField(max_length=20, choices=DECIMAL_CHOICES, default='DEFAULT')
+    decimal_display_mode = models.CharField(max_length=20, choices=DECIMAL_CHOICES, default='ROUND')
     
     CALCULATION_CHOICES = (
         ('forward', 'Forward'),
@@ -113,6 +113,7 @@ class Transaction(SyncableModel):
     
     invoice_number = models.CharField(max_length=100, blank=True, null=True)
     challan_number = models.CharField(max_length=100, blank=True, null=True)
+    challan_status = models.TextField(blank=True, default='', help_text="Free-text challan/delivery status; editable, shown on the invoice.")
     is_daily_basis = models.BooleanField(default=False, help_text="Toggles daily basis mode for room service / hotel stay bills.")
     
     creator = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
@@ -135,18 +136,30 @@ class Transaction(SyncableModel):
         return None
 
     @property
+    def _items(self):
+        """All line items, served from Django's prefetch cache when the view
+        prefetched them (the bill list / summary) so the money properties below
+        don't each re-hit the DB. Falls back to a single query otherwise.
+        Filtering is done in Python by callers, which keeps the prefetch cache
+        (a plain list) usable instead of issuing a fresh .filter() query."""
+        cache = getattr(self, '_prefetched_objects_cache', None)
+        if cache and 'items' in cache:
+            return cache['items']
+        return list(self.items.all())
+
+    @property
     def display_subtotal(self):
-        return sum(item.billed_total for item in self.items.all())
+        return sum(item.billed_total for item in self._items)
 
     @property
     def total_quantity(self):
-        return sum(item.quantity for item in self.items.all() if item.quantity is not None)
+        return sum(item.quantity for item in self._items if item.quantity is not None)
 
     @property
     def total_service_charge(self):
         import decimal
-        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
-        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sub = sum(item.billed_total for item in [i for i in self._items if not i.is_secondary])
+        secondary_sub = sum(item.billed_total for item in [i for i in self._items if i.is_secondary])
         primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
         secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
         return round(primary_sc + secondary_sc, 3)
@@ -154,19 +167,19 @@ class Transaction(SyncableModel):
     @property
     def total_duty(self):
         import decimal
-        undiscounted = sum(item.duty_amount for item in self.items.all()) + self.service_charge_duty
+        undiscounted = sum(item.duty_amount for item in self._items) + self.service_charge_duty
         return round(undiscounted * self.discount_factor, 3)
 
     @property
     def total_tax(self):
         import decimal
-        undiscounted = sum(item.tax_amount for item in self.items.all()) + self.service_charge_tax
+        undiscounted = sum(item.tax_amount for item in self._items) + self.service_charge_tax
         return round(undiscounted * self.discount_factor, 3)
 
     @property
     def total_vat(self):
         import decimal
-        undiscounted = sum(item.vat_amount for item in self.items.all()) + self.service_charge_vat
+        undiscounted = sum(item.vat_amount for item in self._items) + self.service_charge_vat
         return round(undiscounted * self.discount_factor, 3)
 
     @property
@@ -176,8 +189,8 @@ class Transaction(SyncableModel):
     @property
     def service_charge_duty(self):
         import decimal
-        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
-        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sub = sum(item.billed_total for item in [i for i in self._items if not i.is_secondary])
+        secondary_sub = sum(item.billed_total for item in [i for i in self._items if i.is_secondary])
         primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
         secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
         primary_sc_duty = primary_sc * (self.duty_percentage / decimal.Decimal('100.0'))
@@ -187,8 +200,8 @@ class Transaction(SyncableModel):
     @property
     def service_charge_tax(self):
         import decimal
-        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
-        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sub = sum(item.billed_total for item in [i for i in self._items if not i.is_secondary])
+        secondary_sub = sum(item.billed_total for item in [i for i in self._items if i.is_secondary])
         primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
         secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
         
@@ -207,8 +220,8 @@ class Transaction(SyncableModel):
     @property
     def service_charge_vat(self):
         import decimal
-        primary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
-        secondary_sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        primary_sub = sum(item.billed_total for item in [i for i in self._items if not i.is_secondary])
+        secondary_sub = sum(item.billed_total for item in [i for i in self._items if i.is_secondary])
         primary_sc = primary_sub * (self.service_charge_percentage / decimal.Decimal('100.0'))
         secondary_sc = secondary_sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0'))
         
@@ -285,33 +298,33 @@ class Transaction(SyncableModel):
     @property
     def primary_total_service_charge(self):
         import decimal
-        sub = sum(item.billed_total for item in self.items.filter(is_secondary=False))
+        sub = sum(item.billed_total for item in [i for i in self._items if not i.is_secondary])
         return round(sub * (self.service_charge_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def secondary_total_service_charge(self):
         import decimal
-        sub = sum(item.billed_total for item in self.items.filter(is_secondary=True))
+        sub = sum(item.billed_total for item in [i for i in self._items if i.is_secondary])
         return round(sub * (self.secondary_service_charge_percentage / decimal.Decimal('100.0')), 3)
 
     @property
     def primary_total_duty(self):
         import decimal
-        item_duty = sum(item.duty_amount for item in self.items.filter(is_secondary=False))
+        item_duty = sum(item.duty_amount for item in [i for i in self._items if not i.is_secondary])
         sc_duty = self.primary_total_service_charge * (self.duty_percentage / decimal.Decimal('100.0'))
         return round(item_duty + sc_duty, 3)
 
     @property
     def secondary_total_duty(self):
         import decimal
-        item_duty = sum(item.duty_amount for item in self.items.filter(is_secondary=True))
+        item_duty = sum(item.duty_amount for item in [i for i in self._items if i.is_secondary])
         sc_duty = self.secondary_total_service_charge * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
         return round(item_duty + sc_duty, 3)
 
     @property
     def primary_total_tax(self):
         import decimal
-        item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=False))
+        item_tax = sum(item.tax_amount for item in [i for i in self._items if not i.is_secondary])
         sc = self.primary_total_service_charge
         sc_tax = decimal.Decimal('0.000')
         if 0 < self.tax_percentage < 100:
@@ -322,7 +335,7 @@ class Transaction(SyncableModel):
     @property
     def secondary_total_tax(self):
         import decimal
-        item_tax = sum(item.tax_amount for item in self.items.filter(is_secondary=True))
+        item_tax = sum(item.tax_amount for item in [i for i in self._items if i.is_secondary])
         sc = self.secondary_total_service_charge
         sc_tax = decimal.Decimal('0.000')
         if 0 < self.secondary_tax_percentage < 100:
@@ -333,7 +346,7 @@ class Transaction(SyncableModel):
     @property
     def primary_total_vat(self):
         import decimal
-        item_vat = sum(item.vat_amount for item in self.items.filter(is_secondary=False))
+        item_vat = sum(item.vat_amount for item in [i for i in self._items if not i.is_secondary])
         sc = self.primary_total_service_charge
         sc_duty = sc * (self.duty_percentage / decimal.Decimal('100.0'))
         sc_tax = decimal.Decimal('0.000')
@@ -346,7 +359,7 @@ class Transaction(SyncableModel):
     @property
     def secondary_total_vat(self):
         import decimal
-        item_vat = sum(item.vat_amount for item in self.items.filter(is_secondary=True))
+        item_vat = sum(item.vat_amount for item in [i for i in self._items if i.is_secondary])
         sc = self.secondary_total_service_charge
         sc_duty = sc * (self.secondary_duty_percentage / decimal.Decimal('100.0'))
         sc_tax = decimal.Decimal('0.000')
@@ -358,11 +371,11 @@ class Transaction(SyncableModel):
 
     @property
     def total_quantity(self):
-        return sum(item.quantity for item in self.items.all())
+        return sum(item.quantity for item in self._items)
 
     @property
     def total_base_cost(self):
-        return sum(item.base_price * item.quantity for item in self.items.all())
+        return sum(item.base_price * item.quantity for item in self._items)
 
     @property
     def total_gross_profit(self):
@@ -416,6 +429,9 @@ class Transaction(SyncableModel):
 
     @property
     def primary_items(self):
+        # Kept as a queryset: print templates call .exists on these and iterate
+        # them. Only used on single-bill pages, so this doesn't affect the speed
+        # of the bill list / summary.
         return self.items.filter(is_secondary=False)
 
     @property
@@ -652,6 +668,11 @@ class TransactionItem(SyncableModel):
         return self.quantity * self.billed_unit_price
 
     @property
+    def base_amount(self):
+        """Supplier cost for this line: base price × quantity."""
+        return (self.base_price or 0) * (self.quantity or 0)
+
+    @property
     def effective_vat_percentage(self):
         if self.override_vat is not None:
             return self.override_vat
@@ -832,3 +853,134 @@ class PrintLayout(models.Model):
 
     def __str__(self):
         return f"Print layout: bill {self.transaction_id} / {self.doc_type}"
+
+
+class Note(SyncableModel):
+    COLOR_CHOICES = [
+        ('yellow', 'Warm Yellow'),
+        ('rose', 'Rose Red'),
+        ('emerald', 'Emerald Green'),
+        ('sky', 'Sky Blue'),
+        ('purple', 'Royal Purple'),
+        ('slate', 'Midnight Slate'),
+    ]
+
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='notes')
+    title = models.CharField(max_length=255, blank=True, default='')
+    content = models.TextField(blank=True, default='')
+    color = models.CharField(max_length=30, choices=COLOR_CHOICES, default='yellow')
+    is_pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_pinned', '-updated_at']
+
+    def __str__(self):
+        return f"Note ({self.user.username}): {self.title or 'Untitled Note'}"
+
+
+
+# ── Shared Drive ────────────────────────────────────────────────────────────
+# A simple company-wide file store: nested folders + files on the local media
+# disk. Plain models (not SyncableModel) — binary files never go through the
+# Supabase sync, same rationale as PrintLayout.
+class DriveFolder(models.Model):
+    name = models.CharField(max_length=255)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    created_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def breadcrumbs(self):
+        """Root → … → self, for the folder header."""
+        chain, node = [], self
+        while node is not None:
+            chain.append(node)
+            node = node.parent
+        return list(reversed(chain))
+
+
+class DriveFile(models.Model):
+    folder = models.ForeignKey(DriveFolder, on_delete=models.CASCADE, null=True, blank=True, related_name='files')
+    file = models.FileField(upload_to='drive/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    size = models.BigIntegerField(default=0)
+    content_type = models.CharField(max_length=120, blank=True)
+    uploaded_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return self.original_name
+
+    @property
+    def size_display(self):
+        n = float(self.size or 0)
+        for unit in ('B', 'KB', 'MB', 'GB'):
+            if n < 1024 or unit == 'GB':
+                return (f"{int(n)} {unit}" if unit == 'B' else f"{n:.1f} {unit}")
+            n /= 1024
+
+    @property
+    def ext(self):
+        return (self.original_name.rsplit('.', 1)[-1].lower() if '.' in self.original_name else '')
+
+
+# ── Custom Table Builder ────────────────────────────────────────────────────
+# A reusable table design (headers, cells, styling, merged cells) stored as a
+# JSON blob — same pattern as PrintLayout.data. Live-bill tokens inside cell
+# text are resolved only at preview/export, so the template stays reusable.
+class TableTemplate(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.CharField(max_length=500, blank=True)
+    data = models.JSONField(default=dict, help_text="Grid: rows, cols, colWidths, cells{'r,c':{...}}")
+    created_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+
+# ── Per-invoice attachments ─────────────────────────────────────────────────
+# Multiple images / documents attached to one bill. Plain model (not synced) —
+# same rationale as DriveFile: binary files never go through the Supabase sync.
+class TransactionAttachment(models.Model):
+    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='attachments/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    size = models.BigIntegerField(default=0)
+    content_type = models.CharField(max_length=120, blank=True)
+    uploaded_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return self.original_name
+
+    @property
+    def size_display(self):
+        n = float(self.size or 0)
+        for unit in ('B', 'KB', 'MB', 'GB'):
+            if n < 1024 or unit == 'GB':
+                return (f"{int(n)} {unit}" if unit == 'B' else f"{n:.1f} {unit}")
+            n /= 1024
+
+    @property
+    def is_image(self):
+        return (self.content_type or '').startswith('image/') or \
+            (self.original_name.rsplit('.', 1)[-1].lower() if '.' in self.original_name else '') in \
+            ('jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg')

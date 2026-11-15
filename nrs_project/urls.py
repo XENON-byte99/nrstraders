@@ -19,6 +19,8 @@ urlpatterns = [
     
     path('', doc_views.home, name='home'),
     path('summary/', doc_views.bill_summary, name='bill_summary'),
+    path('audit-ledger/', doc_views.audit_ledger, name='audit_ledger'),
+    path('audit-ledger/print/', doc_views.audit_print, name='audit_print'),
     path('bills/', doc_views.transaction_list, name='transaction_list'),
     path('bills/new/', doc_views.transaction_create, name='transaction_create'),
     path('bills/<int:pk>/pricing/', doc_views.transaction_pricing, name='transaction_pricing'),
@@ -57,6 +59,7 @@ urlpatterns = [
     path('products/new/', doc_views.product_create, name='product_create'),
     path('products/<int:pk>/edit/', doc_views.product_update, name='product_update'),
     path('products/<int:pk>/delete/', doc_views.product_delete, name='product_delete'),
+    path('products/bulk-delete/', doc_views.product_bulk_delete, name='product_bulk_delete'),
     path('products/<int:pk>/approve/', doc_views.product_approve, name='product_approve'),
     path('api/products/search/', doc_views.product_search_api, name='product_search_api'),
     path('requisitions/', doc_views.requisition_list, name='requisition_list'),
@@ -76,13 +79,43 @@ urlpatterns = [
     path('authorizations/<int:pk>/edit/', doc_views.authorization_update, name='authorization_update'),
     path('authorizations/<int:pk>/print/', doc_views.authorization_print, name='authorization_print'),
     path('api/users/<int:user_id>/nid/', doc_views.api_get_user_nid, name='api_get_user_nid'),
-    path('api/parties/<int:party_id>/details/', doc_views.api_get_party_details, name='api_get_party_details'),
+    path('api/print-layouts/global/<str:doc_type>/', doc_views.print_layout_api, {'pk': 'global'}, name='print_global_layout_api'),
     path('api/print-layouts/<int:pk>/<str:doc_type>/', doc_views.print_layout_api, name='print_layout_api'),
+    path('api/print-layouts/<int:pk>/<str:doc_type>/reset/', doc_views.print_layout_reset_api, name='print_layout_reset_api'),
     path('api/quick-bill/parse/', doc_views.quick_bill_parse, name='quick_bill_parse'),
     path('api/quick-bill/ai-parse/', doc_views.quick_bill_ai_parse, name='quick_bill_ai_parse'),
     path('api/bills/<int:pk>/inline-save/', doc_views.api_inline_save_transaction, name='api_inline_save_transaction'),
+    path('api/bills/<int:pk>/quick-status/', doc_views.api_quick_status, name='api_quick_status'),
     path('sync/', doc_views.sync_db_view, name='sync_db'),
     path('api/sync/status/', doc_views.sync_status_api, name='sync_status_api'),
+    path('api/notes/', doc_views.notes_api_list_create, name='notes_api_list_create'),
+    path('api/notes/<int:pk>/', doc_views.notes_api_detail, name='notes_api_detail'),
+    path('api/notes/<int:pk>/pin/', doc_views.notes_api_toggle_pin, name='notes_api_toggle_pin'),
+
+    # Shared Drive
+    path('drive/', doc_views.drive_home, name='drive_home'),
+    path('drive/folder/create/', doc_views.drive_folder_create, name='drive_folder_create'),
+    path('drive/folder/<int:pk>/rename/', doc_views.drive_folder_rename, name='drive_folder_rename'),
+    path('drive/folder/<int:pk>/delete/', doc_views.drive_folder_delete, name='drive_folder_delete'),
+    path('drive/upload/', doc_views.drive_upload, name='drive_upload'),
+    path('drive/file/<int:pk>/download/', doc_views.drive_download, name='drive_download'),
+    path('drive/file/<int:pk>/delete/', doc_views.drive_file_delete, name='drive_file_delete'),
+
+    # Custom Table Builder
+    path('tables/', doc_views.table_list, name='table_list'),
+    path('tables/new/', doc_views.table_new, name='table_new'),
+    path('tables/<int:pk>/edit/', doc_views.table_edit, name='table_edit'),
+    path('tables/save/', doc_views.table_save, name='table_save'),
+    path('tables/<int:pk>/delete/', doc_views.table_delete, name='table_delete'),
+    path('tables/export/', doc_views.table_export_xlsx, name='table_export_xlsx'),
+    path('tables/tokens/', doc_views.table_bill_tokens, name='table_bill_tokens'),
+    path('reports/category-items/', doc_views.category_items_report, name='category_items_report'),
+
+    # Per-invoice attachments
+    path('bills/<int:pk>/attachments/', doc_views.bill_attachments, name='bill_attachments'),
+    path('bills/<int:pk>/attachments/upload/', doc_views.bill_attachment_upload, name='bill_attachment_upload'),
+    path('bills/attachment/<int:pk>/download/', doc_views.bill_attachment_download, name='bill_attachment_download'),
+    path('bills/attachment/<int:pk>/delete/', doc_views.bill_attachment_delete, name='bill_attachment_delete'),
 ]
 
 from django.conf import settings

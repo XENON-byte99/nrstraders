@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+    <!-- Header + breadcrumbs -->
+    <div class="flex flex-wrap justify-between items-center mb-4 gap-3">
+        <div>
+            <h2 class="text-xl md:text-2xl font-black text-gray-800">
+                <i class="fas fa-hard-drive text-indigo-500 mr-2"></i>Drive
+            </h2>
+            <nav class="text-sm text-gray-500 mt-1 flex items-center gap-1 flex-wrap">
+                <a href="{% url 'drive_home' %}" class="hover:text-indigo-600 font-semibold"><i class="fas fa-house text-xs"></i> Home</a>
+                {% for crumb in breadcrumbs %}
+                    <i class="fas fa-chevron-right text-[9px] text-gray-300"></i>
+                    <a href="{% url 'drive_home' %}?folder={{ crumb.id }}" class="hover:text-indigo-600 {% if forloop.last %}text-gray-800 font-bold{% endif %}">{{ crumb.name }}</a>
+                {% endfor %}
+            </nav>
+        </div>
+        {% if can_manage %}
+        <div class="flex items-center gap-2">
+            <button type="button" onclick="document.getElementById('newFolderModal').classList.remove('hidden')" class="inline-flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition">
+                <i class="fas fa-folder-plus text-xs text-amber-500"></i> New Folder
+            </button>
+            <label class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition cursor-pointer">
+                <i class="fas fa-upload text-xs"></i> Upload
+                <input type="file" name="files" multiple class="hidden" onchange="document.getElementById('uploadForm').submit()" form="uploadForm">
+            </label>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if can_manage %}
+    <form id="uploadForm" method="post" action="{% url 'drive_upload' %}" enctype="multipart/form-data" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="folder" value="{{ folder.id|default:'' }}">
+    </form>
+    {% endif %}
+
+    <!-- Folders -->
+    {% if subfolders %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
+        {% for sf in subfolders %}
+        <div class="group relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition p-3">
+            <a href="{% url 'drive_home' %}?folder={{ sf.id }}" class="flex items-center gap-2.5">
+                <i class="fas fa-folder text-2xl text-amber-400"></i>
+                <span class="text-sm font-bold text-gray-700 truncate">{{ sf.name }}</span>
+            </a>
+            {% if can_manage %}
+            <form method="post" action="{% url 'drive_folder_delete' sf.id %}" onsubmit="return confirm('Delete folder \'{{ sf.name|escapejs }}\' and everything inside it?');" class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition">
+                {% csrf_token %}
+                <button type="submit" title="Delete folder" class="text-gray-300 hover:text-red-500 p-1"><i class="fas fa-trash-alt text-xs"></i></button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Files -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {% if files %}
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th class="px-4 py-2.5 font-bold">Name</th>
+                    <th class="px-4 py-2.5 font-bold hidden sm:table-cell">Size</th>
+                    <th class="px-4 py-2.5 font-bold hidden md:table-cell">Uploaded By</th>
+                    <th class="px-4 py-2.5 font-bold hidden md:table-cell">Date</th>
+                    <th class="px-4 py-2.5 font-bold text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for f in files %}
+                <tr class="hover:bg-indigo-50/40 transition">
+                    <td class="px-4 py-2.5">
+                        <a href="{% url 'drive_download' f.id %}" class="flex items-center gap-2.5 font-semibold text-gray-700 hover:text-indigo-600">
+                            <i class="fas fa-file text-lg text-slate-400"></i>
+                            <span class="truncate max-w-[240px] sm:max-w-none">{{ f.original_name }}</span>
+                        </a>
+                    </td>
+                    <td class="px-4 py-2.5 text-gray-500 hidden sm:table-cell">{{ f.size_display }}</td>
+                    <td class="px-4 py-2.5 text-gray-500 hidden md:table-cell">{{ f.uploaded_by.username|default:'—' }}</td>
+                    <td class="px-4 py-2.5 text-gray-500 hidden md:table-cell">{{ f.uploaded_at|date:'M d, Y' }}</td>
+                    <td class="px-4 py-2.5 text-right">
+                        <a href="{% url 'drive_download' f.id %}" class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-bold text-xs"><i class="fas fa-download"></i> Download</a>
+                        {% if can_manage %}
+                        <form method="post" action="{% url 'drive_file_delete' f.id %}" onsubmit="return confirm('Delete \'{{ f.original_name|escapejs }}\'?');" class="inline ml-2">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-1 text-red-500 hover:text-red-700 font-bold text-xs"><i class="fas fa-trash-alt"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-16 text-gray-400">
+            <i class="fas fa-folder-open text-4xl mb-3"></i>
+            <p class="text-sm font-semibold">This folder is empty.</p>
+            {% if can_manage %}<p class="text-xs mt-1">Use <b>Upload</b> or <b>New Folder</b> to add content.</p>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- New Folder modal -->
+{% if can_manage %}
+<div id="newFolderModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-black text-gray-800"><i class="fas fa-folder-plus text-amber-500 mr-2"></i>New Folder</h3>
+            <button onclick="document.getElementById('newFolderModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-700"><i class="fas fa-times"></i></button>
+        </div>
+        <form method="post" action="{% url 'drive_folder_create' %}" class="p-5">
+            {% csrf_token %}
+            <input type="hidden" name="parent" value="{{ folder.id|default:'' }}">
+            <input type="text" name="name" placeholder="Folder name" required autofocus class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-400 mb-4">
+            <div class="flex gap-2">
+                <button type="button" onclick="document.getElementById('newFolderModal').classList.add('hidden')" class="flex-1 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200">Cancel</button>
+                <button type="submit" class="flex-1 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700">Create</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

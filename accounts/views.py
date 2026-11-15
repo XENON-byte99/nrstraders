@@ -94,6 +94,8 @@ def permission_dashboard(request):
         ('p_manage_authorizations', 'Check Authorizations'),
         ('p_manage_peer_transactions', 'Money Tracker (Initiate)'),
         ('p_print_documents', 'Print Documents'),
+        ('p_manage_drive', 'Drive (Files)'),
+        ('p_manage_tables', 'Table Builder'),
         ('p_view_audit_logs', 'Audit Logs'),
         ('p_manage_users', 'User Mgmt'),
     ]

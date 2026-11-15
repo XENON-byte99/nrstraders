@@ -16,7 +16,7 @@
 </div>
 
 <!-- Desktop Table -->
-<div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-4xl">
+<div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-5xl">
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
             <thead class="bg-gray-50 border-b border-gray-100">
@@ -24,6 +24,10 @@
                     <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Color</th>
                     <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Category Name</th>
                     <th class="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Prefix</th>
+                    <th class="px-4 py-3.5 text-center text-xs font-bold text-rose-600 uppercase tracking-wider">VAT (%)</th>
+                    <th class="px-4 py-3.5 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider">TAX (%)</th>
+                    <th class="px-4 py-3.5 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">Duty (%)</th>
+                    <th class="px-4 py-3.5 text-center text-xs font-bold text-emerald-600 uppercase tracking-wider">S. Charge (%)</th>
                             {% if user.p_manage_categories or user.is_superuser %}
                     <th class="px-5 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                     {% endif %}
@@ -41,6 +45,10 @@
                             {{ cat.invoice_prefix }}
                         </span>
                     </td>
+                    <td class="px-4 py-4 text-center font-mono font-extrabold text-rose-600 bg-rose-50/30">{{ cat.default_vat }}%</td>
+                    <td class="px-4 py-4 text-center font-mono font-extrabold text-indigo-600 bg-indigo-50/30">{{ cat.default_tax }}%</td>
+                    <td class="px-4 py-4 text-center font-mono font-extrabold text-amber-600 bg-amber-50/30">{{ cat.default_duty }}%</td>
+                    <td class="px-4 py-4 text-center font-mono font-extrabold text-emerald-600 bg-emerald-50/30">{{ cat.default_service_charge }}%</td>
                             {% if user.p_manage_categories or user.is_superuser %}
                     <td class="px-5 py-4 text-right">
                         <div class="flex justify-end gap-2">
@@ -56,7 +64,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="4" class="px-5 py-16 text-center">
+                    <td colspan="8" class="px-5 py-16 text-center">
                         <div class="flex flex-col items-center gap-2">
                             <i class="fas fa-tags text-4xl text-gray-200"></i>
                             <p class="text-gray-400 font-medium">No categories yet.</p>
@@ -76,9 +84,15 @@
         <div class="p-4 flex items-center justify-between gap-3">
             <div class="min-w-0">
                 <p class="font-bold text-gray-800">{{ cat.name }}</p>
-                <span class="inline-block bg-{{ cat.color_theme|default:'gray' }}-100 text-{{ cat.color_theme|default:'gray' }}-700 font-mono text-xs font-bold px-2 py-0.5 rounded mt-1">
-                    {{ cat.invoice_prefix }}
-                </span>
+                <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span class="inline-block bg-{{ cat.color_theme|default:'gray' }}-100 text-{{ cat.color_theme|default:'gray' }}-700 font-mono text-xs font-bold px-2 py-0.5 rounded">
+                        {{ cat.invoice_prefix }}
+                    </span>
+                    <span class="bg-rose-100 text-rose-700 text-[10px] font-extrabold px-2 py-0.5 rounded">VAT {{ cat.default_vat }}%</span>
+                    <span class="bg-indigo-100 text-indigo-700 text-[10px] font-extrabold px-2 py-0.5 rounded">TAX {{ cat.default_tax }}%</span>
+                    {% if cat.default_duty > 0 %}<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded">Duty {{ cat.default_duty }}%</span>{% endif %}
+                    {% if cat.default_service_charge > 0 %}<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded">SC {{ cat.default_service_charge }}%</span>{% endif %}
+                </div>
             </div>
                     {% if user.p_manage_categories or user.is_superuser %}
             <div class="flex gap-2 shrink-0">

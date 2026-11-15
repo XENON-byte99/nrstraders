@@ -17,14 +17,26 @@
         @page { size: A4 portrait; margin: 0; }
         body { background: white !important; }
         .no-print { display: none !important; }
-        .a4-container { display: block !important; width: 100% !important; height: 100% !important; padding: 0 !important; margin: 0 !important; }
-        html, body { width: 8.27in; height: 11.69in; }
-        .a4-invoice { box-shadow: none !important; }
+        .a4-container { display: block !important; width: 100% !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; }
+        /* Paged mode: the sheet grows and the browser paginates it onto as many
+           A4 pages as the content needs — the font never shrinks to fit one page. */
+        html, body { width: 8.27in; height: auto; }
+        .a4-invoice { box-shadow: none !important; min-height: 0 !important; height: auto !important; overflow: visible !important; width: 8.27in !important; }
+        .fit-wrap { transform: none !important; width: 8.27in !important; }
         /* mix-blend-mode is not honoured by every print pipeline and can drop
            the signature entirely — plain compositing prints reliably. */
         .official-signature { mix-blend-mode: normal !important; }
+        /* Repeat the items-table header on every page; never split a row, a
+           totals line, an image, or a self-contained block across a page break. */
+        table { break-inside: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr, img, .amount-row { break-inside: avoid; }
+        .amount-section, .amount-box, .signature-box, .sign-row, .lh-signoff, .ind-signrow,
+        .brand-row, .lh-mast, .ind-band, .lh-parties, .ind-strip, .lh-titlebar,
+        .lh-subject, .ind-scope, .divider-bar, .lh-foot { break-inside: avoid; }
     }
-    .a4-container { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 20px; }
+    .a4-container { display: flex; align-items: flex-start; justify-content: center; min-height: 100%; padding: 20px; }
 
     /* ── Per-supplier colour theme ──
        --accent-line / --accent-tint / --zebra are pre-blended rather than
@@ -36,15 +48,16 @@
     .theme-crimson { --accent:#7f1225; --accent-2:#be123c; --accent-soft:#fef2f4;
                      --accent-line:rgba(127,18,37,.22);  --accent-tint:rgba(127,18,37,.07);  --zebra:#fff7f8; }
 
-    /* The A4 sheet itself. Each design paints its own background on top. */
+    /* The A4 sheet itself. Each design paints its own background on top.
+       min-height (not height) + visible overflow lets a long bill grow past one
+       A4 and flow onto further pages at full font size, instead of being clipped
+       or scaled down. flex:0 0 auto keeps its fixed A4 width on any screen. */
     .a4-invoice {
         --ink: #0f172a; --muted: #64748b;
-        /* flex:none — the sheet is a flex item of .a4-container and must never be
-           shrunk by a narrow window, or the whole page reflows off its A4 grid. */
-        width: 8.27in; height: 11.69in; flex: 0 0 auto;
+        width: 8.27in; min-height: 11.69in; flex: 0 0 auto;
         background: #fff;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-        position: relative; overflow: hidden;
+        position: relative; overflow: visible;
         color: var(--ink); font-size: 10px;
     }
     .fit-wrap { width: 8.27in; min-height: 11.69in; transform-origin: top left; }

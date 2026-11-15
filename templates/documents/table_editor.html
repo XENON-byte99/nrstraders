@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="max-w-full">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2">
+            <a href="{% url 'table_list' %}" class="text-gray-400 hover:text-gray-700"><i class="fas fa-arrow-left"></i></a>
+            <input id="tbName" type="text" placeholder="Table name"
+                   value="{{ template.name|default:initial_name|default:'' }}"
+                   class="text-lg font-black text-gray-800 border-b-2 border-transparent focus:border-emerald-400 outline-none px-1 py-0.5 bg-transparent">
+        </div>
+        {% if can_manage %}
+        <div class="flex items-center gap-2">
+            <button id="tbSave" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-extrabold shadow-sm"><i class="fas fa-save"></i> Save</button>
+            <button id="tbSaveAs" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold"><i class="fas fa-copy"></i> Save As</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Toolbar -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-2 mb-3 flex flex-wrap items-center gap-1 text-xs no-print">
+        <!-- structure -->
+        <div class="flex items-center gap-1 pr-2 mr-1 border-r border-gray-100">
+            <button data-act="addRow" class="tb-btn" title="Add row below">+Row</button>
+            <button data-act="delRow" class="tb-btn" title="Delete last row">&minus;Row</button>
+            <button data-act="addCol" class="tb-btn" title="Add column right">+Col</button>
+            <button data-act="delCol" class="tb-btn" title="Delete last column">&minus;Col</button>
+        </div>
+        <!-- format -->
+        <div class="flex items-center gap-1 pr-2 mr-1 border-r border-gray-100">
+            <button data-act="bold" class="tb-btn font-black" title="Bold">B</button>
+            <button data-act="italic" class="tb-btn italic" title="Italic">I</button>
+            <button data-act="alignleft" class="tb-btn" title="Align left"><i class="fas fa-align-left"></i></button>
+            <button data-act="aligncenter" class="tb-btn" title="Align center"><i class="fas fa-align-center"></i></button>
+            <button data-act="alignright" class="tb-btn" title="Align right"><i class="fas fa-align-right"></i></button>
+            <label class="tb-btn cursor-pointer" title="Fill colour"><i class="fas fa-fill-drip"></i><input id="tbBg" type="color" class="w-0 h-0 opacity-0 absolute"></label>
+            <label class="tb-btn cursor-pointer" title="Text colour"><i class="fas fa-font"></i><input id="tbFg" type="color" class="w-0 h-0 opacity-0 absolute"></label>
+            <button data-act="clearfmt" class="tb-btn" title="Clear fill/colour"><i class="fas fa-eraser"></i></button>
+            <button data-act="header" class="tb-btn" title="Toggle header cell"><i class="fas fa-heading"></i></button>
+        </div>
+        <!-- merge -->
+        <div class="flex items-center gap-1 pr-2 mr-1 border-r border-gray-100">
+            <button data-act="merge" class="tb-btn" title="Merge selected cells"><i class="fas fa-compress"></i> Merge</button>
+            <button data-act="unmerge" class="tb-btn" title="Unmerge"><i class="fas fa-expand"></i> Unmerge</button>
+        </div>
+        <!-- live data -->
+        <div class="flex items-center gap-1 pr-2 mr-1 border-r border-gray-100">
+            <select id="tbBill" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none max-w-[170px]">
+                <option value="">— Bill for live data —</option>
+            </select>
+            <select id="tbToken" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none" title="Insert a live-data token into the selected cell">
+                <option value="">Insert token…</option>
+                {% for label, tok in tokens %}<option value="{{ tok }}">{{ label }}</option>{% endfor %}
+            </select>
+            <button data-act="preview" id="tbPreview" class="tb-btn" title="Toggle live-data preview"><i class="fas fa-eye"></i> Preview</button>
+        </div>
+        <!-- export -->
+        <div class="flex items-center gap-1">
+            <button data-act="excel" class="tb-btn text-emerald-700" title="Export to Excel"><i class="fas fa-file-excel"></i> Excel</button>
+            <button data-act="pdf" class="tb-btn text-rose-700" title="Export to PDF"><i class="fas fa-file-pdf"></i> PDF</button>
+            <button data-act="print" class="tb-btn" title="Print"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <p class="text-[11px] text-gray-400 mb-2 no-print">Click a cell to edit. Click then <b>Shift+Click</b> another cell to select a range, then Merge / format. Tokens like <code>{% verbatim %}{{grand_total}}{% endverbatim %}</code> resolve when a bill is chosen (see Preview / exports).</p>
+
+    <!-- Grid -->
+    <div id="tbWrap" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 overflow-auto">
+        <table id="tbGrid" class="tb-table"></table>
+    </div>
+</div>
+
+<style>
+    .tb-btn { padding: 4px 8px; border-radius: 7px; background:#f8fafc; border:1px solid #e2e8f0; color:#334155; font-weight:700; position:relative; }
+    .tb-btn:hover { background:#eef2f7; }
+    .tb-table { border-collapse: collapse; }
+    .tb-table td, .tb-table th { border: 1px solid #cbd5e1; min-width: 90px; height: 30px; padding: 4px 8px; font-size: 13px; vertical-align: middle; outline: none; }
+    .tb-table td.tb-sel { outline: 2px solid #10b981; outline-offset: -2px; }
+    .tb-table td.tb-header { font-weight: 800; background: #f1f5f9; }
+    @media print {
+        .no-print { display:none !important; }
+        #tbWrap { border:none; box-shadow:none; padding:0; }
+        .tb-table td.tb-sel { outline: none; }
+    }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+    window.TB_CONFIG = {
+        templateId: {{ template.id|default:'null' }},
+        data: {{ template_data_json|safe }},
+        bills: {{ bills_json|safe }},
+        canManage: {% if can_manage %}true{% else %}false{% endif %},
+        csrfToken: '{{ csrf_token }}',
+        urls: {
+            save: '{% url "table_save" %}',
+            export: '{% url "table_export_xlsx" %}',
+            tokens: '{% url "table_bill_tokens" %}',
+            list: '{% url "table_list" %}',
+        }
+    };
+</script>
+<script src="{% static 'js/table_builder.js' %}"></script>
+{% endblock %}

@@ -23,7 +23,11 @@
             @page { size: A4 portrait; margin: 0; }
             body { background: white !important; }
             .no-print { display: none !important; }
-            .mushok-form { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            /* Keep the form's own inner padding in print — it is exactly A4-sized,
+               so this padding is the document's left/right/top/bottom margin. Zeroing
+               it (as before) made every cell touch the page edge, most visibly when
+               the mushok is printed inside a joint bundle. */
+            .mushok-form { box-shadow: none !important; margin: 0 !important; padding: 16px !important; }
             html, body { width: 8.27in; height: 11.69in; }
         }
         .container-wrapper { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 16px; }
@@ -235,7 +239,7 @@
                     {% endif %}
                     <tr style="background:#f0f0f0; font-weight:bold;">
                         <td colspan="5" style="text-align:right; padding-right:8px;">Grand Total:</td>
-                        <td class="amount col-group-base">৳{{ transaction.grand_subtotal|format_billing:transaction }}</td>
+                        <td class="amount col-group-base">৳{{ transaction.price_after_discount_base|format_billing:transaction }}</td>
                         <td class="amount col-group-tax">-</td>
                         <td class="amount col-group-tax">৳{{ transaction.total_tax|format_billing:transaction }}</td>
                         <td class="amount col-group-tax">-</td>
@@ -446,7 +450,7 @@
                 if (tds.length === 11) {
                     const dTax = totalTax * factor;
                     const dDuty = totalDuty * factor;
-                    const dSubtotal = subtotal;
+                    const dSubtotal = subtotal - totalDiscount;
                     const dTotalWithTaxOnly = totalWithTaxOnly * factor;
                     const dVat = totalVat * factor;
                     const grand = (subtotal - totalDiscount) + dDuty + dTax + dVat;

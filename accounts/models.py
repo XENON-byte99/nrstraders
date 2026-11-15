@@ -34,7 +34,9 @@ class User(AbstractUser):
     p_manage_users = models.BooleanField(default=False)
     p_manage_peer_transactions = models.BooleanField(default=False)
     p_print_documents = models.BooleanField(default=False)
-    
+    p_manage_drive = models.BooleanField(default=False)
+    p_manage_tables = models.BooleanField(default=False)
+
     nid_number = models.CharField(max_length=20, blank=True, null=True, help_text="National ID Number")
     google_drive_json_key = models.TextField(blank=True, null=True, help_text="Google Drive Service Account JSON Key")
 
