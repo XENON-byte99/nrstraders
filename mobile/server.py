@@ -19,6 +19,9 @@ _lock = threading.Lock()
 def _free_port(preferred):
     for port in (preferred, 0):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Without this, restarting the app right after it closed finds the
+        # usual port "busy" for a minute and has to move to another one.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(('127.0.0.1', port))
             return s.getsockname()[1]
@@ -50,6 +53,8 @@ def start(data_dir, app_dir=None, preferred_port=8765):
         server = create_server(get_wsgi_application(), host='127.0.0.1', port=port, threads=6,
                                max_request_body_size=64 * 1024 * 1024)
         threading.Thread(target=server.run, name='nrs-server', daemon=True).start()
+        from documents import sync_client
+        sync_client.start_auto_sync()
         _state['port'] = port
         return port
 

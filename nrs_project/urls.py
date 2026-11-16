@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from documents import views as doc_views
-from documents import app_views, inbox_views, mobile_views
+from documents import app_views, inbox_views, live_sync, mobile_views
 from django.contrib.auth import views as auth_views
 from django.contrib.auth import logout
 from django.shortcuts import redirect
@@ -100,6 +100,14 @@ urlpatterns = [
     path('app/products/', app_views.app_products, name='app_products'),
     path('app/contacts/', app_views.app_contacts, name='app_contacts'),
     path('app/more/', app_views.app_more, name='app_more'),
+    path('app/sync/', app_views.app_sync, name='app_sync'),
+    path('app/api/sync/status/', app_views.app_sync_status, name='app_sync_status'),
+
+    # Live-server sync API (called by phones; token-authenticated)
+    path('api/sync/login/', live_sync.api_login, name='sync_login'),
+    path('api/sync/snapshot/', live_sync.api_snapshot, name='sync_snapshot'),
+    path('api/sync/exchange/', live_sync.api_exchange, name='sync_exchange'),
+    path('api/sync/media/', live_sync.api_media, name='sync_media'),
 
     # First-run setup (mobile app) and backup / restore
     path('setup/', mobile_views.mobile_setup, name='mobile_setup'),

@@ -3,19 +3,54 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+class SyncCounter(models.Model):
+    """One row holding the live server's change counter.
+
+    Every change to a synced record on the server takes the next number, so a
+    phone can ask for "everything after number N" without depending on clocks.
+    """
+    value = models.BigIntegerField(default=0)
+
+    @classmethod
+    def current(cls):
+        row = cls.objects.filter(pk=1).first()
+        return row.value if row else 0
+
+    @classmethod
+    def next(cls):
+        cls.objects.get_or_create(pk=1)
+        cls.objects.filter(pk=1).update(value=models.F('value') + 1)
+        return cls.objects.get(pk=1).value
+
+
+def _is_sync_device():
+    from django.conf import settings
+    return getattr(settings, 'SYNC_ROLE', 'server') == 'device'
+
+
 class SyncableModel(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, null=True, blank=True, db_index=True)
     is_dirty = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
+    # Live-server sync. On the server: the change number of the last edit.
+    # On a phone: the server change number this copy was last in step with.
+    sync_rev = models.BigIntegerField(default=0, db_index=True)
 
     class Meta:
         abstract = True
 
     def save(self, *args, **kwargs):
         skip_dirty = kwargs.pop('skip_dirty', False)
+        keep_rev = kwargs.pop('keep_rev', False)
         if not skip_dirty:
             self.is_dirty = True
+        if self.uuid is None:
+            self.uuid = uuid.uuid4()
+        if not keep_rev and not _is_sync_device():
+            self.sync_rev = SyncCounter.next()
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'is_dirty', 'sync_rev', 'updated_at', 'uuid'})
         super().save(*args, **kwargs)
 
 class TransactionCategory(SyncableModel):
@@ -868,3 +903,28 @@ class InboxMessage(models.Model):
 
     def __str__(self):
         return f"{self.sender or 'Unknown'}: {self.text[:40]}"
+
+
+class SyncDevice(models.Model):
+    """A phone that has been connected to this (live) server."""
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='sync_devices')
+    name = models.CharField(max_length=120, blank=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name or 'Phone'} ({self.user.username})"
+
+
+class SyncTombstone(models.Model):
+    """Remembers that a synced record was deleted, so the delete can travel
+    to the other side (rows that are simply gone cannot say so themselves)."""
+    model = models.CharField(max_length=40)
+    uuid = models.UUIDField(db_index=True)
+    deleted_at = models.DateTimeField(auto_now_add=True)
+    sync_rev = models.BigIntegerField(default=0, db_index=True)   # server change number
+    is_dirty = models.BooleanField(default=True)                  # phone: not sent yet
+
+    class Meta:
+        indexes = [models.Index(fields=['model', 'uuid'])]

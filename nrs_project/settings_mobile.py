@@ -36,6 +36,11 @@ DATABASES = {
 }
 SUPABASE_DATABASE_URL = None
 
+# Live-server sync: this copy is a phone, not the server.
+SYNC_ROLE = 'device'
+SYNC_BACKUP_DIR = str(DATA_DIR / 'backups')
+LIVE_SERVER_URL = 'https://nrs.firebaseit.com'
+
 MEDIA_ROOT = DATA_DIR / 'media'
 INBOX_SPOOL_DIR = str(DATA_DIR / 'inbox_spool')
 

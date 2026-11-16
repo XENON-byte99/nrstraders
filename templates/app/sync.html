@@ -1,0 +1,53 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_more' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Live server<span class="sub">Keep this phone and your website in step</span></h1>
+</header>
+{% endblock %}
+
+{% block content %}
+{% if state.connected %}
+<section class="card bill-head">
+    <span class="pill {% if state.last_error %}st-PRICED{% else %}st-RELEASED{% endif %}">{% if state.last_error %}Waiting for internet{% else %}Connected{% endif %}</span>
+    <div class="total" style="font-size:22px;overflow-wrap:anywhere">{{ state.server }}</div>
+    <div class="hint" style="margin:6px 0 0">Signed in as {{ state.username }}</div>
+</section>
+
+<section class="section">
+    <div class="card pad">
+        <div class="kv"><span>Last synced</span><b>{% if last_sync %}{{ last_sync|timesince }} ago{% else %}Not yet{% endif %}</b></div>
+        <div class="kv"><span>Changes waiting to upload</span><b class="num">{{ state.pending }}</b></div>
+    </div>
+    {% if state.last_error %}<div class="notice warn"><i class="fas fa-wifi"></i><div>{{ state.last_error }} Your changes are safe on this phone and will upload when the connection is back.</div></div>{% endif %}
+    {% for problem in state.problems %}<div class="notice err"><i class="fas fa-circle-exclamation"></i><div>{{ problem }}</div></div>{% endfor %}
+    {% if state.problems %}<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="action" value="dismiss"><button class="btn ghost sm" type="submit">Got it, clear these notes</button></form>{% endif %}
+</section>
+
+<section class="section stack">
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="sync">
+        <button class="btn primary block" type="submit"><i class="fas fa-rotate"></i> Sync now</button>
+    </form>
+    <p class="hint">Sync also runs by itself: within a minute of any change, and every few minutes while the app is open and online.</p>
+    <form method="post" onsubmit="return confirm('Stop syncing with the live server? Your data stays on this phone.');">{% csrf_token %}<input type="hidden" name="action" value="disconnect">
+        <button class="btn ghost block" type="submit">Disconnect</button>
+    </form>
+</section>
+{% else %}
+<div class="notice info" style="margin-top:0"><i class="fas fa-cloud"></i>
+    <div>Connect once and this phone keeps a full copy of your live data. Everything you do here works offline and is sent to the live website when you are online; changes made on the website come down to the phone.</div>
+</div>
+
+<section class="section">
+    <form method="post" class="card pad" onsubmit="return confirm('This replaces the data on this phone with a copy of your live data. A backup of what is on the phone now is kept. Continue?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="connect">
+        <label class="field"><span>Website address</span><input class="input" name="server" value="{{ default_server }}" autocapitalize="none" inputmode="url" required></label>
+        <label class="field"><span>Website username (owner)</span><input class="input" name="username" autocapitalize="none" autocomplete="username" required></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn primary block" type="submit" style="margin-top:16px"><i class="fas fa-link"></i> Connect and copy live data</button>
+    </form>
+    <p class="hint">The live server makes a backup of its database before a phone connects and before it accepts changes from a phone.</p>
+</section>
+{% endif %}
+{% endblock %}

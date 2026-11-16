@@ -18,7 +18,7 @@ jobs:
         username: ${{ secrets.NRS_SSH_USER }}
         password: ${{ secrets.NRS_SSH_PASSWORD }}
         port: 22
-        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip"
+        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip,!db.sqlite3,!db_deploy.sqlite3,!db_upload.sqlite3,!backups,!android,!mobile_data"
         target: "/var/www/nrs-software/"
         overwrite: true
 
@@ -29,7 +29,7 @@ jobs:
         username: ${{ secrets.NRS_SSH_USER }}
         password: ${{ secrets.NRS_SSH_PASSWORD }}
         port: 22
-        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip"
+        source: "*,!.venv,!.git,!.env,!media,!.github,!scratch,!static_root,!deploy.zip,!db.sqlite3,!db_deploy.sqlite3,!db_upload.sqlite3,!backups,!android,!mobile_data"
         target: "/var/www/nrs/"
         overwrite: true
 
@@ -42,11 +42,20 @@ jobs:
         port: 22
         script: |
           # Setup & commands for nrs-software
+          # The live database is never replaced by a deploy: it is the
+          # master copy that phones sync with. Back it up, then migrate it.
+          backup_db() {
+            mkdir -p backups
+            if [ -f db.sqlite3 ]; then
+              "$1" -c "import sqlite3,time; s=sqlite3.connect('db.sqlite3'); d=sqlite3.connect('backups/'+time.strftime('%Y%m%d-%H%M%S')+'-before-deploy.sqlite3'); s.backup(d); d.close(); s.close()"
+              ls -t backups/*-before-deploy.sqlite3 | tail -n +21 | xargs -r rm -f
+            fi
+          }
+
           cd /var/www/nrs-software
-          if [ -f "db_deploy.sqlite3" ]; then
-            mv -f db_deploy.sqlite3 db.sqlite3
-          fi
+          backup_db /var/www/nrs-software/venv/bin/python
           chmod 666 db.sqlite3
+          chmod 777 backups
           /var/www/nrs-software/venv/bin/pip install -r requirements.txt
           /var/www/nrs-software/venv/bin/python manage.py collectstatic --no-input
           /var/www/nrs-software/venv/bin/python manage.py migrate
@@ -54,10 +63,6 @@ jobs:
 
           # Setup & commands for nrs
           cd /var/www/nrs
-          if [ -f "db_deploy.sqlite3" ]; then
-            mv -f db_deploy.sqlite3 db.sqlite3
-          fi
-          chmod 666 db.sqlite3
           if [ -d "venv" ]; then
             ENV_PATH=venv
           elif [ -d ".venv" ]; then
@@ -66,6 +71,9 @@ jobs:
             python3 -m venv venv
             ENV_PATH=venv
           fi
+          backup_db $ENV_PATH/bin/python
+          [ -f db.sqlite3 ] && chmod 666 db.sqlite3
+          chmod 777 backups
           $ENV_PATH/bin/pip install -r requirements.txt
           $ENV_PATH/bin/python manage.py collectstatic --no-input
           $ENV_PATH/bin/python manage.py migrate

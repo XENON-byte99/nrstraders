@@ -187,3 +187,7 @@ LOGOUT_REDIRECT_URL = 'login'
 # Media files
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Where automatic database backups go (made before phone sync changes data
+# and before each deploy). Defaults to <project>/backups.
+SYNC_BACKUP_DIR = config('SYNC_BACKUP_DIR', default=str(BASE_DIR / 'backups'))

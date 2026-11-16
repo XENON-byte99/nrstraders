@@ -199,3 +199,81 @@ class AppScreensTest(TestCase):
     def test_validation(self):
         self.assertIn('category', self.save(category_id=None)['error'].lower())
         self.assertIn('item', self.save(items=[])['error'].lower())
+
+
+class LiveSyncServerTest(TestCase):
+    """The live server's side of phone sync."""
+
+    def setUp(self):
+        from . import live_sync
+        self.live_sync = live_sync
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.owner = User.objects.create_user('owner', password='pw', role='OWNER')
+        self.category = TransactionCategory.objects.create(name='Grocery Item', invoice_prefix='GRO')
+        r = self.client.post('/api/sync/login/', json.dumps({'username': 'owner', 'password': 'pw'}),
+                             content_type='application/json')
+        self.auth = {'HTTP_AUTHORIZATION': 'Token ' + r.json()['token']}
+
+    def exchange(self, **payload):
+        with override_settings(SYNC_BACKUP_DIR=self.tmp.name):
+            return self.client.post('/api/sync/exchange/', json.dumps(payload),
+                                    content_type='application/json', **self.auth).json()
+
+    def record(self, **fields):
+        data = {'transaction_category': {'uuid': str(self.category.uuid)}, 'buyer_name': 'B', 'status': 'DRAFT'}
+        data.update(fields)
+        return data
+
+    def test_login_is_owner_only_and_token_is_required(self):
+        User.objects.create_user('clerk', password='pw', role='BUYER')
+        r = self.client.post('/api/sync/login/', json.dumps({'username': 'clerk', 'password': 'pw'}),
+                             content_type='application/json')
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post('/api/sync/exchange/', '{}', content_type='application/json')
+        self.assertEqual(r.status_code, 401)
+
+    def test_every_server_change_gets_a_new_number(self):
+        first = self.category.sync_rev
+        self.category.name = 'Groceries'
+        self.category.save()
+        self.assertGreater(self.category.sync_rev, first)
+        changes = self.exchange(since=first)['changes']
+        self.assertEqual([c['fields']['name'] for c in changes], ['Groceries'])
+
+    def test_phone_record_is_created_then_conflicts_when_stale(self):
+        uid = '11111111-1111-1111-1111-111111111111'
+        reply = self.exchange(since=0, changes=[{'model': 'Transaction', 'uuid': uid, 'rev': 0,
+                                                 'fields': self.record(invoice_number='GRO-1')}])
+        self.assertEqual(reply['results'][0]['status'], 'ok')
+        bill = Transaction.objects.get(uuid=uid)
+        bill.buyer_name = 'Changed on website'
+        bill.save()
+        stale = self.exchange(since=0, changes=[{'model': 'Transaction', 'uuid': uid, 'rev': reply['results'][0]['rev'],
+                                                 'fields': self.record(buyer_name='Changed on phone')}])
+        self.assertEqual(stale['results'][0]['status'], 'conflict')
+        self.assertEqual(Transaction.objects.get(uuid=uid).buyer_name, 'Changed on website')
+
+    def test_clashing_invoice_number_is_renumbered(self):
+        Transaction.objects.create(transaction_category=self.category, invoice_number='GRO-202601-0001')
+        uid = '22222222-2222-2222-2222-222222222222'
+        self.exchange(changes=[{'model': 'Transaction', 'uuid': uid, 'rev': 0,
+                                'fields': self.record(invoice_number='GRO-202601-0001')}])
+        self.assertNotEqual(Transaction.objects.get(uuid=uid).invoice_number, 'GRO-202601-0001')
+
+    def test_deletes_travel_both_ways(self):
+        bill = Transaction.objects.create(transaction_category=self.category, invoice_number='X')
+        uid, rev = str(bill.uuid), bill.sync_rev
+        bill.delete()
+        self.assertIn({'model': 'Transaction', 'uuid': uid}, self.exchange(since=rev)['deletes'])
+        other = Transaction.objects.create(transaction_category=self.category, invoice_number='Y')
+        self.exchange(deletes=[{'model': 'Transaction', 'uuid': str(other.uuid)}])
+        self.assertFalse(Transaction.objects.filter(pk=other.pk).exists())
+
+    def test_backup_is_made_before_phone_changes_are_applied(self):
+        from django.db import connection
+        if connection.settings_dict['NAME'] in (':memory:', '') or 'memory' in str(connection.settings_dict['NAME']):
+            self.skipTest('needs a file database')
+        self.exchange(changes=[{'model': 'Transaction', 'uuid': '33333333-3333-3333-3333-333333333333', 'rev': 0,
+                                'fields': self.record()}])
+        self.assertTrue(any(f.endswith('before-sync.sqlite3') for f in os.listdir(self.tmp.name)))

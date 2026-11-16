@@ -33,7 +33,8 @@
 <section class="section">
     <div class="section-head"><h2>Administration</h2></div>
     <div class="card rows">
-        {% if can_backup %}<a class="row" href="{% url 'backup_page' %}"><span class="avatar tone-brand"><i class="fas fa-database"></i></span><div class="main"><div class="title">Backup &amp; restore</div><div class="subtitle">Your data lives only on this phone</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        {% if can_backup %}<a class="row" href="{% url 'app_sync' %}"><span class="avatar tone-blue"><i class="fas fa-cloud-arrow-up"></i></span><div class="main"><div class="title">Live server sync</div><div class="subtitle" id="sync-sub">Keep the phone and website in step</div></div><i class="fas fa-chevron-right chev"></i></a>
+        <a class="row" href="{% url 'backup_page' %}"><span class="avatar tone-brand"><i class="fas fa-database"></i></span><div class="main"><div class="title">Backup &amp; restore</div><div class="subtitle">Save or load a full copy as a file</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
         {% if can_users %}<a class="row" href="{% url 'user_list' %}"><span class="avatar tone-ink"><i class="fas fa-users"></i></span><div class="main"><div class="title">Users</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
         {% if can_audit %}<a class="row" href="{% url 'permission_dashboard' %}"><span class="avatar tone-ink"><i class="fas fa-user-shield"></i></span><div class="main"><div class="title">Permissions</div></div><i class="fas fa-chevron-right chev"></i></a>
         <a class="row" href="{% url 'audit_logs' %}"><span class="avatar tone-ink"><i class="fas fa-clock-rotate-left"></i></span><div class="main"><div class="title">Activity log</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
@@ -46,6 +47,11 @@
 {% block scripts %}
 <script>
 (function () {
+    fetch('{% url "app_sync_status" %}').then(function (r) { return r.json(); }).then(function (d) {
+        var sub = document.getElementById('sync-sub');
+        if (!sub || !d.connected) return;
+        sub.textContent = d.error ? ('Offline · ' + d.pending + ' change(s) waiting') : (d.pending ? d.pending + ' change(s) uploading' : 'Up to date');
+    }).catch(function () {});
     // Only the Android app can update itself.
     var app = window.NRSApp, row = document.getElementById('update-row');
     if (!app || typeof app.checkForUpdate !== 'function') return;

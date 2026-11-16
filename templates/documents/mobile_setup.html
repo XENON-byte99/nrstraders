@@ -8,7 +8,20 @@
     <div class="notice {% if message.tags == 'error' %}err{% else %}ok{% endif %}" style="margin:0 0 14px"><i class="fas fa-circle-info"></i><div>{{ message }}</div></div>
     {% endfor %}{% endif %}
 
-    <form method="post">
+    <form method="post" class="card pad" style="margin-bottom:22px">
+        {% csrf_token %}
+        <input type="hidden" name="mode" value="connect">
+        <p style="font-weight:800;font-size:16px">Use my NRS website data</p>
+        <p class="hint" style="margin:4px 0 12px">Copies everything from your live website to this phone and keeps both in step. Works offline; changes upload when you are online.</p>
+        <label class="field"><span>Website address</span><input class="input" name="server" value="{{ default_server }}" autocapitalize="none" inputmode="url" required></label>
+        <label class="field"><span>Owner username</span><input class="input" name="username" autocapitalize="none" autocomplete="username" required></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn primary block" type="submit" style="margin-top:16px"><i class="fas fa-link"></i> Connect</button>
+    </form>
+
+    <details>
+    <summary style="font-size:14px;font-weight:700;color:var(--brand);cursor:pointer">Start fresh on this phone instead</summary>
+    <form method="post" style="margin-top:12px">
         {% csrf_token %}
         <input type="hidden" name="mode" value="create">
         <label class="field"><span>Your name</span><input class="input" type="text" name="full_name" value="{{ values.full_name }}" autocomplete="name"></label>
@@ -17,11 +30,12 @@
             <label class="field" style="margin:0"><span>Password</span><input class="input" type="password" name="password" required minlength="4" autocomplete="new-password"></label>
             <label class="field" style="margin:0"><span>Repeat it</span><input class="input" type="password" name="password2" required minlength="4" autocomplete="new-password"></label>
         </div>
-        <button class="btn primary block" type="submit" style="margin-top:18px">Start billing</button>
+        <button class="btn dark block" type="submit" style="margin-top:18px">Start billing</button>
     </form>
+    </details>
 
-    <details style="margin-top:22px">
-        <summary style="font-size:14px;font-weight:700;color:var(--brand);cursor:pointer">Already use the NRS website? Bring your data instead</summary>
+    <details style="margin-top:14px">
+        <summary style="font-size:14px;font-weight:700;color:var(--brand);cursor:pointer">Load a backup file instead</summary>
         <form method="post" enctype="multipart/form-data" style="margin-top:12px">
             {% csrf_token %}
             <input type="hidden" name="mode" value="restore">

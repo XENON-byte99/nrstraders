@@ -69,7 +69,17 @@ def mobile_setup(request):
         return redirect('login')
 
     values = {'full_name': '', 'username': ''}
-    if request.method == 'POST' and request.POST.get('mode') == 'restore':
+    if request.method == 'POST' and request.POST.get('mode') == 'connect':
+        from . import sync_client
+        try:
+            sync_client.connect(request.POST.get('server'), request.POST.get('username'), request.POST.get('password'))
+        except sync_client.SyncError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, 'Connected. This phone now holds a copy of your live data and will keep it '
+                                      'in step. Sign in with your website username and password.')
+            return redirect('login')
+    elif request.method == 'POST' and request.POST.get('mode') == 'restore':
         upload = request.FILES.get('backup')
         if not upload:
             messages.error(request, 'Choose a backup file first.')
@@ -107,7 +117,8 @@ def mobile_setup(request):
             login(request, user)
             messages.success(request, 'Your account is ready. Everything you enter stays on this device.')
             return redirect('home')
-    return render(request, 'documents/mobile_setup.html', {'values': values})
+    return render(request, 'documents/mobile_setup.html', {
+        'values': values, 'default_server': getattr(settings, 'LIVE_SERVER_URL', '')})
 
 
 # ── Backup ─────────────────────────────────────────────────────────────────

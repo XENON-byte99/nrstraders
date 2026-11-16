@@ -28,8 +28,28 @@ current app and keep all data.
   NRS website?* and pick that file. Bills, products, contacts and logins come
   across.
 
-The phone and the website do not sync automatically. *Backup & Restore* moves
-a full copy in either direction.
+## Live server sync
+
+Choose **Use my NRS website data** on the first screen (or **More → Live
+server sync** later) and sign in with the website's owner account. The phone
+downloads a full copy of the live data and from then on:
+
+* everything you do on the phone is saved on the phone first, so it works
+  offline, and is uploaded to the live website within about a minute of being
+  online;
+* changes made on the website come down to the phone every few minutes, and
+  whenever you tap **Sync now**;
+* if the same record was changed in both places, the website's version is
+  kept and the phone tells you;
+* the live server copies its database into `backups/` before a phone connects,
+  before it accepts phone changes (at most once a day) and before every
+  deploy. The newest 20 copies are kept.
+
+Bills, items, products, contacts, categories, requisitions, check
+authorizations and user logins sync. The WhatsApp message inbox, print layout
+tweaks and the activity log stay on the device they were made on.
+
+The website must be running this version of the code for sync to work.
 
 ## Messages to bills
 

@@ -2,6 +2,7 @@
 {% block appbar %}
 <header class="appbar">
     <h1><span class="sub">{{ greeting }}</span>{{ user.first_name|default:user.username }}</h1>
+    <a class="iconbtn" id="sync-chip" href="{% url 'app_sync' %}" aria-label="Live server sync" style="display:none"><i class="fas fa-cloud"></i></a>
     <a class="iconbtn" href="{% url 'app_bills' %}?focus=1" aria-label="Search bills"><i class="fas fa-magnifying-glass"></i></a>
 </header>
 {% endblock %}
@@ -61,4 +62,18 @@
     </div>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cloud icon: green = in step with the live server, amber = changes waiting.
+fetch('{% url "app_sync_status" %}').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.connected) return;
+    var chip = document.getElementById('sync-chip');
+    chip.style.display = 'inline-flex';
+    var waiting = d.error || d.pending || d.problems;
+    chip.style.color = waiting ? 'var(--amber)' : 'var(--wa)';
+    chip.querySelector('i').className = 'fas ' + (d.error ? 'fa-cloud-arrow-up' : (waiting ? 'fa-cloud-arrow-up' : 'fa-cloud'));
+}).catch(function () {});
+</script>
 {% endblock %}

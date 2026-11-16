@@ -342,3 +342,71 @@ def app_more(request):
         'can_gate': _can(u, 'p_view_gate_entry'),
         'can_backup': u.is_superuser or getattr(u, 'role', '') == 'OWNER',
     })
+
+
+# ── Live server sync ───────────────────────────────────────────────────────
+def _is_owner(user):
+    return user.is_superuser or getattr(user, 'role', '') == 'OWNER'
+
+
+@login_required
+def app_sync(request):
+    """Connect this phone to the live website and keep the two in step."""
+    from django.conf import settings
+    from . import sync_client
+
+    if not getattr(settings, 'MOBILE_APP', False):
+        messages.info(request, 'Live-server sync is set up from the phone app.')
+        return redirect('app_more')
+    if not _is_owner(request.user):
+        messages.error(request, 'Only the owner can manage live-server sync.')
+        return redirect('app_more')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        try:
+            if action == 'connect':
+                sync_client.connect(request.POST.get('server'), request.POST.get('username'),
+                                    request.POST.get('password'))
+                # The accounts on this phone are now the live site's accounts.
+                request.session.flush()
+                messages.success(request, 'Connected. This phone now holds a copy of your live data. '
+                                          'Sign in with your website username and password.')
+                return redirect('login')
+            if action == 'sync':
+                result = sync_client.sync_now()
+                if result.get('busy'):
+                    messages.info(request, 'A sync is already running.')
+                else:
+                    messages.success(request, 'Synced: sent %d change(s), received %d.'
+                                     % (result.get('sent', 0), result.get('received', 0)))
+            elif action == 'dismiss':
+                sync_client.dismiss_problems()
+            elif action == 'disconnect':
+                sync_client.disconnect()
+                messages.success(request, 'Disconnected. Your data is still on this phone.')
+        except sync_client.SyncError as exc:
+            messages.error(request, str(exc))
+        return redirect('app_sync')
+
+    state = sync_client.status()
+    last = None
+    if state.get('last_sync'):
+        from django.utils.dateparse import parse_datetime
+        last = parse_datetime(state['last_sync'])
+    return render(request, 'app/sync.html', {
+        'tab': 'more', 'state': state, 'last_sync': last,
+        'default_server': getattr(settings, 'LIVE_SERVER_URL', ''),
+    })
+
+
+@login_required
+def app_sync_status(request):
+    from django.conf import settings
+    from . import sync_client
+    if not getattr(settings, 'MOBILE_APP', False):
+        return JsonResponse({'connected': False})
+    state = sync_client.status()
+    return JsonResponse({'connected': state['connected'], 'pending': state['pending'],
+                         'last_sync': state['last_sync'], 'error': bool(state['last_error']),
+                         'problems': len(state['problems'])})
