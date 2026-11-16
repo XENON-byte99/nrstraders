@@ -7,11 +7,18 @@ in the app's private storage. No internet is needed.
 
 ## Get the APK
 
-Every push that touches the app builds it on GitHub: **Actions → Build NRS
-Billing app (offline Android) → latest run → Artifacts → `nrs-billing-apk`**.
-Unzip the download, copy the `.apk` to the phone and open it (allow "install
-unknown apps" when asked). Later builds install over the old one and keep your
-data.
+Direct download of the newest build (open it on the phone and install; allow
+"install unknown apps" when asked):
+
+https://github.com/XENON-byte99/nrstraders/releases/latest/download/NRS-Billing.apk
+
+## Updates
+
+Each push that changes the app is built, tested on an emulator and published
+as a GitHub Release. The installed app checks for a newer release when it
+opens (at most every six hours, and only when online) and offers **Update
+now**; **More → Check for updates** checks on demand. Updates install over the
+current app and keep all data.
 
 ## First launch
 

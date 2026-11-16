@@ -19,6 +19,9 @@ android {
         targetSdk = 34
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "2.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        // Where the app looks for newer builds (the repository's latest GitHub Release).
+        buildConfigField("String", "UPDATE_URL",
+            "\"https://github.com/" + (System.getenv("GITHUB_REPOSITORY") ?: "XENON-byte99/nrstraders") + "/releases/latest/download/\"")
         ndk {
             // 64-bit phones, plus the 32-bit Android still found on budget phones.
             // (-PnrsAbis=x86_64 builds for the emulator used by the CI device test.)

@@ -37,7 +37,21 @@
         {% if can_users %}<a class="row" href="{% url 'user_list' %}"><span class="avatar tone-ink"><i class="fas fa-users"></i></span><div class="main"><div class="title">Users</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
         {% if can_audit %}<a class="row" href="{% url 'permission_dashboard' %}"><span class="avatar tone-ink"><i class="fas fa-user-shield"></i></span><div class="main"><div class="title">Permissions</div></div><i class="fas fa-chevron-right chev"></i></a>
         <a class="row" href="{% url 'audit_logs' %}"><span class="avatar tone-ink"><i class="fas fa-clock-rotate-left"></i></span><div class="main"><div class="title">Activity log</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        <a class="row" href="#" id="update-row" style="display:none"><span class="avatar tone-wa"><i class="fas fa-cloud-arrow-down"></i></span><div class="main"><div class="title">Check for updates</div><div class="subtitle" id="update-version"></div></div><i class="fas fa-chevron-right chev"></i></a>
         <a class="row" href="{% url 'logout' %}"><span class="avatar" style="background:#FDECEA;color:var(--danger)"><i class="fas fa-arrow-right-from-bracket"></i></span><div class="main"><div class="title" style="color:var(--danger)">Sign out</div></div></a>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Only the Android app can update itself.
+    var app = window.NRSApp, row = document.getElementById('update-row');
+    if (!app || typeof app.checkForUpdate !== 'function') return;
+    row.style.display = 'flex';
+    document.getElementById('update-version').textContent = 'Installed version ' + app.appVersion();
+    row.addEventListener('click', function (e) { e.preventDefault(); app.checkForUpdate(); });
+})();
+</script>
 {% endblock %}

@@ -5,6 +5,8 @@
          loopback. Nothing leaves the phone unless you use the optional online
          features (cloud sync, AI reading). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the app install its own updates after you tap "Update now". -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".NrsApp"

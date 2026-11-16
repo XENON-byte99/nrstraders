@@ -199,6 +199,7 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         String path = pendingPath != null ? pendingPath : "/";
         pendingPath = null;
         web.loadUrl(baseUrl + path);
+        Updater.autoCheck(this);
     }
 
     @Override
@@ -371,6 +372,11 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
             } catch (Exception e) {
                 runOnUiThread(() -> toast(getString(R.string.download_failed)));
             }
+        }
+
+        @JavascriptInterface
+        public void checkForUpdate() {
+            runOnUiThread(() -> Updater.check(MainActivity.this, true));
         }
 
         @JavascriptInterface
