@@ -166,13 +166,22 @@ def _create_transaction_snapshot(transaction, user=None):
         snapshot_data=tx_data
     )
 
+def _is_app(request):
+    """True inside the phone app, which has its own home/bills/inbox screens."""
+    from django.conf import settings
+    return bool(getattr(settings, 'MOBILE_APP', False))
+
 @login_required
 def home(request):
-    return redirect('transaction_list')
+    return redirect('app_home' if _is_app(request) else 'transaction_list')
 
 @login_required
 def transaction_list(request):
     from django.db.models import Q
+    # In the app the bills screen replaces this table; it stays reachable
+    # (bulk print, bundles) through an explicit ?classic=1 link.
+    if _is_app(request) and not request.GET:
+        return redirect('app_bills')
     transactions = Transaction.objects.select_related(
         'transaction_category', 'secondary_category'
     ).prefetch_related('items')

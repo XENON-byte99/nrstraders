@@ -1,0 +1,43 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar"><h1>More</h1></header>
+{% endblock %}
+{% block content %}
+<a class="card row" href="{% url 'password_change' %}" style="border-radius:var(--radius)">
+    <span class="avatar tone-brand">{{ user.username|slice:":1"|upper }}</span>
+    <div class="main"><div class="title">{{ user.get_full_name|default:user.username }}</div><div class="subtitle">{{ user.get_role_display }} · tap to change password</div></div>
+    <i class="fas fa-chevron-right chev"></i>
+</a>
+
+<section class="section">
+    <div class="section-head"><h2>Your business</h2></div>
+    <div class="card rows">
+        <a class="row" href="{% url 'app_products' %}"><span class="avatar tone-amber"><i class="fas fa-box"></i></span><div class="main"><div class="title">Products &amp; prices</div><div class="subtitle">Saved items used to fill bills</div></div><i class="fas fa-chevron-right chev"></i></a>
+        <a class="row" href="{% url 'app_contacts' %}"><span class="avatar tone-blue"><i class="fas fa-address-book"></i></span><div class="main"><div class="title">Buyers &amp; suppliers</div><div class="subtitle">Saved contacts</div></div><i class="fas fa-chevron-right chev"></i></a>
+        {% if can_categories %}<a class="row" href="{% url 'category_list' %}"><span class="avatar tone-violet"><i class="fas fa-layer-group"></i></span><div class="main"><div class="title">Categories</div><div class="subtitle">VAT, tax and numbering per category</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        {% if can_summary %}<a class="row" href="{% url 'bill_summary' %}"><span class="avatar tone-wa"><i class="fas fa-chart-column"></i></span><div class="main"><div class="title">Summary &amp; reports</div><div class="subtitle">Totals by status and period</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Tools</h2></div>
+    <div class="card rows">
+        <a class="row" href="{% url 'transaction_list' %}?classic=1"><span class="avatar tone-ink"><i class="fas fa-print"></i></span><div class="main"><div class="title">Bulk print &amp; bundles</div><div class="subtitle">Print several bills together</div></div><i class="fas fa-chevron-right chev"></i></a>
+        {% if can_authorizations %}<a class="row" href="{% url 'authorization_list' %}"><span class="avatar tone-ink"><i class="fas fa-money-check"></i></span><div class="main"><div class="title">Check authorizations</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        <a class="row" href="{% url 'peer_transaction_list' %}"><span class="avatar tone-ink"><i class="fas fa-right-left"></i></span><div class="main"><div class="title">Peer transactions</div></div><i class="fas fa-chevron-right chev"></i></a>
+        {% if can_gate %}<a class="row" href="{% url 'gate_entry' %}"><span class="avatar tone-ink"><i class="fas fa-door-open"></i></span><div class="main"><div class="title">Gate entry</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        <a class="row" href="{% url 'visual_requisition_list' %}"><span class="avatar tone-ink"><i class="fas fa-image"></i></span><div class="main"><div class="title">Image requisitions</div></div><i class="fas fa-chevron-right chev"></i></a>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Administration</h2></div>
+    <div class="card rows">
+        {% if can_backup %}<a class="row" href="{% url 'backup_page' %}"><span class="avatar tone-brand"><i class="fas fa-database"></i></span><div class="main"><div class="title">Backup &amp; restore</div><div class="subtitle">Your data lives only on this phone</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        {% if can_users %}<a class="row" href="{% url 'user_list' %}"><span class="avatar tone-ink"><i class="fas fa-users"></i></span><div class="main"><div class="title">Users</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        {% if can_audit %}<a class="row" href="{% url 'permission_dashboard' %}"><span class="avatar tone-ink"><i class="fas fa-user-shield"></i></span><div class="main"><div class="title">Permissions</div></div><i class="fas fa-chevron-right chev"></i></a>
+        <a class="row" href="{% url 'audit_logs' %}"><span class="avatar tone-ink"><i class="fas fa-clock-rotate-left"></i></span><div class="main"><div class="title">Activity log</div></div><i class="fas fa-chevron-right chev"></i></a>{% endif %}
+        <a class="row" href="{% url 'logout' %}"><span class="avatar" style="background:#FDECEA;color:var(--danger)"><i class="fas fa-arrow-right-from-bracket"></i></span><div class="main"><div class="title" style="color:var(--danger)">Sign out</div></div></a>
+    </div>
+</section>
+{% endblock %}

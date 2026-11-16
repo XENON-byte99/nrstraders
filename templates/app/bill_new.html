@@ -1,0 +1,356 @@
+{% extends 'app/base.html' %}
+{% block screen_class %}has-footer{% endblock %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="javascript:history.back()" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>New bill</h1>
+    <a class="iconbtn" href="{% url 'transaction_create' %}{% if inbox_ids %}?inbox={{ inbox_ids }}{% endif %}" title="Full editor with every option" aria-label="Full editor"><i class="fas fa-sliders"></i></a>
+</header>
+{% endblock %}
+
+{% block content %}
+{% if inbox_ids %}
+<div class="notice ok" style="margin-top:0">
+    <i class="fab fa-whatsapp" style="font-size:18px"></i>
+    <div>From {{ inbox_count }} message{{ inbox_count|pluralize }}{% if inbox_senders %} by <b>{{ inbox_senders }}</b>{% endif %}. Check the items below, then save.</div>
+</div>
+{% endif %}
+
+{% if not categories %}
+<div class="notice warn"><i class="fas fa-triangle-exclamation"></i><div>Add a category first: More → Categories.</div></div>
+{% endif %}
+
+<section class="section" style="margin-top:14px">
+    <div class="card pad">
+        <label class="field"><span>Category</span>
+            <select class="input" id="f-category">
+                {% if categories|length != 1 %}<option value="">Choose a category</option>{% endif %}
+                {% for c in categories %}<option value="{{ c.id }}" data-buyer="{{ c.default_buyer_id|default:'' }}" data-supplier="{{ c.default_supplier_id|default:'' }}"
+                    data-rates="VAT {{ c.default_vat|floatformat:'-2' }}% · Duty {{ c.default_duty|floatformat:'-2' }}% · Tax {{ c.default_tax|floatformat:'-2' }}%{% if c.default_profit_margin %} · Margin {{ c.default_profit_margin|floatformat:'-2' }}%{% endif %}">{{ c.name }}</option>{% endfor %}
+            </select>
+        </label>
+        <p class="hint" id="rates"></p>
+
+        <label class="field"><span>Buyer</span>
+            <select class="input" id="f-buyer">
+                <option value="">Category default</option>
+                {% for p in buyers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                <option value="other">Someone else…</option>
+            </select>
+        </label>
+        <label class="field" id="buyer-name-wrap" style="display:none"><span>Buyer name</span>
+            <input class="input" id="f-buyer-name" placeholder="Type the buyer's name">
+        </label>
+
+        <label class="field"><span>Supplier</span>
+            <select class="input" id="f-supplier">
+                <option value="">Category default</option>
+                {% for p in suppliers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+            </select>
+        </label>
+
+        <div class="field"><span style="display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 2px 6px">Prices I enter are</span>
+            <div class="seg" id="f-mode">
+                <button type="button" class="on" data-mode="forward">My base price</button>
+                <button type="button" data-mode="reverse">Final price to buyer</button>
+            </div>
+            <p class="hint" id="mode-hint"></p>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Items</h2><a href="#" id="clear-items" style="display:none">Clear all</a></div>
+    <div class="card" id="items"></div>
+    <div class="btn-row" style="margin-top:10px">
+        <button type="button" class="btn dark" id="add-item"><i class="fas fa-plus"></i> Add item</button>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+        <button type="button" class="btn ghost sm" id="open-paste"><i class="fas fa-paste"></i> Paste message</button>
+        <button type="button" class="btn ghost sm" id="open-excel"><i class="fas fa-file-excel"></i> Import Excel</button>
+    </div>
+    <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" hidden>
+    <div id="import-note"></div>
+</section>
+{% endblock %}
+
+{% block footer %}
+<div class="footer">
+    <div class="footer-in">
+        <div class="sum">
+            <div><div class="l" id="sum-label">Grand total</div><div class="l" id="sum-detail" style="font-weight:600"></div></div>
+            <div class="g num" id="sum-total">৳0.00</div>
+        </div>
+        <button type="button" class="btn primary block" id="save" disabled><i class="fas fa-check"></i> Save as draft</button>
+    </div>
+</div>
+
+<!-- Add / edit item -->
+<div class="sheet-wrap" id="item-sheet">
+    <div class="sheet-bg"></div>
+    <div class="sheet">
+        <h2 id="item-title">Add item</h2>
+        <p class="lead">Start typing to pick a saved product; its unit and price fill in.</p>
+        <label class="field"><span>Item</span><input class="input" id="i-desc" autocomplete="off" placeholder="e.g. 1 inch Cable Clip"></label>
+        <div class="suggest" id="i-suggest"></div>
+        <div class="grid-3" style="margin-top:12px">
+            <label class="field" style="margin:0"><span>Qty</span><input class="input num" id="i-qty" type="number" inputmode="decimal" step="any" min="0" value="1"></label>
+            <label class="field" style="margin:0"><span>Unit</span><input class="input" id="i-unit" value="Pcs" list="unit-list"></label>
+            <label class="field" style="margin:0"><span id="i-price-label">Price</span><input class="input num" id="i-price" type="number" inputmode="decimal" step="any" min="0" placeholder="0.00"></label>
+        </div>
+        <datalist id="unit-list"><option>Pcs</option><option>Kg</option><option>Ltr</option><option>Box</option><option>Pkt</option><option>Dozen</option><option>Bag</option><option>Set</option><option>Ft</option><option>Meter</option><option>Roll</option><option>Coil</option></datalist>
+        <div class="btn-row" style="margin-top:16px">
+            <button type="button" class="btn danger" id="i-delete" style="display:none;flex:0 0 auto"><i class="fas fa-trash"></i></button>
+            <button type="button" class="btn ghost" id="i-more">Save &amp; add another</button>
+            <button type="button" class="btn primary" id="i-save">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- Paste a message -->
+<div class="sheet-wrap" id="paste-sheet">
+    <div class="sheet-bg"></div>
+    <div class="sheet">
+        <h2>Paste a message</h2>
+        <p class="lead">Paste a WhatsApp message or type the order, one item per line. Works without internet.</p>
+        <textarea class="input" id="paste-text" rows="7" placeholder="Rice 5 kg @ 60&#10;Oil 2 ltr = 360&#10;Cable clip - 12 pcs"></textarea>
+        <div id="paste-note"></div>
+        <div class="btn-row" style="margin-top:14px">
+            <button type="button" class="btn ghost" data-close-sheet>Cancel</button>
+            <button type="button" class="btn primary" id="paste-go"><i class="fas fa-wand-magic-sparkles"></i> Read items</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function () {
+    var items = [], mode = 'forward', editing = -1, previewTimer = null, previewSeq = 0;
+    var $ = function (id) { return document.getElementById(id); };
+    var cat = $('f-category'), buyer = $('f-buyer'), supplier = $('f-supplier');
+
+    // ── Header fields ──
+    function onCategory() {
+        var opt = cat.options[cat.selectedIndex];
+        $('rates').textContent = (opt && opt.dataset.rates) ? opt.dataset.rates : '';
+        schedulePreview();
+    }
+    cat.addEventListener('change', onCategory);
+    buyer.addEventListener('change', function () {
+        $('buyer-name-wrap').style.display = buyer.value === 'other' ? 'block' : 'none';
+        if (buyer.value === 'other') $('f-buyer-name').focus();
+    });
+    supplier.addEventListener('change', schedulePreview);
+
+    function setMode(m) {
+        mode = m;
+        document.querySelectorAll('#f-mode button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+        $('mode-hint').textContent = m === 'reverse'
+            ? 'VAT, duty and tax are worked backwards so the buyer pays exactly the prices you type.'
+            : 'VAT, duty, tax and margin are added on top of the prices you type.';
+        $('i-price-label').textContent = m === 'reverse' ? 'Final price' : 'Base price';
+        schedulePreview();
+    }
+    document.querySelectorAll('#f-mode button').forEach(function (b) {
+        b.addEventListener('click', function () { setMode(b.dataset.mode); });
+    });
+
+    // ── Item list ──
+    function render() {
+        var box = $('items');
+        if (!items.length) {
+            box.innerHTML = '<div class="empty"><i class="fas fa-basket-shopping"></i><h3>No items yet</h3>'
+                + '<p>Add items one by one, paste a message, or import an Excel sheet.</p></div>';
+        } else {
+            box.innerHTML = items.map(function (it, i) {
+                var line = (Number(it.quantity) || 0) * (Number(it.price) || 0);
+                return '<div class="line' + (it.price ? '' : ' warn') + '" data-i="' + i + '">'
+                    + '<span class="n num">' + (i + 1) + '</span>'
+                    + '<div class="d"><b>' + NRS.esc(it.description) + '</b><span class="num">' + NRS.esc(it.quantity) + ' '
+                    + NRS.esc(it.unit) + ' × ৳' + NRS.money(it.price) + '</span></div>'
+                    + '<div class="a num">' + (it.price ? '৳' + NRS.money(line) : 'Add price') + '</div></div>';
+            }).join('');
+        }
+        $('clear-items').style.display = items.length ? '' : 'none';
+        $('save').disabled = !items.length;
+        schedulePreview();
+    }
+    $('items').addEventListener('click', function (e) {
+        var row = e.target.closest('.line');
+        if (row) openItem(Number(row.dataset.i));
+    });
+    $('clear-items').addEventListener('click', function (e) {
+        e.preventDefault();
+        if (confirm('Remove all items?')) { items = []; render(); }
+    });
+
+    // ── Add / edit sheet ──
+    function openItem(index) {
+        editing = index;
+        var it = index >= 0 ? items[index] : { description: '', quantity: 1, unit: 'Pcs', price: '' };
+        $('item-title').textContent = index >= 0 ? 'Edit item' : 'Add item';
+        $('i-desc').value = it.description; $('i-qty').value = it.quantity; $('i-unit').value = it.unit; $('i-price').value = it.price || '';
+        $('i-delete').style.display = index >= 0 ? '' : 'none';
+        $('i-more').style.display = index >= 0 ? 'none' : '';
+        $('i-suggest').classList.remove('show');
+        NRS.openSheet('item-sheet');
+        if (index < 0) setTimeout(function () { $('i-desc').focus(); }, 280);
+    }
+    function takeItem() {
+        var description = $('i-desc').value.trim();
+        if (!description) { $('i-desc').focus(); return false; }
+        var it = { description: description, quantity: parseFloat($('i-qty').value) || 1,
+                   unit: $('i-unit').value.trim() || 'Pcs', price: parseFloat($('i-price').value) || 0 };
+        if (editing >= 0) items[editing] = it; else items.push(it);
+        render();
+        return true;
+    }
+    $('add-item').addEventListener('click', function () { openItem(-1); });
+    $('i-save').addEventListener('click', function () { if (takeItem()) NRS.closeSheets(); });
+    $('i-more').addEventListener('click', function () { if (takeItem()) openItem(-1); });
+    $('i-delete').addEventListener('click', function () { items.splice(editing, 1); render(); NRS.closeSheets(); });
+
+    var suggestTimer = null;
+    $('i-desc').addEventListener('input', function () {
+        clearTimeout(suggestTimer);
+        var q = this.value.trim(), box = $('i-suggest');
+        if (q.length < 2) { box.classList.remove('show'); return; }
+        suggestTimer = setTimeout(function () {
+            fetch('/api/products/search/?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) {
+                var list = (d.results || []).slice(0, 5);
+                box.innerHTML = list.map(function (p, i) {
+                    return '<button type="button" data-i="' + i + '"><b>' + NRS.esc(p.name) + '</b><span class="num">৳'
+                        + NRS.money(p.base_price) + ' / ' + NRS.esc(p.unit) + '</span></button>';
+                }).join('');
+                box.classList.toggle('show', list.length > 0);
+                box.onclick = function (e) {
+                    var b = e.target.closest('button'); if (!b) return;
+                    var p = list[Number(b.dataset.i)];
+                    $('i-desc').value = p.name; $('i-unit').value = p.unit || 'Pcs';
+                    if (!$('i-price').value && Number(p.base_price)) $('i-price').value = Number(p.base_price);
+                    box.classList.remove('show'); $('i-qty').focus(); $('i-qty').select();
+                };
+            }).catch(function () {});
+        }, 180);
+    });
+
+    // ── Read text into items (paste, inbox, Excel) ──
+    function readText(text, noteEl, done) {
+        NRS.post('/api/quick-bill/smart-parse/', { text: text, category_id: cat.value || null }).then(function (d) {
+            if (!d.ok) { noteEl.innerHTML = '<div class="notice err"><i class="fas fa-circle-exclamation"></i><div>' + NRS.esc(d.error || 'Could not read that.') + '</div></div>'; return; }
+            var added = 0, noPrice = 0;
+            (d.rows || []).forEach(function (r) {
+                if (r.status === 'error') return;
+                items.push({ description: r.description, quantity: r.quantity, unit: r.unit, price: r.unit_price || 0 });
+                added++; if (!r.unit_price) noPrice++;
+            });
+            if (d.category && !cat.value) { cat.value = d.category.id; onCategory(); }
+            var msg = 'Added ' + added + ' item' + (added === 1 ? '' : 's') + '.';
+            if (noPrice) msg += ' ' + noPrice + ' need' + (noPrice === 1 ? 's' : '') + ' a price — tap to add it.';
+            if (d.skipped && d.skipped.length) msg += ' Ignored ' + d.skipped.length + ' line' + (d.skipped.length === 1 ? '' : 's') + ' that were not items.';
+            $('import-note').innerHTML = '<div class="notice ' + (noPrice ? 'warn' : 'ok') + '"><i class="fas fa-wand-magic-sparkles"></i><div>' + msg + '</div></div>';
+            render();
+            if (done) done();
+        }).catch(function () {
+            noteEl.innerHTML = '<div class="notice err"><i class="fas fa-circle-exclamation"></i><div>Could not read that. Try again.</div></div>';
+        });
+    }
+    $('open-paste').addEventListener('click', function () { $('paste-note').innerHTML = ''; NRS.openSheet('paste-sheet'); });
+    $('paste-go').addEventListener('click', function () {
+        var text = $('paste-text').value.trim();
+        if (!text) { $('paste-text').focus(); return; }
+        readText(text, $('paste-note'), function () { $('paste-text').value = ''; NRS.closeSheets(); });
+    });
+
+    // Excel / CSV: find the item, quantity and price columns, then reuse the same reader.
+    $('open-excel').addEventListener('click', function () { $('excel-file').click(); });
+    $('excel-file').addEventListener('change', function () {
+        var file = this.files[0]; this.value = '';
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                var book = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                var rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '' })
+                    .filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
+                var col = { d: 0, q: 1, p: 2 }, start = 0;
+                for (var i = 0; i < Math.min(rows.length, 8); i++) {
+                    var heads = rows[i].map(function (c) { return String(c).toLowerCase(); });
+                    var d = heads.findIndex(function (h) { return /desc|item|product|name|particular|বিবরণ/.test(h); });
+                    if (d < 0) continue;
+                    col.d = d;
+                    col.q = heads.findIndex(function (h) { return /qty|quantity|পরিমাণ/.test(h); });
+                    col.p = heads.findIndex(function (h) { return /price|rate|দাম|দর/.test(h) && !/total|amount/.test(h); });
+                    start = i + 1; break;
+                }
+                var clean = function (v) { return String(v == null ? '' : v).replace(/[|\n\r\t]/g, ' ').trim(); };
+                var lines = rows.slice(start).map(function (r) {
+                    var d = clean(r[col.d]); if (!d) return '';
+                    return d + ' | ' + (col.q >= 0 ? clean(r[col.q]) : '') + ' | ' + (col.p >= 0 ? clean(r[col.p]) : '');
+                }).filter(Boolean);
+                if (!lines.length) throw new Error('empty');
+                readText(lines.join('\n'), $('import-note'));
+            } catch (err) {
+                $('import-note').innerHTML = '<div class="notice err"><i class="fas fa-circle-exclamation"></i><div>That file could not be read. Use an .xlsx or .csv with an item column.</div></div>';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // ── Totals (worked out by the same code that prints the invoice) ──
+    function payload(preview) {
+        return { preview: preview, category_id: cat.value, mode: mode,
+                 buyer_id: (buyer.value && buyer.value !== 'other') ? buyer.value : null,
+                 buyer_name: buyer.value === 'other' ? $('f-buyer-name').value : '',
+                 supplier_id: supplier.value || null, items: items, inbox_ids: '{{ inbox_ids|default:"" }}' };
+    }
+    function schedulePreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(function () {
+            var plain = items.reduce(function (s, it) { return s + (Number(it.quantity) || 0) * (Number(it.price) || 0); }, 0);
+            if (!items.length || !cat.value) {
+                $('sum-total').textContent = '৳' + NRS.money(plain);
+                $('sum-detail').textContent = items.length && !cat.value ? 'Choose a category to add VAT and tax' : '';
+                return;
+            }
+            var seq = ++previewSeq;
+            NRS.post('/app/api/bill/', payload(true)).then(function (d) {
+                if (seq !== previewSeq) return;
+                if (!d.ok) { $('sum-total').textContent = '৳' + NRS.money(plain); $('sum-detail').textContent = d.error || ''; return; }
+                var t = d.totals, extra = t.duty + t.tax + t.vat + t.service_charge;
+                $('sum-total').textContent = '৳' + NRS.money(t.grand_total);
+                $('sum-detail').textContent = 'Items ৳' + NRS.money(t.subtotal) + ' + charges ৳' + NRS.money(extra);
+            }).catch(function () {});
+        }, 250);
+    }
+
+    $('save').addEventListener('click', function () {
+        if (!cat.value) { alert('Choose a category first.'); cat.focus(); return; }
+        var btn = this; btn.disabled = true;
+        NRS.post('/app/api/bill/', payload(false)).then(function (d) {
+            if (d.ok) { window.location.replace(d.url); return; }
+            btn.disabled = false; alert(d.error || 'Could not save the bill.');
+        }).catch(function () { btn.disabled = false; alert('Could not save the bill.'); });
+    });
+
+    // ── Start ──
+    {% if inbox_party %}
+    (function () {
+        var sel = {% if inbox_party.party_type == 'SUPPLIER' %}supplier{% else %}buyer{% endif %};
+        sel.value = '{{ inbox_party.id }}';
+    })();
+    {% elif inbox_senders %}
+    buyer.value = 'other'; $('buyer-name-wrap').style.display = 'block'; $('f-buyer-name').value = "{{ inbox_senders|escapejs }}";
+    {% endif %}
+    setMode('forward'); onCategory(); render();
+    {% if inbox_text %}
+    readText("{{ inbox_text|escapejs }}", $('import-note'));
+    {% endif %}
+    var open = new URLSearchParams(location.search).get('open');
+    if (open === 'paste') $('open-paste').click();
+    if (open === 'excel') $('open-excel').click();
+})();
+</script>
+{% endblock %}

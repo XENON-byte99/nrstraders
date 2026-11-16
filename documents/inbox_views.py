@@ -222,6 +222,8 @@ def mark_messages_billed(id_string, transaction):
 @login_required
 @permission_required('p_create_bill')
 def inbox_list(request):
+    if getattr(settings, 'MOBILE_APP', False):
+        return redirect('app_inbox')
     ingest_spool()
     status = request.GET.get('status', 'NEW').upper()
     if status not in ('NEW', 'BILLED', 'ARCHIVED'):
@@ -276,7 +278,7 @@ def inbox_import(request):
         messages.success(request, '%d new message(s) added to the inbox.' % added)
     elif not problems:
         messages.info(request, 'Nothing new to add - those messages are already in the inbox.')
-    return redirect('inbox_list')
+    return redirect('app_inbox' if request.POST.get('next') == 'app' else 'inbox_list')
 
 
 @login_required
@@ -291,7 +293,8 @@ def inbox_action(request):
         return back
     qs = InboxMessage.objects.filter(pk__in=ids)
     if action == 'bill':
-        return redirect('/bills/new/?inbox=' + ','.join(str(i) for i in ids))
+        target = '/app/bills/new/' if getattr(settings, 'MOBILE_APP', False) else '/bills/new/'
+        return redirect(target + '?inbox=' + ','.join(str(i) for i in ids))
     if action == 'archive':
         messages.success(request, '%d message(s) archived.' % qs.update(status='ARCHIVED'))
     elif action == 'restore':

@@ -1,0 +1,21 @@
+{% extends 'app/base.html' %}
+{% block body %}
+<div class="auth">
+    <div class="mark"><i class="fas fa-file-invoice"></i></div>
+    <h1>Welcome back</h1>
+    <p class="lead">Sign in to NRS Billing. Your data stays on this phone.</p>
+    {% if messages %}{% for message in messages %}
+    <div class="notice {% if message.tags == 'error' %}err{% else %}ok{% endif %}" style="margin:0 0 14px"><i class="fas fa-circle-info"></i><div>{{ message }}</div></div>
+    {% endfor %}{% endif %}
+    {% if form.errors %}
+    <div class="notice err" style="margin:0 0 14px"><i class="fas fa-circle-exclamation"></i><div>That username and password do not match.</div></div>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="field"><span>Username</span><input class="input" type="text" name="username" autocapitalize="none" autocomplete="username" required value="{{ form.username.value|default:'' }}"></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn primary block" type="submit" style="margin-top:18px">Sign in</button>
+    </form>
+</div>
+{% endblock %}

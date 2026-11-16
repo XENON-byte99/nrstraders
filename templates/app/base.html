@@ -1,0 +1,75 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#F5F2EC">
+    <title>{% block title %}NRS Billing{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{% static 'app/app.css' %}" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body class="app">
+{% block body %}
+<main class="screen {% block screen_class %}{% endblock %}">
+    {% block appbar %}{% endblock %}
+    {% if messages %}
+        {% for message in messages %}
+        <div class="notice {% if message.tags == 'error' %}err{% elif message.tags == 'success' %}ok{% else %}info{% endif %}">
+            <i class="fas {% if message.tags == 'error' %}fa-circle-exclamation{% elif message.tags == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %}"></i>
+            <div>{{ message }}</div>
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+{% block footer %}{% endblock %}
+
+<nav class="tabbar" aria-label="Main">
+    <div class="tabbar-in">
+        <a class="tab {% if tab == 'home' %}on{% endif %}" href="{% url 'app_home' %}"><i class="fas fa-house"></i>Home</a>
+        <a class="tab {% if tab == 'bills' %}on{% endif %}" href="{% url 'app_bills' %}"><i class="fas fa-file-invoice"></i>Bills</a>
+        <a class="tab fab {% if tab == 'new' %}on{% endif %}" href="{% url 'app_bill_new' %}" aria-label="New bill"><i class="fas fa-plus"></i></a>
+        <a class="tab {% if tab == 'inbox' %}on{% endif %}" href="{% url 'app_inbox' %}"><i class="fab fa-whatsapp"></i>Inbox<span class="badge" id="tab-badge"></span></a>
+        <a class="tab {% if tab == 'more' %}on{% endif %}" href="{% url 'app_more' %}"><i class="fas fa-grip"></i>More</a>
+    </div>
+</nav>
+{% endblock %}
+
+<script>
+// Shared helpers for the app screens
+window.NRS = {
+    csrf: function () { return (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '{{ csrf_token }}'; },
+    money: function (n) { return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+    post: function (url, payload) {
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': NRS.csrf() },
+            body: JSON.stringify(payload) }).then(function (r) { return r.json(); });
+    },
+    openSheet: function (id) { document.getElementById(id).classList.add('open'); },
+    closeSheets: function () { document.querySelectorAll('.sheet-wrap.open').forEach(function (s) { s.classList.remove('open'); }); },
+    esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+};
+document.addEventListener('click', function (e) {
+    if (e.target.classList && e.target.classList.contains('sheet-bg')) NRS.closeSheets();
+    var closer = e.target.closest && e.target.closest('[data-close-sheet]');
+    if (closer) NRS.closeSheets();
+});
+(function () {
+    var badge = document.getElementById('tab-badge');
+    if (!badge) return;
+    function poll() {
+        if (document.hidden) return;
+        fetch('/api/inbox/status/').then(function (r) { return r.json(); }).then(function (d) {
+            badge.textContent = d.new > 99 ? '99+' : d.new;
+            badge.classList.toggle('show', !!d.new);
+            window.dispatchEvent(new CustomEvent('nrs-inbox', { detail: d }));
+        }).catch(function () {});
+    }
+    poll();
+    setInterval(poll, 20000);
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

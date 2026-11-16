@@ -102,7 +102,17 @@ elif MODE == 'setup':
 
     status, url, body = get('/bills/new/?inbox=1,2')
     check('bill form opens pre-filled from the inbox', b'name="inbox_ids" value="1,2"' in body, url)
-    for path in ('/bills/', '/products/', '/contacts/', '/categories/', '/summary/', '/backup/', '/admin/'):
+    status, url, _ = get('/')
+    check('home is the app home screen', url.endswith('/app/'), url)
+    status, _, body = post('/app/api/bill/', payload={'category_id': 1, 'buyer_name': 'Rahim Store', 'mode': 'reverse',
+                           'inbox_ids': '1,2', 'items': [{'description': 'Rice', 'quantity': 5, 'unit': 'Kg', 'price': 60}]})
+    saved = json.loads(body)
+    check('bill saved from the app composer', saved.get('ok') is True, saved)
+    status, _, body = get(saved['url'])
+    check('bill screen shows the reverse-priced total', '300.00' in body.decode('utf-8', 'replace'))
+    for path in ('/app/bills/', '/app/bills/new/', '/app/inbox/?status=BILLED', '/app/products/', '/app/contacts/',
+                 '/app/more/', '/bills/1/print/invoice/', '/bills/1/edit/', '/bills/?classic=1',
+                 '/products/', '/contacts/', '/categories/', '/summary/', '/backup/', '/admin/'):
         check('page ' + path, get(path)[0] == 200)
     status, _, body = get('/backup/download/')
     check('backup downloads as a SQLite file', body.startswith(b'SQLite format 3'), body[:20])

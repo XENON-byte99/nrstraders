@@ -1,0 +1,26 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_more' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Contacts</h1>
+    {% if can_manage %}<a class="iconbtn" href="{% url 'party_create' %}" aria-label="Add contact"><i class="fas fa-plus"></i></a>{% endif %}
+</header>
+{% endblock %}
+{% block content %}
+<form method="get" class="search"><i class="fas fa-magnifying-glass"></i><input type="search" name="q" value="{{ q }}" placeholder="Search name or number"></form>
+<section class="section" style="margin-top:14px">
+    {% if parties %}
+    <div class="card rows">
+        {% for p in parties %}
+        <a class="row" href="{% if can_manage %}{% url 'party_update' p.pk %}{% else %}#{% endif %}">
+            <span class="avatar {% if p.party_type == 'SUPPLIER' %}tone-amber{% else %}tone-blue{% endif %}">{{ p.initial }}</span>
+            <div class="main"><div class="title">{{ p.name }}</div><div class="subtitle">{{ p.get_party_type_display }}{% if p.whatsapp_number %} · {{ p.whatsapp_number }}{% elif p.contact %} · {{ p.contact }}{% endif %}</div></div>
+            <i class="fas fa-chevron-right chev"></i>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty"><i class="fas fa-address-book"></i><h3>{% if q %}Nothing matches{% else %}No contacts yet{% endif %}</h3><p>Add your buyers and suppliers to fill bills in one tap.</p></div>
+    {% endif %}
+</section>
+{% endblock %}

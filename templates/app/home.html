@@ -1,0 +1,64 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <h1><span class="sub">{{ greeting }}</span>{{ user.first_name|default:user.username }}</h1>
+    <a class="iconbtn" href="{% url 'app_bills' %}?focus=1" aria-label="Search bills"><i class="fas fa-magnifying-glass"></i></a>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="label">Billed in {{ month_name }}</div>
+    <div class="amount num"><small>৳</small>{{ month_total|floatformat:"2g" }}</div>
+    <div class="meta">{{ month_count }} bill{{ month_count|pluralize }} this month</div>
+    <div class="hero-stats">
+        <a href="{% url 'app_bills' %}?status=DRAFT"><b class="num">{{ drafts }}</b><span>Drafts</span></a>
+        <a href="{% url 'app_bills' %}?status=PRICED"><b class="num">{{ awaiting }}</b><span>To approve</span></a>
+        <a href="{% url 'app_bills' %}?status=APPROVED"><b class="num">{{ approved }}</b><span>Approved</span></a>
+    </div>
+</section>
+
+{% if can_create %}
+<section class="section">
+    <div class="card actions">
+        <a class="action" href="{% url 'app_bill_new' %}"><i class="fas fa-plus tone-brand"></i>New bill</a>
+        <a class="action" href="{% url 'app_inbox' %}"><i class="fab fa-whatsapp tone-wa"></i>WhatsApp{% if new_messages %}<span class="dot num">{{ new_messages }}</span>{% endif %}</a>
+        <a class="action" href="{% url 'app_bill_new' %}?open=paste"><i class="fas fa-paste tone-blue"></i>Paste text</a>
+        <a class="action" href="{% url 'app_bill_new' %}?open=excel"><i class="fas fa-file-excel tone-amber"></i>Excel</a>
+    </div>
+</section>
+{% endif %}
+
+{% if new_messages and can_create %}
+<a class="notice ok" href="{% url 'app_inbox' %}">
+    <i class="fab fa-whatsapp" style="font-size:18px"></i>
+    <div><b>{{ new_messages }} new message{{ new_messages|pluralize }}</b> waiting to be turned into bills. Tap to open the inbox.</div>
+</a>
+{% endif %}
+
+<section class="section">
+    <div class="section-head"><h2>Recent bills</h2><a href="{% url 'app_bills' %}">See all</a></div>
+    {% if recent %}
+    <div class="card rows">
+        {% for b in recent %}
+        <a class="row" href="{% url 'app_bill_detail' b.pk %}">
+            <div class="main">
+                <div class="title">{{ b.buyer_name|default:"No buyer" }}</div>
+                <div class="subtitle">{{ b.invoice_number|default:"No number" }} · {{ b.created_at|date:"d M" }}</div>
+            </div>
+            <div class="end">
+                <div class="amount num">৳{{ b.grand_total|floatformat:"2g" }}</div>
+                <span class="pill st-{{ b.status }}">{{ b.get_status_display }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty">
+        <i class="fas fa-file-invoice"></i>
+        <h3>No bills yet</h3>
+        <p>Tap the + button to create your first bill.</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

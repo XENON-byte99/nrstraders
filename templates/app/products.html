@@ -1,0 +1,25 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_more' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Products<span class="sub">{{ total }} saved</span></h1>
+    <a class="iconbtn" href="{% url 'product_create' %}" aria-label="Add product"><i class="fas fa-plus"></i></a>
+</header>
+{% endblock %}
+{% block content %}
+<form method="get" class="search"><i class="fas fa-magnifying-glass"></i><input type="search" name="q" value="{{ q }}" placeholder="Search products"></form>
+<section class="section" style="margin-top:14px">
+    {% if products %}
+    <div class="card rows">
+        {% for p in products %}
+        <a class="row" href="{% url 'product_update' p.pk %}">
+            <div class="main"><div class="title">{{ p.name }}</div><div class="subtitle">{{ p.category.name }} · per {{ p.unit }}{% if not p.is_approved %} · awaiting approval{% endif %}</div></div>
+            <div class="end"><div class="amount num">৳{{ p.upscale_value|floatformat:"2g" }}</div><div class="subtitle num">cost ৳{{ p.base_price|floatformat:"2g" }}</div></div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty"><i class="fas fa-box-open"></i><h3>{% if q %}Nothing matches{% else %}No products yet{% endif %}</h3><p>Products are saved automatically from the bills you create.</p></div>
+    {% endif %}
+</section>
+{% endblock %}

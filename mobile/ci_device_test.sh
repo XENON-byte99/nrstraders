@@ -44,7 +44,7 @@ adb shell "cmd notification post -S messaging --conversation 'Karim Traders' --m
 adb shell "cmd notification post -t 'Jamal' nrs2 'Rod 50 kg'"
 sleep 3
 
-python mobile/smoke_test.py $URL inbox 4 "Dal 3 kg" "Rod 50 kg"
-python mobile/smoke_test.py $URL inbox 5 "Cement 10 bag" || echo "NOTE  messaging-style test notification not captured on this emulator image"
+python mobile/smoke_test.py $URL inbox 2 "Dal 3 kg" "Rod 50 kg"
+python mobile/smoke_test.py $URL inbox 3 "Cement 10 bag" || echo "NOTE  messaging-style test notification not captured on this emulator image"
 adb exec-out screencap -p > screen-inbox.png || true
 echo "DEVICE TEST PASSED"

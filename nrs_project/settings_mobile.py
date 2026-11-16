@@ -54,6 +54,11 @@ MIDDLEWARE = list(_BASE_MIDDLEWARE) + [
     'nrs_project.offline_assets.OfflineAssetsMiddleware',
 ]
 
+# The app has its own sign-in and shell; website pages it still uses are
+# wrapped in that shell by the templates in templates/mobile_overrides/.
+TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates' / 'mobile_overrides'] + list(TEMPLATES[0]['DIRS'])  # noqa: F405
+LOGIN_REDIRECT_URL = 'app_home'
+
 # It is a personal device: stay signed in.
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 365
 SESSION_SAVE_EVERY_REQUEST = False

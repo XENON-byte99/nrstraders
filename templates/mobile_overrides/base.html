@@ -1,0 +1,64 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#F5F2EC">
+    <title>NRS Billing</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'app/app.css' %}" rel="stylesheet">
+    <style>
+        /* Helpers the detailed (website-style) screens rely on */
+        .resp-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .resp-table table { min-width: 620px; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], textarea, select {
+            -webkit-appearance: none; appearance: none; }
+        .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 11px;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .status-DRAFT { background: #f1f5f9 !important; color: #475569 !important; border: 1px solid #e2e8f0; }
+        .status-SUBMITTED { background: #ffe4e6 !important; color: #9f1239 !important; border: 1px solid #fecdd3; }
+        .status-PRICED { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fde68a; }
+        .status-RELEASED { background: #e0e7ff !important; color: #3730a3 !important; border: 1px solid #c7d2fe; }
+        .status-APPROVED { background: #d1fae5 !important; color: #065f46 !important; border: 1px solid #a7f3d0; }
+        .card-hover, .btn-glow { transition: all .2s ease; }
+    </style>
+</head>
+<body class="app">
+{% if user.is_authenticated %}
+<main class="screen" style="max-width:none">
+    <header class="appbar">
+        <a class="iconbtn" href="javascript:history.back()" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+        <h1>NRS Billing</h1>
+        <a class="iconbtn" href="{% url 'app_home' %}" aria-label="Home"><i class="fas fa-house"></i></a>
+    </header>
+    {% if messages %}
+        {% for message in messages %}
+        <div class="notice {% if message.tags == 'error' %}err{% elif message.tags == 'success' %}ok{% else %}info{% endif %}" style="margin-bottom:12px">
+            <i class="fas {% if message.tags == 'error' %}fa-circle-exclamation{% elif message.tags == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %}"></i>
+            <div>{{ message }}</div>
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+<nav class="tabbar" aria-label="Main">
+    <div class="tabbar-in">
+        <a class="tab" href="{% url 'app_home' %}"><i class="fas fa-house"></i>Home</a>
+        <a class="tab" href="{% url 'app_bills' %}"><i class="fas fa-file-invoice"></i>Bills</a>
+        <a class="tab fab" href="{% url 'app_bill_new' %}" aria-label="New bill"><i class="fas fa-plus"></i></a>
+        <a class="tab" href="{% url 'app_inbox' %}"><i class="fab fa-whatsapp"></i>Inbox</a>
+        <a class="tab on" href="{% url 'app_more' %}"><i class="fas fa-grip"></i>More</a>
+    </div>
+</nav>
+{% else %}
+    {% block content_noauth %}{% endblock %}
+{% endif %}
+<script>
+    // The website's pages call these; the app has no sidebar.
+    function openSidebar() {}
+    function closeSidebar() {}
+</script>
+</body>
+</html>

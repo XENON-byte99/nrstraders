@@ -1,0 +1,85 @@
+{% extends 'app/base.html' %}
+{% load whatsapp_tags %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_bills' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>{{ bill.invoice_number|default:"Bill" }}<span class="sub">{{ bill.transaction_category.name|default:"Uncategorised" }} · {{ bill.created_at|date:"d M Y" }}</span></h1>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="card bill-head">
+    <span class="pill st-{{ bill.status }}">{{ bill.get_status_display }}</span>
+    <div class="total num"><small>৳</small>{{ bill.grand_total|floatformat:"2g" }}</div>
+    <div class="hint" style="margin:4px 0 0">{{ items|length }} item{{ items|length|pluralize }} · {{ bill.get_calculation_mode_display }} pricing</div>
+    <div class="steps">
+        {% for key, label, done in steps %}<span class="{% if done %}done{% endif %}">{{ label }}</span>{% endfor %}
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Print &amp; share</h2></div>
+    <div class="tiles">
+        <a class="tile" href="{% url 'print_invoice' bill.pk %}"><i class="fas fa-file-invoice-dollar"></i>Invoice</a>
+        <a class="tile" href="{% url 'print_quotation' bill.pk %}"><i class="fas fa-file-signature"></i>Quotation</a>
+        <a class="tile" href="{% url 'print_challan' bill.pk %}"><i class="fas fa-truck"></i>Challan</a>
+        <a class="tile" href="{% url 'print_mushok' bill.pk %}"><i class="fas fa-landmark"></i>Mushok</a>
+    </div>
+    <a class="btn wa block" style="margin-top:10px" href="{% whatsapp_link bill 'buyer' %}"><i class="fab fa-whatsapp"></i> Send to buyer on WhatsApp</a>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Parties</h2></div>
+    <div class="card pad">
+        <div class="kv"><span>Buyer</span><b>{{ bill.buyer_name|default:"—" }}</b></div>
+        {% if bill.buyer_contact %}<div class="kv"><span>Buyer contact</span><b>{{ bill.buyer_contact }}</b></div>{% endif %}
+        <div class="kv"><span>Supplier</span><b>{{ bill.supplier_name|default:"—" }}</b></div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Items</h2></div>
+    <div class="card">
+        {% for item in items %}
+        <div class="line {% if not item.base_price %}warn{% endif %}">
+            <span class="n num">{{ forloop.counter }}</span>
+            <div class="d">
+                <b>{{ item.display_description }}</b>
+                <span class="num">{{ item.quantity|floatformat:"-3" }} {{ item.unit }} × ৳{{ item.billed_unit_price|floatformat:"2g" }}</span>
+            </div>
+            <div class="a num">{% if item.base_price %}৳{{ item.billed_total|floatformat:"2g" }}{% else %}No price{% endif %}</div>
+        </div>
+        {% empty %}
+        <div class="empty"><p>This bill has no items.</p></div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Total</h2></div>
+    <div class="card pad">
+        {% for label, value in charges %}
+        <div class="kv"><span>{{ label }}</span><b class="num">৳{{ value|floatformat:"2g" }}</b></div>
+        {% endfor %}
+        <div class="kv grand"><span>Grand total</span><b class="num">৳{{ bill.grand_total|floatformat:"2g" }}</b></div>
+    </div>
+</section>
+
+<section class="section stack">
+    {% if can_status and next_status %}
+    <form method="post" action="{% url 'transaction_update_status' bill.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="{{ next_status }}">
+        <button class="btn primary block" type="submit"><i class="fas fa-arrow-right"></i> Mark as {{ next_label }}</button>
+    </form>
+    {% endif %}
+    <div class="btn-row">
+        {% if can_edit %}<a class="btn ghost" href="{% url 'transaction_update' bill.pk %}"><i class="fas fa-pen"></i> Edit</a>{% endif %}
+        {% if can_price %}<a class="btn ghost" href="{% url 'transaction_pricing' bill.pk %}"><i class="fas fa-tags"></i> Prices</a>{% endif %}
+    </div>
+    <div class="btn-row">
+        {% if can_approve %}<a class="btn ghost" href="{% url 'transaction_approve' bill.pk %}"><i class="fas fa-stamp"></i> Review &amp; approve</a>{% endif %}
+        {% if can_delete %}<a class="btn danger" href="{% url 'transaction_delete' bill.pk %}"><i class="fas fa-trash"></i> Delete</a>{% endif %}
+    </div>
+</section>
+{% endblock %}

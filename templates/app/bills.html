@@ -1,0 +1,47 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <h1>Bills</h1>
+    <a class="iconbtn" href="{% url 'transaction_list' %}?classic=1" aria-label="Bulk print and bundles" title="Bulk print and bundles"><i class="fas fa-print"></i></a>
+</header>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="search">
+    <i class="fas fa-magnifying-glass"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search number, buyer or item" {% if request.GET.focus %}autofocus{% endif %}>
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+</form>
+
+<div class="chips" style="margin-top:12px">
+    <a class="chip {% if not status %}on{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">All<b class="num">{{ total_count }}</b></a>
+    {% for key, label, n in statuses %}
+    <a class="chip {% if status == key %}on{% endif %}" href="?status={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ label }}<b class="num">{{ n }}</b></a>
+    {% endfor %}
+</div>
+
+<section class="section" style="margin-top:14px">
+    {% if bills %}
+    <div class="card rows">
+        {% for b in bills %}
+        <a class="row" href="{% url 'app_bill_detail' b.pk %}">
+            <div class="main">
+                <div class="title">{{ b.buyer_name|default:"No buyer" }}</div>
+                <div class="subtitle">{{ b.invoice_number|default:"No number" }} · {{ b.transaction_category.name|default:"Uncategorised" }} · {{ b.created_at|date:"d M Y" }}</div>
+            </div>
+            <div class="end">
+                <div class="amount num">৳{{ b.grand_total|floatformat:"2g" }}</div>
+                <span class="pill st-{{ b.status }}">{{ b.get_status_display }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty">
+        <i class="fas fa-folder-open"></i>
+        <h3>{% if q or status %}Nothing matches{% else %}No bills yet{% endif %}</h3>
+        <p>{% if q or status %}Try a different search or filter.{% else %}Tap the + button to create your first bill.{% endif %}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

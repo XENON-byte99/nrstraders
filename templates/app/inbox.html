@@ -1,0 +1,139 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <h1>Inbox<span class="sub">Messages waiting to become bills</span></h1>
+    <button class="iconbtn" type="button" onclick="NRS.openSheet('add-sheet')" aria-label="Add messages"><i class="fas fa-plus"></i></button>
+</header>
+{% endblock %}
+
+{% block content %}
+<a class="card row" id="capture" href="#" style="display:none;border-radius:var(--radius);margin-bottom:12px">
+    <span class="avatar" id="capture-icon"><i class="fab fa-whatsapp" style="font-size:20px"></i></span>
+    <div class="main"><div class="title" id="capture-title" style="white-space:normal"></div><div class="subtitle" id="capture-text" style="white-space:normal"></div></div>
+    <i class="fas fa-chevron-right chev"></i>
+</a>
+
+<div class="chips">
+    <a class="chip {% if status == 'NEW' %}on{% endif %}" href="?status=NEW">New<b class="num">{{ counts.NEW }}</b></a>
+    <a class="chip {% if status == 'BILLED' %}on{% endif %}" href="?status=BILLED">Billed<b class="num">{{ counts.BILLED }}</b></a>
+    <a class="chip {% if status == 'ARCHIVED' %}on{% endif %}" href="?status=ARCHIVED">Archived<b class="num">{{ counts.ARCHIVED }}</b></a>
+</div>
+
+<form method="post" action="{% url 'inbox_action' %}" id="inbox-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <input type="hidden" name="action" id="inbox-action" value="">
+    <section class="section stack" style="margin-top:14px">
+        {% for g in groups %}
+        <div class="card thread">
+            <div class="thread-head">
+                <span class="avatar tone-wa">{% if g.is_group %}<i class="fas fa-users" style="font-size:14px"></i>{% else %}{{ g.initial }}{% endif %}</span>
+                <div class="main" style="flex:1;min-width:0">
+                    <div class="title" style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.title }}</div>
+                    <div class="subtitle" style="font-size:12.5px;color:var(--muted);font-weight:500">{{ g.messages|length }} message{{ g.messages|length|pluralize }}{% if g.party %} · saved contact{% endif %}</div>
+                </div>
+                {% if status == 'NEW' %}<a class="btn wa sm" href="{% url 'app_bill_new' %}?inbox={{ g.ids }}"><i class="fas fa-file-invoice"></i> Bill</a>{% endif %}
+            </div>
+            <div class="bubbles">
+                {% for m in g.messages %}
+                <label class="bubble"><input type="checkbox" name="ids" value="{{ m.id }}">{{ m.text }}<time>{% if g.is_group and m.sender %}{{ m.sender }} · {% endif %}{{ m.received_at|date:"d M, h:i A" }} · {{ m.get_source_display }}{% if m.transaction %} · <a href="{% url 'app_bill_detail' m.transaction.pk %}">{{ m.transaction.invoice_number }}</a>{% endif %}</time></label>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="card empty">
+            <i class="fas fa-inbox"></i>
+            <h3>{% if status == 'NEW' %}No new messages{% else %}Nothing here{% endif %}</h3>
+            {% if status == 'NEW' %}<p>Connect WhatsApp above, or tap + to paste a message or add an exported chat.</p>{% endif %}
+        </div>
+        {% endfor %}
+    </section>
+</form>
+{% endblock %}
+
+{% block footer %}
+<div class="selbar" id="selbar">
+    <div class="selbar-in">
+        <span><b id="sel-count">0</b> selected</span>
+        {% if status == 'NEW' %}
+        <button type="button" class="btn ghost sm" data-act="archive" style="background:rgba(255,255,255,.12);color:#fff;border-color:transparent">Archive</button>
+        <button type="button" class="btn wa sm" data-act="bill"><i class="fas fa-file-invoice"></i> Create bill</button>
+        {% else %}
+        <button type="button" class="btn ghost sm" data-act="delete" style="background:rgba(255,255,255,.12);color:#fff;border-color:transparent">Delete</button>
+        <button type="button" class="btn wa sm" data-act="restore">Move to New</button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="sheet-wrap" id="add-sheet">
+    <div class="sheet-bg"></div>
+    <div class="sheet">
+        <h2>Add messages</h2>
+        <p class="lead">Paste a message or a copied conversation, or add a chat exported from WhatsApp (chat → ⋮ → More → Export chat → Without media).</p>
+        <form method="post" action="{% url 'inbox_import' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="app">
+            <label class="field"><span>Message</span><textarea class="input" name="text" rows="5" placeholder="Rice 5 kg @ 60&#10;Oil 2 ltr = 360"></textarea></label>
+            <label class="field"><span>From (optional)</span><input class="input" name="sender" placeholder="Customer name or number"></label>
+            <label class="field"><span>Exported chat (.txt or .zip)</span><input class="input" style="padding-top:13px" type="file" name="files" multiple accept=".txt,.zip,text/plain,application/zip"></label>
+            <div class="btn-row" style="margin-top:16px">
+                <button type="button" class="btn ghost" data-close-sheet>Cancel</button>
+                <button type="submit" class="btn primary">Add to inbox</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var bar = document.getElementById('selbar'), form = document.getElementById('inbox-form');
+    function refresh() {
+        var n = form.querySelectorAll('input[name=ids]:checked').length;
+        document.getElementById('sel-count').textContent = n;
+        bar.classList.toggle('show', n > 0);
+    }
+    form.addEventListener('change', refresh);
+    bar.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-act]'); if (!b) return;
+        var act = b.dataset.act;
+        if (act === 'delete' && !confirm('Delete the selected messages?')) return;
+        if (act === 'bill') {
+            var ids = Array.prototype.map.call(form.querySelectorAll('input[name=ids]:checked'), function (c) { return c.value; });
+            window.location.href = '{% url "app_bill_new" %}?inbox=' + ids.join(',');
+            return;
+        }
+        document.getElementById('inbox-action').value = act;
+        form.submit();
+    });
+
+    // "Connect WhatsApp" - only the Android app can do this.
+    var card = document.getElementById('capture'), app = window.NRSApp;
+    function paint() {
+        var native = app && typeof app.isWhatsAppCaptureEnabled === 'function';
+        var on = native && !!app.isWhatsAppCaptureEnabled();
+        card.style.display = 'flex';
+        document.getElementById('capture-icon').className = 'avatar ' + (on ? 'tone-wa' : 'tone-amber');
+        document.getElementById('capture-title').textContent = on ? 'WhatsApp is connected' : 'Connect WhatsApp';
+        document.getElementById('capture-text').textContent = on
+            ? 'New messages you receive appear here automatically.'
+            : (native ? 'Allow notification access once and incoming messages appear here by themselves.'
+                      : 'Automatic capture works in the Android app. Here, tap + to paste or add a chat.');
+    }
+    card.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (app && app.openWhatsAppCaptureSettings) app.openWhatsAppCaptureSettings(); else NRS.openSheet('add-sheet');
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) paint(); });
+    paint();
+
+    // New messages arrived while the screen is open
+    var known = {{ counts.NEW }};
+    window.addEventListener('nrs-inbox', function (e) {
+        var busy = form.querySelectorAll('input[name=ids]:checked').length || document.querySelector('.sheet-wrap.open');
+        if ('{{ status }}' === 'NEW' && e.detail.new !== known && !busy) window.location.reload();
+    });
+})();
+</script>
+{% endblock %}

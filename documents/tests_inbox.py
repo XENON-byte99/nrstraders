@@ -137,3 +137,65 @@ class InboxFlowTest(TestCase):
         self.client.post('/messages/action/', {'ids': [msg.pk], 'action': 'archive'})
         msg.refresh_from_db()
         self.assertEqual(msg.status, 'ARCHIVED')
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class AppScreensTest(TestCase):
+    """The phone app's own screens and its bill composer."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('owner', password='pw', role='OWNER')
+        self.client.force_login(self.user)
+        self.buyer = BusinessParty.objects.create(party_type='BUYER', name='Rahim Store')
+        self.supplier = BusinessParty.objects.create(party_type='SUPPLIER', name='NRS Traders')
+        self.category = TransactionCategory.objects.create(
+            name='Grocery Item', invoice_prefix='GRO', default_vat=Decimal('15'), default_duty=Decimal('5'),
+            default_supplier=self.supplier)
+
+    def save(self, **extra):
+        payload = {'category_id': self.category.id, 'buyer_id': self.buyer.id, 'mode': 'forward', 'items': [
+            {'description': 'Rice', 'quantity': 5, 'unit': 'Kg', 'price': 60},
+            {'description': 'Oil', 'quantity': 2, 'unit': 'Ltr', 'price': 180}]}
+        payload.update(extra)
+        return self.client.post('/app/api/bill/', json.dumps(payload), content_type='application/json').json()
+
+    def test_screens_render(self):
+        self.save()
+        for path in ('/app/', '/app/bills/', '/app/bills/new/', '/app/inbox/', '/app/products/',
+                     '/app/contacts/', '/app/more/', '/app/bills/%d/' % Transaction.objects.get().pk):
+            self.assertEqual(self.client.get(path).status_code, 200, path)
+
+    def test_forward_bill_uses_category_rules(self):
+        data = self.save()
+        bill = Transaction.objects.get(pk=data['id'])
+        self.assertEqual((bill.status, bill.buyer_name, bill.supplier_name), ('DRAFT', 'Rahim Store', 'NRS Traders'))
+        self.assertEqual((bill.vat_percentage, bill.duty_percentage), (Decimal('15'), Decimal('5')))
+        self.assertTrue(bill.invoice_number.startswith('GRO-'))
+        self.assertEqual(bill.display_subtotal, Decimal('660'))
+        self.assertGreater(bill.grand_total, Decimal('660'))
+        self.assertTrue(Product.objects.filter(name='Rice').exists())
+
+    def test_reverse_bill_totals_what_was_typed(self):
+        bill = Transaction.objects.get(pk=self.save(mode='reverse')['id'])
+        self.assertEqual(bill.calculation_mode, 'reverse')
+        self.assertAlmostEqual(float(bill.grand_total), 660.0, delta=0.02)
+
+    def test_preview_saves_nothing(self):
+        data = self.save(preview=True)
+        self.assertTrue(data['ok'])
+        self.assertGreater(data['totals']['grand_total'], 660)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertFalse(Product.objects.exists())
+
+    def test_inbox_messages_are_filed_under_the_bill(self):
+        msg, _ = inbox_views.store_message('paste', 'Rice 5 kg', 'Rahim Store')
+        bill_id = self.save(inbox_ids=str(msg.pk))['id']
+        msg.refresh_from_db()
+        self.assertEqual((msg.status, msg.transaction_id), ('BILLED', bill_id))
+
+    def test_validation(self):
+        self.assertIn('category', self.save(category_id=None)['error'].lower())
+        self.assertIn('item', self.save(items=[])['error'].lower())

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from documents import views as doc_views
-from documents import inbox_views, mobile_views
+from documents import app_views, inbox_views, mobile_views
 from django.contrib.auth import views as auth_views
 from django.contrib.auth import logout
 from django.shortcuts import redirect
@@ -89,6 +89,17 @@ urlpatterns = [
     path('messages/import/', inbox_views.inbox_import, name='inbox_import'),
     path('messages/action/', inbox_views.inbox_action, name='inbox_action'),
     path('api/inbox/status/', inbox_views.inbox_status_api, name='inbox_status_api'),
+
+    # The phone app's own screens
+    path('app/', app_views.app_home, name='app_home'),
+    path('app/bills/', app_views.app_bills, name='app_bills'),
+    path('app/bills/new/', app_views.app_bill_new, name='app_bill_new'),
+    path('app/bills/<int:pk>/', app_views.app_bill_detail, name='app_bill_detail'),
+    path('app/api/bill/', app_views.app_bill_save, name='app_bill_save'),
+    path('app/inbox/', app_views.app_inbox, name='app_inbox'),
+    path('app/products/', app_views.app_products, name='app_products'),
+    path('app/contacts/', app_views.app_contacts, name='app_contacts'),
+    path('app/more/', app_views.app_more, name='app_more'),
 
     # First-run setup (mobile app) and backup / restore
     path('setup/', mobile_views.mobile_setup, name='mobile_setup'),
