@@ -134,6 +134,17 @@
     {% endif %}
 
     <form method="post" class="space-y-4" id="bill-form">
+        {% if inbox_ids %}
+        <input type="hidden" name="inbox_ids" value="{{ inbox_ids }}">
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 font-semibold flex items-start gap-2">
+            <i class="fab fa-whatsapp text-emerald-600 text-base mt-0.5"></i>
+            <div>
+                Creating this bill from {{ inbox_count }} inbox message{{ inbox_count|pluralize }}{% if inbox_senders %} from <b>{{ inbox_senders }}</b>{% endif %}.
+                The items were read automatically &mdash; check the preview, then save.
+                {% if inbox_party %}<span class="block text-emerald-700 font-medium mt-0.5">Matched saved contact: {{ inbox_party.name }}</span>{% endif %}
+            </div>
+        </div>
+        {% endif %}
         {% csrf_token %}
 
         <!-- ── Supplier & Buyer (side by side on md) ── -->
@@ -291,17 +302,18 @@
             <div id="quick-bill-tool" class="mb-3 bg-indigo-50/70 border border-indigo-200 rounded-xl p-3">
                 <div class="flex items-center justify-between mb-1.5">
                     <label class="block text-xs font-black text-indigo-900 uppercase tracking-wider">
-                        <i class="fas fa-keyboard mr-1"></i> Quick Bill — just type it
+                        <i class="fas fa-keyboard mr-1"></i> Quick Bill — type it or paste a message
                     </label>
                     <button type="button" id="quick-bill-help-btn" class="text-[10px] text-indigo-500 font-bold hover:text-indigo-700">format?</button>
                 </div>
                 <p id="quick-bill-help" class="hidden text-[10px] text-indigo-600 font-medium mb-1.5 leading-relaxed">
-                    Optional first line = category. Then one item per line: <b>name | qty | price</b>.
-                    Price and unit are filled automatically from your saved products, so usually you only type
-                    <b>name | qty</b>.
+                    Paste a WhatsApp message or type freely, one item per line &mdash; e.g. <b>Rice 5 kg @ 60</b>,
+                    <b>Cable clip - 12 pcs</b>, <b>Oil 2 ltr = 360</b>. The strict <b>name | qty | price</b> format works too.
+                    Optional first line = category. Missing prices and units are filled from your saved products.
+                    Works without internet.
                 </p>
                 <textarea id="quick-bill-text" rows="4"
-                          placeholder="Electrical Item&#10;1 inch Cable Clip | 5&#10;08 mm Nut supply | 2 | 470"
+                          placeholder="Electrical Item&#10;1 inch Cable Clip 5 pcs&#10;08 mm Nut supply | 2 | 470&#10;LED bulb 10 pcs @ 250"
                           class="w-full px-3 py-2 rounded-lg border border-indigo-200 text-sm font-medium focus:ring-1 focus:ring-indigo-500 outline-none bg-white"></textarea>
                 <div class="flex flex-wrap items-center gap-2 mt-1.5">
                     <button type="button" id="quick-bill-parse"
@@ -2738,15 +2750,30 @@ function applyImportRows(rows) {
             renderImportPreview(resolved);
             statusEl.textContent = (d.ai ? 'AI read it. ' : '') + (d.category
                 ? ('Category: ' + d.category.name)
-                : 'No category detected — using the one selected above.');
+                : 'No category detected — using the one selected above.')
+                + ((d.skipped && d.skipped.length) ? (' Ignored ' + d.skipped.length + ' line(s) that were not items.') : '');
         } catch (e) {
             statusEl.textContent = 'Error: ' + e;
         }
     }
 
     btn.addEventListener('click', function () {
-        runParse('/api/quick-bill/parse/', 'Reading…');
+        runParse('/api/quick-bill/smart-parse/', 'Reading…');
     });
+
+    {% if inbox_text %}
+    // Opened from the Message Inbox: load the message text and read it straight away.
+    document.getElementById('quick-bill-text').value = "{{ inbox_text|escapejs }}";
+    {% if inbox_party %}
+    (function () {
+        const sel = document.getElementById('{% if inbox_party.party_type == "SUPPLIER" %}supplier_select{% else %}buyer_select{% endif %}');
+        if (sel) { sel.value = "{{ inbox_party.id }}"; sel.dispatchEvent(new Event('change')); }
+    })();
+    {% endif %}
+    {% if request.method != 'POST' %}
+    window.addEventListener('load', function () { runParse('/api/quick-bill/smart-parse/', 'Reading message…'); });
+    {% endif %}
+    {% endif %}
     const aiBtn = document.getElementById('quick-bill-ai');
     if (aiBtn) aiBtn.addEventListener('click', function () {
         runParse('/api/quick-bill/ai-parse/', 'Asking AI…');

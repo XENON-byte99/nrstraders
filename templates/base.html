@@ -180,6 +180,16 @@
             </a>
             {% endif %}
 
+            {% if user.p_create_bill or user.role == 'OWNER' or user.is_superuser %}
+            <a href="{% url 'inbox_list' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <i class="fab fa-whatsapp text-emerald-300 text-sm"></i>
+                </span>
+                Message Inbox
+                <span id="inbox-badge" class="hidden ml-auto bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full"></span>
+            </a>
+            {% endif %}
+
             {% if user.p_view_bill_summary or user.is_superuser %}
             <a href="{% url 'bill_summary' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
                 <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -296,6 +306,15 @@
                 </span>
                 Change Password
             </a>
+
+            {% if user.is_superuser or user.role == 'OWNER' %}
+            <a href="{% url 'backup_page' %}" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-950/40 transition-all text-sm font-semibold text-rose-100" onclick="closeSidebar()">
+                <span class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                    <i class="fas fa-database text-indigo-300 text-xs"></i>
+                </span>
+                Backup &amp; Restore
+            </a>
+            {% endif %}
 
             {% if user.is_superuser %}
             <a href="/admin/" target="_blank" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-500/10 border border-amber-500/30 transition-all text-sm font-semibold text-amber-300 mt-2" onclick="closeSidebar()">
@@ -418,6 +437,21 @@
     }
     updateClock();
     setInterval(updateClock, 1000);
+
+    // ── Message Inbox badge ──
+    (function () {
+        const badge = document.getElementById('inbox-badge');
+        if (!badge) return;
+        function poll() {
+            if (document.hidden) return;
+            fetch('/api/inbox/status/').then(r => r.json()).then(d => {
+                badge.textContent = d.new > 99 ? '99+' : d.new;
+                badge.classList.toggle('hidden', !d.new);
+            }).catch(() => {});
+        }
+        poll();
+        setInterval(poll, 30000);
+    })();
 
     // ── Sidebar Toggle ──
     function openSidebar() {

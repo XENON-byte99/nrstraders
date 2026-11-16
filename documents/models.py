@@ -832,3 +832,39 @@ class PrintLayout(models.Model):
 
     def __str__(self):
         return f"Print layout: bill {self.transaction_id} / {self.doc_type}"
+
+
+class InboxMessage(models.Model):
+    """A text message waiting to be turned into a bill.
+
+    Filled from WhatsApp notifications captured by the mobile app, text shared
+    into the app, an uploaded WhatsApp chat export, or text pasted by hand.
+    Device-local working data, so it is deliberately not a SyncableModel.
+    """
+    SOURCE_CHOICES = [
+        ('notification', 'WhatsApp (auto)'),
+        ('share', 'Shared to app'),
+        ('upload', 'Chat export'),
+        ('paste', 'Pasted text'),
+    ]
+    STATUS_CHOICES = [
+        ('NEW', 'New'),
+        ('BILLED', 'Billed'),
+        ('ARCHIVED', 'Archived'),
+    ]
+    external_id = models.CharField(max_length=64, unique=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='paste')
+    app = models.CharField(max_length=40, blank=True, help_text="e.g. WhatsApp, WhatsApp Business")
+    sender = models.CharField(max_length=120, blank=True)
+    chat = models.CharField(max_length=120, blank=True, help_text="Group name, when the message came from a group")
+    text = models.TextField()
+    received_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='NEW', db_index=True)
+    transaction = models.ForeignKey(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbox_messages')
+
+    class Meta:
+        ordering = ['-received_at', '-id']
+
+    def __str__(self):
+        return f"{self.sender or 'Unknown'}: {self.text[:40]}"

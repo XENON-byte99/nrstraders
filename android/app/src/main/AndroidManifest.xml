@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The site runs on 127.0.0.1 inside the app; sockets need this even for
+         loopback. Nothing leaves the phone unless you use the optional online
+         features (cloud sync, AI reading). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".NrsApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|smallestScreenSize|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "Share" a message, or WhatsApp's "Export chat", into the Message Inbox -->
+            <intent-filter android:label="@string/share_target">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
+            <intent-filter android:label="@string/share_target">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Reads incoming WhatsApp notifications once the user grants
+             notification access in Android settings. -->
+        <service
+            android:name=".WhatsAppListenerService"
+            android:exported="true"
+            android:label="@string/capture_service"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name=".SharedFileProvider"
+            android:authorities="org.nrs.billing.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

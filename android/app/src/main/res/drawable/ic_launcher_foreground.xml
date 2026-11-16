@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An invoice sheet with a folded corner and three lines. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M39,30h22l10,10v34c0,2.2 -1.8,4 -4,4H39c-2.2,0 -4,-1.8 -4,-4V34c0,-2.2 1.8,-4 4,-4z" />
+    <path android:fillColor="#FECDD3" android:pathData="M61,30l10,10H65c-2.2,0 -4,-1.8 -4,-4z" />
+    <path android:fillColor="#BE123C"
+        android:pathData="M41,46h20v3H41zM41,54h26v3H41zM41,62h26v3H41zM55,69h12v3H55z" />
+</vector>

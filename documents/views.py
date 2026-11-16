@@ -256,6 +256,16 @@ def transaction_create(request):
             audit_details = f"Created new DRAFT Bill #{transaction.invoice_number} under category {cat_names}. Initialized with {len(items)} line item(s)."
             log_audit(request.user, "Created Transaction", audit_details, transaction=transaction)
 
+            # Bill came from the Message Inbox: file those messages under it.
+            inbox_ids = request.POST.get('inbox_ids', '')
+            if inbox_ids:
+                from .inbox_views import mark_messages_billed
+                billed = mark_messages_billed(inbox_ids, transaction)
+                if billed:
+                    log_audit(request.user, "Created Transaction",
+                              f"Bill #{transaction.invoice_number} was created from {billed} inbox message(s).",
+                              transaction=transaction)
+
             messages.success(request, 'Transaction created successfully.')
             return redirect('transaction_list')
         else:
@@ -275,9 +285,12 @@ def transaction_create(request):
     is_room = _is_room_cat(getattr(form.instance, 'transaction_category', None)) if form.instance.pk else False
     parties = BusinessParty.objects.all()
     # Unified entry form: every category uses the one item table (normal mode).
-    return render(request, 'documents/transaction_form.html', {
-        'form': form, 'formset': formset, 'parties': parties, 'is_lunch': False, 'is_room': False
-    })
+    context = {'form': form, 'formset': formset, 'parties': parties, 'is_lunch': False, 'is_room': False}
+    inbox_ref = request.POST.get('inbox_ids') or request.GET.get('inbox')
+    if inbox_ref:
+        from .inbox_views import inbox_context_for_bill
+        context.update(inbox_context_for_bill(inbox_ref))
+    return render(request, 'documents/transaction_form.html', context)
 
 @login_required
 @permission_required('p_price_bill')

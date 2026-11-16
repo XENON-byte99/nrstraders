@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from documents import views as doc_views
+from documents import inbox_views, mobile_views
 from django.contrib.auth import views as auth_views
 from django.contrib.auth import logout
 from django.shortcuts import redirect
@@ -81,6 +82,19 @@ urlpatterns = [
     path('api/quick-bill/parse/', doc_views.quick_bill_parse, name='quick_bill_parse'),
     path('api/quick-bill/ai-parse/', doc_views.quick_bill_ai_parse, name='quick_bill_ai_parse'),
     path('api/bills/<int:pk>/inline-save/', doc_views.api_inline_save_transaction, name='api_inline_save_transaction'),
+    path('api/quick-bill/smart-parse/', inbox_views.quick_bill_smart_parse, name='quick_bill_smart_parse'),
+
+    # Message Inbox (WhatsApp / text messages -> bills)
+    path('messages/', inbox_views.inbox_list, name='inbox_list'),
+    path('messages/import/', inbox_views.inbox_import, name='inbox_import'),
+    path('messages/action/', inbox_views.inbox_action, name='inbox_action'),
+    path('api/inbox/status/', inbox_views.inbox_status_api, name='inbox_status_api'),
+
+    # First-run setup (mobile app) and backup / restore
+    path('setup/', mobile_views.mobile_setup, name='mobile_setup'),
+    path('backup/', mobile_views.backup_page, name='backup_page'),
+    path('backup/download/', mobile_views.backup_download, name='backup_download'),
+    path('backup/restore/', mobile_views.backup_restore, name='backup_restore'),
     path('sync/', doc_views.sync_db_view, name='sync_db'),
     path('api/sync/status/', doc_views.sync_status_api, name='sync_status_api'),
 ]
@@ -90,3 +104,8 @@ from django.conf.urls.static import static
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+elif getattr(settings, 'MOBILE_APP', False):
+    # On the phone there is no web server in front of Django to serve uploads.
+    from django.urls import re_path
+    from django.views.static import serve
+    urlpatterns += [re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT})]
