@@ -39,6 +39,9 @@ public class WhatsAppListenerService extends NotificationListenerService {
     private static String appName(String pkg) {
         if ("com.whatsapp".equals(pkg)) return "WhatsApp";
         if ("com.whatsapp.w4b".equals(pkg)) return "WhatsApp Business";
+        // Debug builds only: lets the automated device test post a stand-in
+        // notification with `adb shell cmd notification post`.
+        if (BuildConfig.DEBUG && "com.android.shell".equals(pkg)) return "Test";
         return null;
     }
 

@@ -21,7 +21,8 @@ android {
         versionName = "2.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
         ndk {
             // 64-bit phones, plus the 32-bit Android still found on budget phones.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // (-PnrsAbis=x86_64 builds for the emulator used by the CI device test.)
+            abiFilters += ((findProperty("nrsAbis") as String?) ?: "arm64-v8a,armeabi-v7a").split(",")
         }
     }
 
@@ -98,6 +99,7 @@ val bundleSite = tasks.register<Zip>("bundleSite") {
         include("accounts/**", "audit/**", "documents/**", "nrs_project/**", "mobile/**")
         include("templates/**", "static/**")
         exclude("**/__pycache__/**", "**/*.pyc", "**/tests.py", "**/tests_*.py")
+        exclude("mobile/build_offline_assets.py", "mobile/smoke_test.py", "mobile/ci_device_test.sh")
     }
     archiveFileName.set("app_bundle.zip")
     destinationDirectory.set(siteBundleDir)
