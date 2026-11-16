@@ -254,7 +254,7 @@ def make_backup(label, force=False):
     Without ``force`` at most one backup a day is made. Returns the file path,
     or None when no new backup was needed (or the database is not SQLite).
     """
-    if connection.vendor != 'sqlite':
+    if connection.vendor != 'sqlite' or connection.is_in_memory_db():
         return None
     folder = backup_dir()
     existing = sorted(f for f in os.listdir(folder) if f.endswith('.sqlite3'))
@@ -264,7 +264,7 @@ def make_backup(label, force=False):
             return None
     name = '%s-%s.sqlite3' % (timezone.now().strftime('%Y%m%d-%H%M%S'), label)
     target = os.path.join(folder, name)
-    source = sqlite3.connect(str(settings.DATABASES['default']['NAME']))
+    source = sqlite3.connect(str(connection.settings_dict['NAME']), timeout=30)
     copy = sqlite3.connect(target)
     try:
         source.backup(copy)

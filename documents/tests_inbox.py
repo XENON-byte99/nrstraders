@@ -272,7 +272,7 @@ class LiveSyncServerTest(TestCase):
 
     def test_backup_is_made_before_phone_changes_are_applied(self):
         from django.db import connection
-        if connection.settings_dict['NAME'] in (':memory:', '') or 'memory' in str(connection.settings_dict['NAME']):
+        if connection.is_in_memory_db():
             self.skipTest('needs a file database')
         self.exchange(changes=[{'model': 'Transaction', 'uuid': '33333333-3333-3333-3333-333333333333', 'rev': 0,
                                 'fields': self.record()}])
