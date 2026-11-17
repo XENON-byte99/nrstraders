@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.test import TestCase, override_settings
 
 from accounts.models import User
-from .models import BusinessParty, InboxMessage, Product, Transaction, TransactionCategory
+from .models import BusinessParty, InboxMessage, Product, Transaction, TransactionCategory, TransactionItem
 from .text_import import extract_items, parse_chat_export
 from . import inbox_views
 
@@ -277,3 +277,18 @@ class LiveSyncServerTest(TestCase):
         self.exchange(changes=[{'model': 'Transaction', 'uuid': '33333333-3333-3333-3333-333333333333', 'rev': 0,
                                 'fields': self.record()}])
         self.assertTrue(any(f.endswith('before-sync.sqlite3') for f in os.listdir(self.tmp.name)))
+
+
+class ClientMessageTest(TestCase):
+    def test_customer_message_hides_costs_and_margin(self):
+        from urllib.parse import unquote
+        from .app_views import client_whatsapp_url
+        cat = TransactionCategory.objects.create(name='Grocery Item', default_profit_margin=Decimal('20'))
+        bill = Transaction.objects.create(transaction_category=cat, invoice_number='GRO-1', buyer_contact='01711000000',
+                                          profit_margin=Decimal('20'), vat_percentage=Decimal('0'), duty_percentage=Decimal('0'))
+        TransactionItem.objects.create(transaction=bill, description='Rice', quantity=5, unit='Kg', base_price=Decimal('50'))
+        url = unquote(client_whatsapp_url(bill))
+        self.assertTrue(url.startswith('https://wa.me/8801711000000?text='))
+        self.assertIn('Rice - 5 Kg x 60.00 = Tk 300.00', url)
+        for secret in ('Margin', 'Base', 'VAT', '50.00', '127.0.0.1', '/bills/'):
+            self.assertNotIn(secret, url)

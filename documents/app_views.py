@@ -90,6 +90,28 @@ def app_bills(request):
     })
 
 
+def client_whatsapp_url(bill):
+    """A WhatsApp message for the customer: what they bought and what they owe.
+
+    Deliberately not Transaction.get_whatsapp_url(), which is the staff
+    message (base prices, margin, VAT rates, links into the system).
+    """
+    import urllib.parse
+    lines = ['*%s*' % (bill.supplier_name or 'Bill'),
+             'Invoice: %s' % (bill.invoice_number or '-'),
+             'Date: %s' % timezone.localtime(bill.created_at).strftime('%d %b %Y'), '']
+    for i, item in enumerate(bill.items.all(), start=1):
+        lines.append('%d. %s - %s %s x %s = Tk %s' % (
+            i, item.display_description, ('%f' % item.quantity).rstrip('0').rstrip('.'), item.unit,
+            '{:,.2f}'.format(item.billed_unit_price), '{:,.2f}'.format(item.billed_total)))
+    lines += ['', '*Total payable: Tk %s*' % '{:,.2f}'.format(bill.grand_total), '',
+              'Please check and let us know if anything needs changing.']
+    phone = ''.join(ch for ch in (bill.buyer_contact or '') if ch.isdigit())
+    if phone.startswith('0') and len(phone) == 11:
+        phone = '88' + phone
+    return 'https://wa.me/%s?text=%s' % (phone, urllib.parse.quote('\n'.join(lines)))
+
+
 @login_required
 def app_bill_detail(request, pk):
     bill = get_object_or_404(_bill_qs(), pk=pk)
@@ -105,7 +127,7 @@ def app_bill_detail(request, pk):
         ('VAT', bill.total_vat),
     ]
     return render(request, 'app/bill_detail.html', {
-        'tab': 'bills', 'bill': bill, 'items': items,
+        'tab': 'bills', 'bill': bill, 'items': items, 'client_wa_url': client_whatsapp_url(bill),
         'charges': [(label, value) for label, value in charges if label == 'Subtotal' or value],
         'steps': [(s, STATUS_LABEL[s], i <= step) for i, s in enumerate(STATUS_FLOW)],
         'next_status': next_status,

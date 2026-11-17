@@ -1,5 +1,4 @@
 {% extends 'app/base.html' %}
-{% load whatsapp_tags %}
 {% block appbar %}
 <header class="appbar">
     <a class="iconbtn" href="{% url 'app_bills' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
@@ -25,7 +24,7 @@
         <a class="tile" href="{% url 'print_challan' bill.pk %}"><i class="fas fa-truck"></i>Challan</a>
         <a class="tile" href="{% url 'print_mushok' bill.pk %}"><i class="fas fa-landmark"></i>Mushok</a>
     </div>
-    <a class="btn wa block" style="margin-top:10px" href="{% whatsapp_link bill 'buyer' %}"><i class="fab fa-whatsapp"></i> Send to buyer on WhatsApp</a>
+    <a class="btn wa block" style="margin-top:10px" href="{{ client_wa_url }}"><i class="fab fa-whatsapp"></i> Send bill to buyer on WhatsApp</a>
 </section>
 
 <section class="section">
