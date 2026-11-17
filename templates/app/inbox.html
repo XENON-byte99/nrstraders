@@ -13,6 +13,119 @@
     <i class="fas fa-chevron-right chev"></i>
 </a>
 
+{% if orders %}
+<section class="stack" style="margin-bottom:22px">
+    <div class="section-head" style="margin-top:0"><h2>Orders</h2><span class="hint" style="margin:0">{{ orders|length }} open</span></div>
+    {% for c in orders %}{% with o=c.order %}
+    <div class="card order" id="order-{{ o.id }}">
+        <div class="thread-head" style="padding:14px 14px 0">
+            <span class="avatar tone-wa">{{ c.initial }}</span>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.title }}</div>
+                <div style="font-size:12.5px;color:var(--muted);font-weight:600">{% if o.transaction %}{{ o.transaction.invoice_number }} · {% endif %}{{ o.updated_at|timesince }} ago</div>
+            </div>
+            <span class="pill os-{{ o.status }}">{{ o.get_status_display }}</span>
+        </div>
+
+        <div class="steps" style="padding:0 14px;margin-top:14px">
+            <span class="done">Order</span>
+            <span class="{% if o.status != 'NEEDS_INFO' %}done{% endif %}">Bill</span>
+            <span class="{% if o.status == 'SENT' or o.status == 'CONFIRMED' or o.status == 'DELIVERED' %}done{% endif %}">Checked</span>
+            <span class="{% if o.status == 'CONFIRMED' or o.status == 'DELIVERED' %}done{% endif %}">Confirmed</span>
+            <span class="{% if o.status == 'DELIVERED' %}done{% endif %}">Delivered</span>
+        </div>
+
+        <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:10px">
+            {% csrf_token %}
+            {% for it in c.items %}
+            <div class="line {% if it.quantity == None or it.price == None %}warn{% endif %}">
+                <span class="n num">{{ forloop.counter }}</span>
+                <div class="d">
+                    <b>{{ it.description }}</b>
+                    <span class="num">{% if it.quantity == None %}<em style="color:var(--amber);font-style:normal">quantity?</em>{% else %}{{ it.quantity|floatformat:"-3" }}{% endif %} {{ it.unit|default:"" }}{% if it.price != None %} × ৳{{ it.price|floatformat:"2g" }}{% if it.price_from == 'product' %} <span style="opacity:.7">(saved price)</span>{% endif %}{% endif %}</span>
+                </div>
+                {% if it.price == None and not o.ask_prices %}
+                <input class="input num" name="price_{{ it.index }}" type="number" inputmode="decimal" step="any" min="0" placeholder="Price" style="width:96px;height:40px;flex:none">
+                {% else %}
+                <div class="a num">{% if it.price != None and it.quantity != None %}৳{{ it.total|floatformat:"2g" }}{% elif it.price == None %}<span style="font-size:12px">rate?</span>{% endif %}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% if 'price' in c.tasks %}
+            <div style="padding:0 14px 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button class="btn dark sm" name="action" value="prices" type="submit"><i class="fas fa-check"></i> Save prices</button>
+                <button class="btn ghost sm" name="action" value="ask_prices" type="submit">Ask client for the rate instead</button>
+            </div>
+            {% elif o.ask_prices and o.status == 'NEEDS_INFO' %}
+            <div style="padding:0 14px 4px"><button class="btn ghost sm" name="action" value="ask_prices" type="submit">I'll enter the prices myself</button></div>
+            {% endif %}
+        </form>
+
+        <div style="padding:6px 14px 14px" class="stack">
+            {% if 'category' in c.tasks %}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="display:flex;gap:8px">
+                {% csrf_token %}<input type="hidden" name="action" value="category">
+                <select class="input" name="category_id" required style="height:44px"><option value="">Choose the category</option>{% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}</select>
+                <button class="btn dark sm" type="submit" style="height:44px">Set</button>
+            </form>
+            {% endif %}
+
+            {% if not o.party and not o.buyer_name %}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="display:flex;gap:8px">
+                {% csrf_token %}<input type="hidden" name="action" value="buyer">
+                <select class="input" name="party_id" style="height:44px"><option value="">Saved buyer… (or ask the client)</option>{% for b in buyers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
+                <button class="btn ghost sm" type="submit" style="height:44px">Use</button>
+            </form>
+            {% elif o.party or o.buyer_name %}
+            <div class="hint" style="margin:0"><i class="fas fa-user"></i> Bill to <b>{{ o.party.name|default:o.buyer_name }}</b>{% if o.buyer_address %}, {{ o.buyer_address|linebreaksbr }}{% endif %}</div>
+            {% endif %}
+
+            {% if o.status == 'NEEDS_INFO' and c.questions %}
+                <div class="notice warn" style="margin:0;white-space:pre-line"><i class="fas fa-circle-question"></i><div><b>{{ c.questions|length }} thing{{ c.questions|length|pluralize }} to ask the client</b>{% if o.asked_at %} · asked {{ o.asked_at|timesince }} ago, waiting for their reply{% endif %}<br>{{ c.ask_text }}</div></div>
+                <form method="post" action="{% url 'app_order_action' o.id %}">{% csrf_token %}<input type="hidden" name="action" value="ask">
+                    <button class="btn wa block" type="submit"><i class="fab fa-whatsapp"></i> {% if o.asked_at %}Ask again{% else %}Ask the client{% endif %}</button></form>
+            {% elif o.status == 'NEEDS_INFO' %}
+                <div class="notice info" style="margin:0"><i class="fas fa-pen"></i><div>Fill in what is highlighted above and the bill is made automatically.</div></div>
+            {% elif o.status == 'READY' %}
+                <div class="notice ok" style="margin:0"><i class="fas fa-file-invoice"></i><div>Bill <b>{{ o.transaction.invoice_number }}</b> is ready: <b class="num">৳{{ o.transaction.grand_total|floatformat:"2g" }}</b>. Send it to the client to check.</div></div>
+                <form method="post" action="{% url 'app_order_action' o.id %}">{% csrf_token %}<input type="hidden" name="action" value="send_check">
+                    <button class="btn wa block" type="submit"><i class="fab fa-whatsapp"></i> Send bill to client for checking</button></form>
+            {% elif o.status == 'SENT' %}
+                <div class="notice info" style="margin:0"><i class="fas fa-hourglass-half"></i><div>Sent {{ o.sent_at|timesince }} ago. When the client replies <b>OK</b> the bill is approved automatically; if they ask for changes, the bill updates and comes back here.</div></div>
+                <form method="post" action="{% url 'app_order_action' o.id %}">{% csrf_token %}<input type="hidden" name="action" value="confirm">
+                    <button class="btn ghost block" type="submit">Client confirmed another way</button></form>
+            {% elif o.status == 'CONFIRMED' %}
+                <div class="notice ok" style="margin:0"><i class="fas fa-circle-check"></i><div>Confirmed{% if o.confirmed_at %} {{ o.confirmed_at|timesince }} ago{% endif %}. Bill approved. Send the documents:</div></div>
+                <div class="btn-row">
+                    <form method="post" action="{% url 'app_order_action' o.id %}" style="flex:1">{% csrf_token %}<input type="hidden" name="action" value="deliver"><input type="hidden" name="doc" value="invoice">
+                        <button class="btn wa block" type="submit"><i class="fas fa-file-pdf"></i> Invoice{% if 'invoice' in o.delivered %} ✓{% endif %}</button></form>
+                    <form method="post" action="{% url 'app_order_action' o.id %}" style="flex:1">{% csrf_token %}<input type="hidden" name="action" value="deliver"><input type="hidden" name="doc" value="challan">
+                        <button class="btn ghost block" type="submit"><i class="fas fa-truck"></i> Challan{% if 'challan' in o.delivered %} ✓{% endif %}</button></form>
+                </div>
+            {% endif %}
+
+            {% if not o.phone %}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="display:flex;gap:8px">
+                {% csrf_token %}<input type="hidden" name="action" value="phone">
+                <input class="input" name="phone" inputmode="tel" placeholder="Client's WhatsApp number (optional)" style="height:44px">
+                <button class="btn ghost sm" type="submit" style="height:44px">Save</button>
+            </form>
+            <p class="hint" style="margin:0">Without a number, WhatsApp asks you to pick the chat each time.</p>
+            {% endif %}
+
+            <details>
+                <summary class="hint" style="margin:0;cursor:pointer">{{ c.messages|length }} message{{ c.messages|length|pluralize }}{% if o.transaction %} · <a href="{% url 'app_bill_detail' o.transaction.pk %}" style="color:var(--brand);font-weight:800">open bill</a>{% endif %}</summary>
+                <div class="bubbles">{% for m in c.messages %}<div class="bubble" style="padding-left:12px">{{ m.text }}<time>{{ m.received_at|date:"d M, h:i A" }}</time></div>{% endfor %}</div>
+                <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:10px" onsubmit="return confirm('Cancel this order? Its messages go to Archived.');">{% csrf_token %}<input type="hidden" name="action" value="cancel">
+                    <button class="btn danger sm" type="submit">Cancel order</button></form>
+            </details>
+        </div>
+    </div>
+    {% endwith %}{% endfor %}
+</section>
+{% endif %}
+
+<div class="section-head" style="margin-top:0"><h2>Other messages</h2></div>
 <div class="chips">
     <a class="chip {% if status == 'NEW' %}on{% endif %}" href="?status=NEW">New<b class="num">{{ counts.NEW }}</b></a>
     <a class="chip {% if status == 'BILLED' %}on{% endif %}" href="?status=BILLED">Billed<b class="num">{{ counts.BILLED }}</b></a>
@@ -43,12 +156,23 @@
         {% empty %}
         <div class="card empty">
             <i class="fas fa-inbox"></i>
-            <h3>{% if status == 'NEW' %}No new messages{% else %}Nothing here{% endif %}</h3>
-            {% if status == 'NEW' %}<p>Connect WhatsApp above, or tap + to paste a message or add an exported chat.</p>{% endif %}
+            <h3>{% if status == 'NEW' %}No other messages{% else %}Nothing here{% endif %}</h3>
+            {% if status == 'NEW' %}<p>Order messages from clients turn into orders above by themselves. Anything that is not an order stays here.</p>{% endif %}
         </div>
         {% endfor %}
     </section>
 </form>
+{% endblock %}
+
+{% block head %}
+<style>
+.os-NEEDS_INFO { background: var(--amber-soft); color: var(--amber); }
+.os-READY { background: var(--blue-soft); color: var(--blue); }
+.os-SENT { background: var(--violet-soft); color: var(--violet); }
+.os-CONFIRMED, .os-DELIVERED { background: var(--wa-soft); color: var(--wa); }
+.order .steps span { font-size: 9.5px; }
+.order .line { padding: 11px 14px; align-items: center; }
+</style>
 {% endblock %}
 
 {% block footer %}
@@ -129,10 +253,15 @@
     paint();
 
     // New messages arrived while the screen is open
-    var known = {{ counts.NEW }};
+    // Reload when something new arrives: the first answer sets the baseline.
+    var known = null;
     window.addEventListener('nrs-inbox', function (e) {
-        var busy = form.querySelectorAll('input[name=ids]:checked').length || document.querySelector('.sheet-wrap.open');
-        if ('{{ status }}' === 'NEW' && e.detail.new !== known && !busy) window.location.reload();
+        var now = e.detail.new + '/' + e.detail.orders;
+        if (known === null) { known = now; return; }
+        var active = document.activeElement;
+        var busy = form.querySelectorAll('input[name=ids]:checked').length || document.querySelector('.sheet-wrap.open')
+            || (active && /INPUT|SELECT|TEXTAREA/.test(active.tagName));
+        if ('{{ status }}' === 'NEW' && now !== known && !busy) window.location.reload();
     });
 })();
 </script>

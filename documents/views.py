@@ -94,7 +94,7 @@ def _process_auto_product_saving(transaction, items, user=None):
                     upscale_value=item.base_price, # Initial upscale value (owner can edit later)
                     unit=item.unit or 'Pcs',
                     added_by=user,
-                    is_approved=(user and (user.role == 'OWNER' or user.is_superuser))
+                    is_approved=bool(user and (user.role == 'OWNER' or user.is_superuser))
                 )
 
 def _sync_transaction_category_defaults(transaction):

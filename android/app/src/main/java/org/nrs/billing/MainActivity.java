@@ -374,6 +374,21 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
             }
         }
 
+        /** Attach a generated PDF in a client's WhatsApp chat (or let the user pick the chat). */
+        @JavascriptInterface
+        public void sendToWhatsApp(String name, String base64, String phone, String caption) {
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                final File file = new File(SharedFileProvider.dir(MainActivity.this), cleanName(name, "application/pdf"));
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    out.write(bytes);
+                }
+                runOnUiThread(() -> shareToWhatsApp(file, phone, caption));
+            } catch (Exception e) {
+                runOnUiThread(() -> toast(getString(R.string.download_failed)));
+            }
+        }
+
         @JavascriptInterface
         public void checkForUpdate() {
             runOnUiThread(() -> Updater.check(MainActivity.this, true));
@@ -437,6 +452,28 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         byte[] buffer = new byte[64 * 1024];
         int n;
         while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+    }
+
+    private void shareToWhatsApp(File file, String phone, String caption) {
+        Uri uri = SharedFileProvider.uriFor(file);
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("application/pdf");
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        if (caption != null && !caption.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, caption);
+        send.setClipData(ClipData.newRawUri(file.getName(), uri));
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        String digits = phone == null ? "" : phone.replaceAll("\\D", "");
+        // WhatsApp opens that client's chat directly when given their number.
+        if (!digits.isEmpty()) send.putExtra("jid", digits + "@s.whatsapp.net");
+        for (String pkg : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
+            try {
+                startActivity(new Intent(send).setPackage(pkg));
+                return;
+            } catch (ActivityNotFoundException ignored) {
+                // try the other WhatsApp, then any app
+            }
+        }
+        startActivity(Intent.createChooser(send, getString(R.string.share)));
     }
 
     /** A file is ready: let the user send it somewhere or keep it. */

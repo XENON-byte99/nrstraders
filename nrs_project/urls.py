@@ -97,6 +97,7 @@ urlpatterns = [
     path('app/bills/<int:pk>/', app_views.app_bill_detail, name='app_bill_detail'),
     path('app/api/bill/', app_views.app_bill_save, name='app_bill_save'),
     path('app/inbox/', app_views.app_inbox, name='app_inbox'),
+    path('app/orders/<int:pk>/action/', app_views.app_order_action, name='app_order_action'),
     path('app/products/', app_views.app_products, name='app_products'),
     path('app/contacts/', app_views.app_contacts, name='app_contacts'),
     path('app/more/', app_views.app_more, name='app_more'),

@@ -359,6 +359,11 @@ def auto_loop():
         time.sleep(AUTO_EVERY_SECONDS)
         try:
             close_old_connections()
+            try:
+                from .inbox_views import ingest_spool
+                ingest_spool()          # WhatsApp messages -> orders, even with no screen open
+            except Exception:
+                pass
             if not is_connected():
                 continue
             if pending_count() or time.time() - last_pull > PULL_EVERY_SECONDS:

@@ -90,13 +90,24 @@ def app_bills(request):
     })
 
 
+def client_phone(bill):
+    phone = ''.join(ch for ch in (bill.buyer_contact or '') if ch.isdigit())
+    if phone.startswith('0') and len(phone) == 11:
+        phone = '88' + phone
+    return phone
+
+
 def client_whatsapp_url(bill):
+    import urllib.parse
+    return 'https://wa.me/%s?text=%s' % (client_phone(bill), urllib.parse.quote(client_whatsapp_text(bill)))
+
+
+def client_whatsapp_text(bill):
     """A WhatsApp message for the customer: what they bought and what they owe.
 
-    Deliberately not Transaction.get_whatsapp_url(), which is the staff
+    Deliberately not Transaction.get_whatsapp_message(), which is the staff
     message (base prices, margin, VAT rates, links into the system).
     """
-    import urllib.parse
     lines = ['*%s*' % (bill.supplier_name or 'Bill'),
              'Invoice: %s' % (bill.invoice_number or '-'),
              'Date: %s' % timezone.localtime(bill.created_at).strftime('%d %b %Y'), '']
@@ -104,12 +115,8 @@ def client_whatsapp_url(bill):
         lines.append('%d. %s - %s %s x %s = Tk %s' % (
             i, item.display_description, ('%f' % item.quantity).rstrip('0').rstrip('.'), item.unit,
             '{:,.2f}'.format(item.billed_unit_price), '{:,.2f}'.format(item.billed_total)))
-    lines += ['', '*Total payable: Tk %s*' % '{:,.2f}'.format(bill.grand_total), '',
-              'Please check and let us know if anything needs changing.']
-    phone = ''.join(ch for ch in (bill.buyer_contact or '') if ch.isdigit())
-    if phone.startswith('0') and len(phone) == 11:
-        phone = '88' + phone
-    return 'https://wa.me/%s?text=%s' % (phone, urllib.parse.quote('\n'.join(lines)))
+    lines += ['', '*Total payable: Tk %s*' % '{:,.2f}'.format(bill.grand_total)]
+    return '\n'.join(lines)
 
 
 @login_required
@@ -297,11 +304,12 @@ def app_bill_save(request):
 @login_required
 @permission_required('p_create_bill')
 def app_inbox(request):
+    from .models import ClientOrder
     ingest_spool()
     status = (request.GET.get('status') or 'NEW').upper()
     if status not in ('NEW', 'BILLED', 'ARCHIVED'):
         status = 'NEW'
-    msgs = list(InboxMessage.objects.filter(status=status).select_related('transaction')[:400])
+    msgs = list(InboxMessage.objects.filter(status=status, order__isnull=True).select_related('transaction')[:400])
     groups, index = [], {}
     for m in msgs:
         key = m.chat or m.sender or 'Unknown sender'
@@ -314,9 +322,14 @@ def app_inbox(request):
         g['ids'] = ','.join(str(m.pk) for m in g['messages'])
         g['party'] = None if g['is_group'] else match_party(g['title'])
         g['initial'] = (g['title'].strip()[:1] or '?').upper()
-    counts = dict(InboxMessage.objects.values_list('status').annotate(n=Count('id')))
+    counts = dict(InboxMessage.objects.filter(order__isnull=True).values_list('status').annotate(n=Count('id')))
+    open_orders = list(ClientOrder.objects.filter(status__in=ClientOrder.OPEN).select_related('transaction', 'party', 'category'))
+    done = list(ClientOrder.objects.filter(status__in=(ClientOrder.DELIVERED,)).select_related('transaction')[:15])
     return render(request, 'app/inbox.html', {
         'tab': 'inbox', 'groups': groups, 'status': status,
+        'orders': _order_cards(open_orders), 'done_orders': done,
+        'buyers': BusinessParty.objects.filter(is_deleted=False, party_type='BUYER').order_by('name'),
+        'categories': TransactionCategory.objects.filter(is_deleted=False).order_by('name'),
         'counts': {'NEW': counts.get('NEW', 0), 'BILLED': counts.get('BILLED', 0),
                    'ARCHIVED': counts.get('ARCHIVED', 0)},
     })
@@ -432,3 +445,96 @@ def app_sync_status(request):
     return JsonResponse({'connected': state['connected'], 'pending': state['pending'],
                          'last_sync': state['last_sync'], 'error': bool(state['last_error']),
                          'problems': len(state['problems'])})
+
+
+# ── Client orders (automatic billing from WhatsApp) ────────────────────────
+def _order_cards(orders):
+    from . import order_engine
+    cards = []
+    for order in orders:
+        cards.append({
+            'order': order,
+            'questions': order_engine.client_questions(order),
+            'tasks': order_engine.your_tasks(order),
+            'items': [dict(it, index=i, total=(it['quantity'] or 0) * (it['price'] or 0))
+                      for i, it in enumerate(order.items)],
+            'ask_text': order_engine.ask_message(order),
+            'messages': list(order.messages.order_by('received_at', 'id')),
+            'initial': (order.title.strip()[:1] or '?').upper(),
+        })
+    return cards
+
+
+@login_required
+@permission_required('p_create_bill')
+@require_POST
+def app_order_action(request, pk):
+    """Buttons on an order card. "Send" actions mark the step done and open
+    WhatsApp with the message ready; the user taps send there."""
+    from django.http import HttpResponseRedirect
+    from . import order_engine
+    from .models import ClientOrder
+
+    order = get_object_or_404(ClientOrder, pk=pk)
+    action = request.POST.get('action')
+    back = redirect('/app/inbox/#order-%d' % order.pk)
+
+    if action == 'ask':
+        if order_engine.client_questions(order):
+            order.awaiting_buyer = any('company name' in q for q in order_engine.client_questions(order))
+            order.asked_at, order.asked_text = timezone.now(), order_engine.ask_message(order)
+            order.save()
+            return HttpResponseRedirect(order_engine.ask_url(order))
+    elif action == 'prices':
+        prices = {}
+        for key, value in request.POST.items():
+            if key.startswith('price_') and key[6:].isdigit() and value.strip():
+                prices[int(key[6:])] = value
+        order_engine.set_prices(order, prices)
+    elif action == 'ask_prices':
+        order.ask_prices = not order.ask_prices
+        order_engine.refresh(order, items_changed=False)
+    elif action == 'buyer':
+        party = BusinessParty.objects.filter(pk=request.POST.get('party_id') or 0).first()
+        if party:
+            order.party = party
+            if not order.phone:
+                order.phone = order_engine._phone_for('', party)
+        elif request.POST.get('buyer_name', '').strip():
+            order.buyer_name = request.POST['buyer_name'].strip()[:255]
+        order_engine.refresh(order, items_changed=True)
+    elif action == 'category':
+        order.category = TransactionCategory.objects.filter(pk=request.POST.get('category_id') or 0).first()
+        order_engine.refresh(order, items_changed=True)
+    elif action == 'phone':
+        order.phone = ''.join(ch for ch in request.POST.get('phone', '') if ch.isdigit())[:20]
+        if order.phone.startswith('0') and len(order.phone) == 11:
+            order.phone = '88' + order.phone
+        order.save()
+    elif action == 'send_check' and order.transaction_id:
+        order.status, order.sent_at = ClientOrder.SENT, timezone.now()
+        order.save()
+        return HttpResponseRedirect(order_engine.check_url(order))
+    elif action == 'confirm':
+        order_engine.confirm(order)
+    elif action == 'deliver' and order.transaction_id:
+        doc = request.POST.get('doc') if request.POST.get('doc') in ('invoice', 'challan', 'quotation') else 'invoice'
+        if doc not in order.delivered:
+            order.delivered = order.delivered + [doc]
+        if doc == 'invoice':
+            order.status = ClientOrder.DELIVERED
+        order.save()
+        import urllib.parse
+        query = urllib.parse.urlencode({'send': 'whatsapp', 'phone': order.phone,
+                                        'caption': order_engine.deliver_caption(order, doc),
+                                        'back': '/app/inbox/#order-%d' % order.pk})
+        return redirect('/bills/%d/print/%s/?%s' % (order.transaction_id, doc, query))
+    elif action == 'cancel':
+        order.status = ClientOrder.CANCELLED
+        order.save()
+        messages.info(request, 'Order from %s cancelled. Its messages stay in the inbox.' % order.title)
+        order.messages.update(order=None, status='ARCHIVED')
+    elif action == 'reopen':
+        order.status = ClientOrder.NEEDS_INFO
+        order_engine.refresh(order, items_changed=True)
+    return back

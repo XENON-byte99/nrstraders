@@ -897,6 +897,7 @@ class InboxMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='NEW', db_index=True)
     transaction = models.ForeignKey(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbox_messages')
+    order = models.ForeignKey('ClientOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='messages')
 
     class Meta:
         ordering = ['-received_at', '-id']
@@ -928,3 +929,50 @@ class SyncTombstone(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['model', 'uuid'])]
+
+
+class ClientOrder(models.Model):
+    """One client's order, assembled automatically from their WhatsApp messages.
+
+    The order engine (order_engine.py) reads each new message, merges it into
+    the client's open order, works out what is still missing, writes the
+    questions to send, creates the bill once nothing is missing, takes the
+    client's "OK" as approval and prepares the documents to deliver. The
+    person using the app only taps "send" in WhatsApp.
+    """
+    NEEDS_INFO, READY, SENT, CONFIRMED, DELIVERED, CANCELLED = 'NEEDS_INFO', 'READY', 'SENT', 'CONFIRMED', 'DELIVERED', 'CANCELLED'
+    STATUS_CHOICES = [
+        (NEEDS_INFO, 'Needs details'),
+        (READY, 'Bill ready'),
+        (SENT, 'Sent for checking'),
+        (CONFIRMED, 'Confirmed'),
+        (DELIVERED, 'Delivered'),
+        (CANCELLED, 'Cancelled'),
+    ]
+    OPEN = (NEEDS_INFO, READY, SENT, CONFIRMED)
+
+    key = models.CharField(max_length=120, db_index=True, help_text="Conversation: group name or sender")
+    title = models.CharField(max_length=120)
+    phone = models.CharField(max_length=20, blank=True)
+    party = models.ForeignKey(BusinessParty, on_delete=models.SET_NULL, null=True, blank=True)
+    buyer_name = models.CharField(max_length=255, blank=True)
+    buyer_address = models.TextField(blank=True)
+    category = models.ForeignKey(TransactionCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    items = models.JSONField(default=list)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=NEEDS_INFO, db_index=True)
+    awaiting_buyer = models.BooleanField(default=False, help_text="We asked for company details; the next plain reply is the answer")
+    ask_prices = models.BooleanField(default=False, help_text="Ask the client for missing prices instead of filling them in")
+    asked_at = models.DateTimeField(null=True, blank=True)
+    asked_text = models.TextField(blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    delivered = models.JSONField(default=list, help_text="Documents sent to the client")
+    transaction = models.ForeignKey(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='client_orders')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+
+    def __str__(self):
+        return f"Order from {self.title} ({self.get_status_display()})"

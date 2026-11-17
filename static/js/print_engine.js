@@ -550,7 +550,15 @@
             element.style.boxShadow = oldShadow || '';
         };
 
-        return html2pdf().set(settings).from(element).save()
+        var worker = html2pdf().set(settings).from(element);
+        var finish = opts.deliver
+            // Hand the finished PDF to the app, which attaches it in WhatsApp.
+            ? worker.outputPdf('datauristring').then(function (uri) {
+                  window.NRSApp.sendToWhatsApp(filename, String(uri).split(',')[1] || '',
+                                               opts.deliver.phone || '', opts.deliver.caption || '');
+              })
+            : worker.save();
+        return finish
             .then(function () { restore(); return true; })
             .catch(function (err) {
                 console.error('PDF generation failed:', err);
@@ -565,6 +573,7 @@
        look like nothing happened. */
     function bindDownloadButton(button, getElement, getFilename, opts) {
         if (!button) return;
+        deliverIfAsked(getElement, getFilename, opts);
         button.addEventListener('click', function () {
             if (button.dataset.busy === '1') return;
             var label = button.innerHTML;
@@ -577,6 +586,34 @@
                 button.innerHTML = label;
             });
         });
+    }
+
+    /* "Send to client" from the app's order screen opens a print page with
+       ?send=whatsapp&phone=...&caption=...&back=... : build the PDF straight
+       away and hand it to WhatsApp, then return to the order. */
+    function deliverIfAsked(getElement, getFilename, opts) {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('send') !== 'whatsapp' || deliverIfAsked.started) return;
+        deliverIfAsked.started = true;
+        var back = params.get('back') || '';
+        var native = window.NRSApp && typeof window.NRSApp.sendToWhatsApp === 'function';
+        var note = document.createElement('div');
+        note.className = 'no-print';
+        note.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;padding:14px 16px;' +
+            'border-radius:16px;background:#0E8F6E;color:#fff;font:700 14px system-ui,sans-serif;text-align:center;' +
+            'box-shadow:0 12px 30px rgba(0,0,0,.3)';
+        note.textContent = 'Preparing the PDF for WhatsApp…';
+        var run = function () {
+            document.body.appendChild(note);
+            var settings = Object.assign({}, opts || {});
+            if (native) settings.deliver = { phone: params.get('phone') || '', caption: params.get('caption') || '' };
+            Promise.resolve(downloadPdf(getElement(), getFilename(), settings)).then(function (ok) {
+                note.textContent = ok ? (native ? 'Opening WhatsApp…' : 'PDF downloaded. Attach it in WhatsApp.') : 'Could not make the PDF.';
+                if (ok && back) setTimeout(function () { window.location.replace(back); }, 1500);
+            });
+        };
+        var start = function () { setTimeout(run, 700); };
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
     }
 
     global.PrintEngine = {

@@ -125,7 +125,19 @@ def ingest_spool():
             os.remove(path)
         except OSError:
             pass
+    run_order_engine()
     return added
+
+
+def run_order_engine():
+    """Turn newly arrived messages into client orders (see order_engine.py)."""
+    from . import order_engine
+    try:
+        return order_engine.process_new_messages()
+    except Exception:                       # never let a bad message break the inbox
+        import logging
+        logging.getLogger(__name__).exception('order engine failed')
+        return 0
 
 
 def _read_upload(upload):
@@ -272,6 +284,7 @@ def inbox_import(request):
             added += store_text_block('upload', _read_upload(upload), sender, app='WhatsApp')
         except ValueError as exc:
             problems.append(str(exc))
+    run_order_engine()
     for p in problems:
         messages.error(request, p)
     if added:
@@ -310,7 +323,10 @@ def inbox_action(request):
 def inbox_status_api(request):
     """Cheap poll for the sidebar badge; also drains the capture spool."""
     added = ingest_spool()
-    return JsonResponse({'new': InboxMessage.objects.filter(status='NEW').count(), 'added': added})
+    from .models import ClientOrder
+    waiting = ClientOrder.objects.filter(status__in=(ClientOrder.NEEDS_INFO, ClientOrder.READY, ClientOrder.CONFIRMED)).count()
+    loose = InboxMessage.objects.filter(status='NEW', order__isnull=True).count()
+    return JsonResponse({'new': waiting + loose, 'orders': waiting, 'added': added})
 
 
 # ── Offline free-form parser for the bill form ─────────────────────────────

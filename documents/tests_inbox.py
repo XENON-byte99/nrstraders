@@ -126,7 +126,7 @@ class InboxFlowTest(TestCase):
                 with open(os.path.join(spool, name), 'w') as fh:
                     json.dump(batch, fh)
             r = self.client.get('/api/inbox/status/')
-            self.assertEqual(r.json(), {'new': 1, 'added': 1})
+            self.assertEqual(r.json(), {'new': 1, 'orders': 1, 'added': 1})
             self.assertEqual(os.listdir(spool), [])
 
     def test_inbox_page_and_actions(self):
@@ -292,3 +292,110 @@ class ClientMessageTest(TestCase):
         self.assertIn('Rice - 5 Kg x 60.00 = Tk 300.00', url)
         for secret in ('Margin', 'Base', 'VAT', '50.00', '127.0.0.1', '/bills/'):
             self.assertNotIn(secret, url)
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class OrderEngineTest(TestCase):
+    """Client WhatsApp messages -> questions -> bill -> confirmation -> delivery."""
+
+    def setUp(self):
+        from . import order_engine
+        self.engine = order_engine
+        self.user = User.objects.create_user('owner', password='pw', role='OWNER')
+        self.client.force_login(self.user)
+        self.cat = TransactionCategory.objects.create(name='Grocery Item', invoice_prefix='GRO',
+                                                      default_vat=Decimal('5'))
+        Product.objects.create(name='Miniket Rice', category=self.cat, unit='Kg',
+                               base_price=Decimal('58'), upscale_value=Decimal('64'))
+        Product.objects.create(name='Soybean Oil', category=self.cat, unit='Ltr',
+                               base_price=Decimal('165'), upscale_value=Decimal('180'))
+        self.rahim = BusinessParty.objects.create(party_type='BUYER', name='Rahim Store',
+                                                  whatsapp_number='8801711000000')
+
+    def say(self, text, sender='Rahim Store'):
+        inbox_views.store_message('notification', text, sender, app='WhatsApp')
+        inbox_views.run_order_engine()
+        from .models import ClientOrder
+        return ClientOrder.objects.filter(key=sender).order_by('-id').first()
+
+    def act(self, order, action, **extra):
+        return self.client.post('/app/orders/%d/action/' % order.pk, dict(action=action, **extra))
+
+    def test_full_flow_from_order_to_delivery(self):
+        self.assertIsNone(self.say('Assalamu alaikum bhai'))           # chatter starts nothing
+        order = self.say('Miniket rice 25 kg\nSoybean oil 10 ltr\nDetergent powder')
+        # "Detergent powder" is not a known product and has no quantity: treated as chatter.
+        self.assertEqual([it['description'] for it in order.items], ['Miniket rice', 'Soybean oil'])
+        self.assertEqual(order.status, 'READY')                      # saved prices + saved contact = complete
+        bill = order.transaction
+        self.assertEqual((bill.buyer_name, bill.status, bill.items.count()), ('Rahim Store', 'DRAFT', 2))
+
+        r = self.act(order, 'send_check')
+        self.assertTrue(r['Location'].startswith('https://wa.me/8801711000000?text='))
+        self.assertIn('Reply%20%2AOK%2A', r['Location'])
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'SENT')
+
+        order = self.say('Rice 30 kg')                                # client corrects before confirming
+        self.assertEqual(order.status, 'READY')
+        bill.refresh_from_db()
+        self.assertEqual(bill.items.get(description='Miniket rice').quantity, Decimal('30'))
+        self.act(order, 'send_check')
+
+        order = self.say('ok bhai thik ache')
+        self.assertEqual(order.status, 'CONFIRMED')
+        bill.refresh_from_db()
+        self.assertEqual(bill.status, 'APPROVED')
+
+        r = self.act(order, 'deliver', doc='invoice')
+        self.assertIn('/bills/%d/print/invoice/?send=whatsapp' % bill.pk, r['Location'])
+        self.assertIn('phone=8801711000000', r['Location'])
+        order.refresh_from_db()
+        self.assertEqual((order.status, order.delivered), ('DELIVERED', ['invoice']))
+
+    def test_missing_details_are_asked_and_answers_are_read(self):
+        order = self.say('Miniket rice\nLED bulb 10 pcs', sender='+880 1811-222333')
+        texts = self.engine.client_questions(order)
+        self.assertEqual(len(texts), 2)
+        self.assertIn('How many *Miniket rice*', texts[0])
+        self.assertIn('company name and address', texts[1])
+        self.assertEqual(self.engine.your_tasks(order), ['price'])   # new product: you set the price
+        self.assertEqual(order.phone, '8801811222333')
+
+        r = self.act(order, 'ask')
+        self.assertTrue(r['Location'].startswith('https://wa.me/8801811222333?text=Thank%20you'))
+        order = self.say('Rice 20 kg', sender='+880 1811-222333')
+        self.assertEqual(order.items[0]['quantity'], 20)
+        order = self.say('Karim Traders\nShop 4, Kadamtoli, Narayanganj', sender='+880 1811-222333')
+        self.assertEqual((order.buyer_name, order.buyer_address), ('Karim Traders', 'Shop 4, Kadamtoli, Narayanganj'))
+        self.assertEqual(order.status, 'NEEDS_INFO')                 # still needs the LED bulb price
+
+        self.act(order, 'prices', price_1='250')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'READY')
+        self.assertEqual(order.transaction.buyer_name, 'Karim Traders')
+        self.assertTrue(Product.objects.filter(name='LED bulb').exists())
+
+    def test_client_can_be_asked_for_rates(self):
+        order = self.say('Cement 10 bag')
+        self.act(order, 'ask_prices')
+        order.refresh_from_db()
+        self.assertIn('agreed rate for *Cement*', self.engine.ask_message(order))
+        order = self.say('Cement 520 tk')
+        self.assertEqual((order.items[0]['price'], order.items[0]['quantity']), (520, 10))
+        self.assertEqual(order.status, 'READY')
+
+    def test_confirmation_words(self):
+        for yes in ('OK', 'ok bhai', 'Yes confirm', 'ঠিক আছে', '👍', 'okay, send the invoice'):
+            self.assertTrue(self.engine.is_confirmation(yes), yes)
+        for no in ('ok but rice 30 kg', 'no', 'change oil to 5 ltr', 'hello'):
+            self.assertFalse(self.engine.is_confirmation(no), no)
+
+    def test_inbox_shows_orders(self):
+        self.say('Miniket rice 25 kg')
+        page = self.client.get('/app/inbox/')
+        self.assertContains(page, 'Send bill to client for checking')
+        self.assertContains(page, 'Rahim Store')
