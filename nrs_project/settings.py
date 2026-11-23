@@ -114,7 +114,27 @@ AI_BASE_URL = config('AI_BASE_URL', default='https://integrate.api.nvidia.com/v1
 AI_MODEL    = config('AI_MODEL', default='meta/llama-3.1-8b-instruct')
 
 # Back-compat: an Anthropic key alone still enables the Anthropic path.
-ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='PASTE-YOUR-ANTHROPIC-API-KEY-HERE')
+
+# ── AI order assistant + WhatsApp Business API ─────────────────────────────
+# Fill these in the server's .env (see .env.example). Until they are set the
+# app keeps working: orders are read by the rule-based reader and every
+# message is sent with one tap from the app.
+WHATSAPP_TOKEN = config('WHATSAPP_TOKEN', default='PASTE-HERE')
+WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='PASTE-HERE')
+WHATSAPP_APP_SECRET = config('WHATSAPP_APP_SECRET', default='PASTE-HERE')
+WHATSAPP_VERIFY_TOKEN = config('WHATSAPP_VERIFY_TOKEN', default='PASTE-HERE')
+WHATSAPP_API_VERSION = config('WHATSAPP_API_VERSION', default='v23.0')
+OWNER_WHATSAPP = config('OWNER_WHATSAPP', default='PASTE-HERE')
+
+# Autopilot: messages go out without your approval only when this is on,
+# the client has had AUTOPILOT_TRUSTED_AFTER orders delivered, the bill is at
+# most AUTOPILOT_MAX_TOTAL taka, and it is not quiet hours (start, end hour).
+AUTOPILOT_ENABLED = config('AUTOPILOT_ENABLED', default=False, cast=bool)
+AUTOPILOT_MAX_TOTAL = config('AUTOPILOT_MAX_TOTAL', default=50000, cast=float)
+AUTOPILOT_TRUSTED_AFTER = config('AUTOPILOT_TRUSTED_AFTER', default=3, cast=int)
+QUIET_HOURS = tuple(int(x) for x in config('QUIET_HOURS', default='22,8').split(','))
+USD_TO_BDT = config('USD_TO_BDT', default='122')
 if SUPABASE_DATABASE_URL:
     db_config = dj_database_url.parse(SUPABASE_DATABASE_URL)
     try:

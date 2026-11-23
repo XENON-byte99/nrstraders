@@ -1,0 +1,68 @@
+{% extends 'app/base.html' %}
+{% block head %}
+<style>
+@media print { .tabbar, .appbar .iconbtn, .no-print { display: none !important; } body.app { background: #fff; } .card { box-shadow: none; } }
+.ev { padding: 12px 14px; display: flex; gap: 12px; }
+.ev + .ev { border-top: 1px solid var(--line); }
+.ev .seq { width: 28px; flex: none; font-size: 11px; font-weight: 800; color: var(--muted); padding-top: 2px; }
+.ev .who { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.ev .txt { font-size: 14px; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere; margin-top: 2px; }
+.ev .meta { font-size: 10.5px; color: var(--muted); font-family: ui-monospace, monospace; margin-top: 4px; overflow-wrap: anywhere; }
+.k-client_confirmed { background: var(--wa-soft); }
+.k-bill_shown { background: var(--blue-soft); }
+.k-handoff { background: var(--amber-soft); }
+.bill-lines { font-size: 12.5px; margin-top: 6px; width: 100%; border-collapse: collapse; }
+.bill-lines td { padding: 2px 0; } .bill-lines td:last-child { text-align: right; }
+</style>
+{% endblock %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_inbox' %}#order-{{ order.id }}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>Order record #{{ order.id }}<span class="sub">{{ order.title }}{% if order.transaction %} · {{ order.transaction.invoice_number }}{% endif %}</span></h1>
+    <button class="iconbtn" onclick="window.print()" aria-label="Print"><i class="fas fa-print"></i></button>
+</header>
+{% endblock %}
+{% block content %}
+<div class="notice {% if chain_ok %}ok{% else %}err{% endif %}" style="margin-top:0">
+    <i class="fas {% if chain_ok %}fa-shield-halved{% else %}fa-triangle-exclamation{% endif %}"></i>
+    <div><b>{% if chain_ok %}Record verified{% else %}Record has been tampered with{% endif %}.</b> {{ verdict }}
+    Every entry is sealed with the one before it, so no entry can be changed, added or removed without this check failing.
+    {% if head %}<div style="font-family:ui-monospace,monospace;font-size:10.5px;margin-top:4px;overflow-wrap:anywhere;word-break:break-all">Seal: {{ head }}</div>{% endif %}</div>
+</div>
+
+<section class="section" style="margin-top:14px">
+    <div class="card pad">
+        <div class="kv"><span>Client</span><b>{{ order.party.name|default:order.buyer_name|default:order.title }}</b></div>
+        <div class="kv"><span>WhatsApp</span><b>{{ order.phone|default:"–" }}</b></div>
+        <div class="kv"><span>Status</span><b>{{ order.get_status_display }}</b></div>
+        {% if order.bill_version %}<div class="kv"><span>Latest bill shown</span><b>version {{ order.bill_version }} · code {{ order.version_code }}</b></div>{% endif %}
+        <div class="kv"><span>Printed</span><b>{{ printed|date:"d M Y, h:i A" }}</b></div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Everything that happened</h2></div>
+    <div class="card">
+        {% for e in events %}
+        <div class="ev k-{{ e.kind }}">
+            <div class="seq num">{{ e.seq }}</div>
+            <div style="flex:1;min-width:0">
+                <div class="who" style="color:{% if e.actor == 'client' %}var(--wa){% elif e.actor == 'assistant' %}var(--violet){% elif e.actor == 'staff' %}var(--blue){% else %}var(--muted){% endif %}">
+                    {{ e.get_actor_display }}{% if e.user %} · {{ e.user.get_full_name|default:e.user.username }}{% endif %} · {{ e.get_kind_display }}</div>
+                <div class="txt">{{ e.summary }}</div>
+                {% if e.kind == 'bill_shown' and e.data.bill %}
+                <table class="bill-lines num">
+                    {% for l in e.data.bill.lines %}<tr><td>{{ l.description }} – {{ l.quantity }} {{ l.unit }} × {{ l.unit_price }}</td><td>{{ l.amount }}</td></tr>{% endfor %}
+                    <tr><td>VAT {{ e.data.bill.vat }} · Tax {{ e.data.bill.tax }} · Duty {{ e.data.bill.duty }}</td><td><b>Total {{ e.data.bill.total }}</b></td></tr>
+                </table>
+                {% endif %}
+                <div class="meta">{{ e.at|date:"d M Y H:i:s" }}{% if e.data.wa_id %} · WhatsApp id {{ e.data.wa_id }}{% endif %} · seal {{ e.hash|slice:":16" }}…</div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty"><p>Nothing recorded yet.</p></div>
+        {% endfor %}
+    </div>
+</section>
+<p class="hint">WhatsApp ids refer to the original messages held by WhatsApp. Bill codes also appear in the client's own chat.</p>
+{% endblock %}

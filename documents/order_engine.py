@@ -27,6 +27,7 @@ from django.utils import timezone
 from audit.utils import log_audit
 from .models import BusinessParty, ClientOrder, InboxMessage, Product, Transaction, TransactionCategory
 from .text_import import extract_items
+from . import ledger
 
 AUTO_SOURCES = ('notification', 'share', 'paste')
 
@@ -194,6 +195,8 @@ def _save_bill(order):
             bill.buyer_address = order.buyer_address
             bill.save()
         order.transaction = bill
+        ledger.record(order, 'change', 'system', 'Bill %s created: total Tk %s.' % (bill.invoice_number, round(bill.grand_total, 2)),
+                      {'bill': bill.invoice_number, 'items': order.items})
         log_audit(None, 'Created Transaction',
                   'Bill #%s was created automatically from WhatsApp messages from %s.' % (bill.invoice_number, order.title),
                   transaction=bill)
@@ -209,6 +212,8 @@ def _save_bill(order):
         item.save()
     _process_auto_product_saving(bill, items, user=None)
     bill.save()
+    ledger.record(order, 'change', 'system', 'Bill %s updated from the order: total Tk %s.'
+                  % (bill.invoice_number, round(bill.grand_total, 2)), {'bill': bill.invoice_number, 'items': order.items})
     log_audit(None, 'Updated Transaction',
               'Bill #%s was updated from new WhatsApp messages from %s.' % (bill.invoice_number, order.title),
               transaction=bill)
@@ -258,11 +263,17 @@ def handle_message(msg):
     with db_transaction.atomic():
         if order.pk is None:
             order.save()
+            ledger.record(order, 'system', 'system', 'Order started from a WhatsApp message from %s.' % key,
+                          {'phone': order.phone, 'known_client': bool(order.party_id)})
         msg.order = order
         msg.save(update_fields=['order'])
+        ledger.record(order, 'message_in', 'client', msg.text,
+                      {'message': msg.pk, 'wa_id': msg.wa_id, 'phone': msg.phone, 'received_at': msg.received_at,
+                       'sender': msg.sender, 'source': msg.source})
 
         if order.status in (ClientOrder.SENT, ClientOrder.CONFIRMED) and is_confirmation(msg.text):
-            confirm(order, by_client=True)
+            if order.status == ClientOrder.SENT:
+                confirm(order, by_client=True, message=msg)
             return order
         if order.status == ClientOrder.CONFIRMED:
             if not strong:
@@ -271,8 +282,12 @@ def handle_message(msg):
             order = ClientOrder.objects.create(key=key, title=order.title, party=order.party, phone=order.phone,
                                                buyer_name=order.buyer_name, buyer_address=order.buyer_address,
                                                category=order.category)
+            ledger.record(order, 'system', 'system', 'New order started: the client sent new items after confirming '
+                          'the previous one.', {})
             msg.order = order
             msg.save(update_fields=['order'])
+            ledger.record(order, 'message_in', 'client', msg.text, {'message': msg.pk, 'wa_id': msg.wa_id,
+                                                                   'received_at': msg.received_at})
 
         resolved = _resolve(order, raw) if raw else []
         # After asking for company details, a reply that names no known
@@ -304,10 +319,20 @@ def process_new_messages():
 
 
 # ── Things the person using the app does ───────────────────────────────────
-def confirm(order, by_client=False):
+def confirm(order, by_client=False, message=None, user=None):
     order.status = ClientOrder.CONFIRMED
     order.confirmed_at = timezone.now()
     order.save()
+    if message is not None:
+        shown = ledger.last_shown(order)
+        ledger.record(order, 'client_confirmed', 'client',
+                      'Client confirmed bill version %d (code %s): "%s"' % (order.bill_version, order.version_code or '-', message.text),
+                      {'version': order.bill_version, 'code': order.version_code, 'message': message.text,
+                       'wa_id': message.wa_id, 'received_at': message.received_at,
+                       'bill': shown.data.get('bill') if shown else None})
+    elif user is not None:
+        ledger.record(order, 'owner', 'staff', 'Staff marked the bill as confirmed by the client (outside WhatsApp).',
+                      {'version': order.bill_version}, user=user)
     bill = order.transaction
     if bill is not None and bill.status in ('DRAFT', 'PRICED'):
         bill.status = 'APPROVED'
@@ -318,8 +343,12 @@ def confirm(order, by_client=False):
             transaction=bill)
 
 
-def set_prices(order, prices):
+def set_prices(order, prices, user=None):
     """prices: {item index: price}"""
+    if prices:
+        ledger.record(order, 'owner', 'staff', 'Staff set prices: %s' % ', '.join(
+            '%s = %s' % (order.items[i]['description'], v) for i, v in prices.items() if 0 <= i < len(order.items)),
+            {'prices': {str(k): v for k, v in prices.items()}}, user=user)
     changed = False
     for index, value in prices.items():
         price = _num(value)
@@ -344,7 +373,8 @@ def ask_message(order):
 
 def check_message(order):
     from .app_views import client_whatsapp_text
-    return client_whatsapp_text(order.transaction) + '\n\nReply *OK* to confirm, or tell us what to change.'
+    return (client_whatsapp_text(order.transaction) + '\n\nBill version %d · code %s\nReply *OK* to confirm, or tell us what to change.'
+            % (order.bill_version, order.version_code))
 
 
 def deliver_caption(order, doc):

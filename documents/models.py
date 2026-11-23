@@ -898,6 +898,12 @@ class InboxMessage(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='NEW', db_index=True)
     transaction = models.ForeignKey(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbox_messages')
     order = models.ForeignKey('ClientOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='messages')
+    # WhatsApp Business API messages: their WhatsApp id, the sender's number,
+    # and any photo or document they sent.
+    wa_id = models.CharField(max_length=128, blank=True, db_index=True)
+    phone = models.CharField(max_length=20, blank=True)
+    media = models.FileField(upload_to='inbox/%Y/%m/', blank=True)
+    media_type = models.CharField(max_length=60, blank=True)
 
     class Meta:
         ordering = ['-received_at', '-id']
@@ -968,6 +974,15 @@ class ClientOrder(models.Model):
     confirmed_at = models.DateTimeField(null=True, blank=True)
     delivered = models.JSONField(default=list, help_text="Documents sent to the client")
     transaction = models.ForeignKey(Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='client_orders')
+    # Bill versions shown to the client. Each has a short code that is also
+    # written in the client's own WhatsApp chat, so a confirmation can always
+    # be tied to exactly what the client saw.
+    bill_version = models.PositiveIntegerField(default=0)
+    version_code = models.CharField(max_length=12, blank=True)
+    prices_include_vat = models.BooleanField(null=True, blank=True)
+    buyer_bin = models.CharField(max_length=100, blank=True)
+    paused = models.BooleanField(default=False, help_text="Handed over to a person: the assistant does not reply")
+    paused_reason = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -976,3 +991,99 @@ class ClientOrder(models.Model):
 
     def __str__(self):
         return f"Order from {self.title} ({self.get_status_display()})"
+
+
+class OrderEvent(models.Model):
+    """The order's permanent record: an append-only, hash-chained log.
+
+    Every message in and out, every bill version shown, every confirmation,
+    every change made by the assistant, the system or a person is written
+    here and can never be edited or deleted. Each entry stores the hash of the
+    one before it, so changing or removing any entry breaks the chain, and
+    the order record page shows that the record has been tampered with.
+    """
+    KINDS = [
+        ('message_in', 'Message from client'),
+        ('message_out', 'Message to client'),
+        ('bill_shown', 'Bill shown to client'),
+        ('client_confirmed', 'Client confirmed'),
+        ('document_sent', 'Document sent'),
+        ('change', 'Order changed'),
+        ('owner', 'Action by staff'),
+        ('owner_question', 'Question for staff'),
+        ('assistant', 'Assistant action'),
+        ('handoff', 'Handed over to staff'),
+        ('system', 'System'),
+    ]
+    ACTORS = [('client', 'Client'), ('staff', 'Staff'), ('assistant', 'AI assistant'), ('system', 'System')]
+
+    order = models.ForeignKey(ClientOrder, on_delete=models.PROTECT, related_name='events')
+    seq = models.PositiveIntegerField()
+    at = models.DateTimeField(default=timezone.now)
+    kind = models.CharField(max_length=20, choices=KINDS)
+    actor = models.CharField(max_length=12, choices=ACTORS)
+    user = models.ForeignKey('accounts.User', on_delete=models.PROTECT, null=True, blank=True)
+    summary = models.TextField()
+    data = models.JSONField(default=dict, blank=True)
+    prev_hash = models.CharField(max_length=64)
+    hash = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['order_id', 'seq']
+        unique_together = ('order', 'seq')
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError('Order records are permanent and cannot be changed.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError('Order records are permanent and cannot be deleted.')
+
+
+class AIUsage(models.Model):
+    """One call to the AI provider: what it was for, tokens used, and cost."""
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    PURPOSES = [('order_assistant', 'AI assistant'), ('quick_bill_read', 'Read with AI')]
+    purpose = models.CharField(max_length=40, choices=PURPOSES)
+    order = models.ForeignKey(ClientOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_usage')
+    model = models.CharField(max_length=60)
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    cache_read_tokens = models.PositiveIntegerField(default=0)
+    cache_write_tokens = models.PositiveIntegerField(default=0)
+    cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    ok = models.BooleanField(default=True)
+    error = models.CharField(max_length=255, blank=True)
+    request_id = models.CharField(max_length=80, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OutgoingMessage(models.Model):
+    """A message or document for a client (or for staff).
+
+    With the WhatsApp Business API connected and the order within the
+    autopilot limits it is sent straight away; otherwise it waits here for a
+    person to approve it (and, without the API, to send it with one tap).
+    """
+    PENDING, SENT, FAILED, CANCELLED = 'PENDING', 'SENT', 'FAILED', 'CANCELLED'
+    STATUS_CHOICES = [(PENDING, 'Waiting for approval'), (SENT, 'Sent'), (FAILED, 'Failed'), (CANCELLED, 'Cancelled')]
+
+    order = models.ForeignKey(ClientOrder, on_delete=models.CASCADE, null=True, blank=True, related_name='outgoing')
+    to_phone = models.CharField(max_length=20, blank=True)
+    to_staff = models.BooleanField(default=False)
+    text = models.TextField(blank=True)
+    document = models.CharField(max_length=20, blank=True, help_text="invoice / challan / quotation")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING, db_index=True)
+    reason = models.CharField(max_length=255, blank=True, help_text="Why it waits for approval")
+    created_by = models.CharField(max_length=12, default='assistant')
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    channel = models.CharField(max_length=20, blank=True)
+    wa_id = models.CharField(max_length=128, blank=True)
+    error = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']

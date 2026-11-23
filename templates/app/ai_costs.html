@@ -1,0 +1,80 @@
+{% extends 'app/base.html' %}
+{% block appbar %}
+<header class="appbar">
+    <a class="iconbtn" href="{% url 'app_more' %}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
+    <h1>AI costs<span class="sub">{{ model }} · Tk {{ rate }} per US$</span></h1>
+</header>
+{% endblock %}
+{% block content %}
+{% if not configured %}
+<div class="notice warn" style="margin-top:0"><i class="fas fa-key"></i><div>The Claude API key is not set yet, so nothing is being spent. Add it under <a href="{% url 'app_setup' %}" style="font-weight:800;text-decoration:underline">Setup</a>.</div></div>
+{% endif %}
+
+<section class="section" style="margin-top:14px">
+    <div class="grid-2">
+        {% for label, t in periods %}
+        <div class="card pad">
+            <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">{{ label }}</div>
+            <div class="num" style="font-size:24px;font-weight:800;margin-top:4px">৳{{ t.bdt|floatformat:"2g" }}</div>
+            <div class="num hint" style="margin:2px 0 0">${{ t.usd|floatformat:4 }} · {{ t.calls }} call{{ t.calls|pluralize }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if per_order_bdt != None %}
+    <div class="notice info"><i class="fas fa-calculator"></i><div>Average AI cost per completed order: <b class="num">৳{{ per_order_bdt|floatformat:2 }}</b></div></div>
+    {% endif %}
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Last 14 days</h2></div>
+    <div class="card pad">
+        <div style="display:flex;align-items:flex-end;gap:4px;height:120px">
+            {% for d in days %}
+            <div title="{{ d.day|date:'d M' }}: ৳{{ d.bdt|floatformat:2 }}" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+                <div style="height:{{ d.pct }}%;min-height:2px;background:var(--brand);border-radius:4px 4px 0 0;opacity:{% if forloop.last %}1{% else %}.55{% endif %}"></div>
+            </div>
+            {% endfor %}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px" class="hint"><span>{{ days.0.day|date:"d M" }}</span><span>today</span></div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head"><h2>Most expensive orders</h2></div>
+    <div class="card rows">
+        {% for r in by_order %}
+        <a class="row" href="{% url 'app_order_record' r.order_id %}">
+            <div class="main"><div class="title">{{ r.order__title }}</div><div class="subtitle">Order #{{ r.order_id }}{% if r.order__transaction__invoice_number %} · {{ r.order__transaction__invoice_number }}{% endif %}</div></div>
+            <div class="end"><div class="amount num">৳{{ r.bdt|floatformat:2 }}</div><div class="subtitle num">${{ r.usd|floatformat:4 }}</div></div>
+        </a>
+        {% empty %}<div class="empty"><p>No AI use yet.</p></div>{% endfor %}
+    </div>
+</section>
+
+{% if by_client %}
+<section class="section">
+    <div class="section-head"><h2>By client</h2></div>
+    <div class="card rows">
+        {% for r in by_client %}
+        <div class="row"><div class="main"><div class="title">{{ r.order__key }}</div></div><div class="end"><div class="amount num">৳{{ r.bdt|floatformat:2 }}</div></div></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="section">
+    <div class="section-head"><h2>Every call</h2></div>
+    <div class="card rows">
+        {% for u in recent %}
+        <div class="row">
+            <div class="main">
+                <div class="title" style="font-size:14px">{{ u.get_purpose_display|default:u.purpose }}{% if u.order %} · #{{ u.order_id }} {{ u.order.title }}{% endif %}</div>
+                <div class="subtitle num">{{ u.created_at|date:"d M H:i" }} · {{ u.model }} · in {{ u.input_tokens }} / out {{ u.output_tokens }}{% if u.cache_read_tokens %} / cached {{ u.cache_read_tokens }}{% endif %}{% if not u.ok %} · <span style="color:var(--danger)">{{ u.error|default:"declined" }}</span>{% endif %}</div>
+            </div>
+            <div class="end"><div class="amount num" style="font-size:14px">${{ u.cost_usd|floatformat:4 }}</div></div>
+        </div>
+        {% empty %}<div class="empty"><p>Each AI call will be listed here with its tokens and cost.</p></div>{% endfor %}
+    </div>
+    {% if prices %}<p class="hint">Prices used: ${{ prices.input }} per million input tokens, ${{ prices.output }} per million output tokens, ${{ prices.cache_read }} per million cached. Check anthropic.com/pricing; your Anthropic console shows the billed amount.</p>{% endif %}
+</section>
+{% endblock %}

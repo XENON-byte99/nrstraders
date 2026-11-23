@@ -35,6 +35,34 @@
             <span class="{% if o.status == 'DELIVERED' %}done{% endif %}">Delivered</span>
         </div>
 
+        {% if o.paused %}
+        <div class="notice warn" style="margin:12px 14px 0"><i class="fas fa-hand"></i><div><b>Waiting for you.</b> {{ o.paused_reason }}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="action" value="resume"><button class="btn ghost sm" type="submit">Hand back to the assistant</button></form></div></div>
+        {% endif %}
+
+        {% for q in c.staff_questions %}
+        <form method="post" action="{% url 'app_order_action' o.id %}" class="notice info" style="margin:12px 14px 0;display:block">
+            {% csrf_token %}<input type="hidden" name="action" value="answer"><input type="hidden" name="question_seq" value="{{ q.seq }}">
+            <div><i class="fas fa-robot"></i> <b>The assistant asks:</b> {{ q.summary }}</div>
+            <div style="display:flex;gap:8px;margin-top:8px"><input class="input" name="answer" placeholder="Your answer" required style="height:42px"><button class="btn dark sm" type="submit" style="height:42px">Answer</button></div>
+        </form>
+        {% endfor %}
+
+        {% for m in c.outbox %}
+        <div class="notice {% if m.status == 'FAILED' %}err{% else %}info{% endif %}" style="margin:12px 14px 0;display:block">
+            <div style="font-size:12px;font-weight:800">{% if m.to_staff %}Note for staff{% elif m.document %}{{ m.document|title }} for the client{% else %}Message for the client{% endif %} · {% if m.status == 'FAILED' %}could not be sent: {{ m.error }}{% else %}{{ m.reason|default:"waiting for approval" }}{% endif %}</div>
+            <div style="white-space:pre-line;margin-top:6px;font-weight:500">{{ m.text }}</div>
+            {% if not m.to_staff %}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="message_id" value="{{ m.id }}">
+                <button class="btn wa sm" name="action" value="{% if m.document %}send_by_hand{% else %}approve{% endif %}" type="submit"><i class="fab fa-whatsapp"></i> {% if m.document %}Make PDF &amp; send{% else %}Approve &amp; send{% endif %}</button>
+                <button class="btn ghost sm" name="action" value="discard" type="submit">Discard</button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="message_id" value="{{ m.id }}"><button class="btn ghost sm" name="action" value="discard" type="submit">Dismiss</button></form>
+            {% endif %}
+        </div>
+        {% endfor %}
+
         <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:10px">
             {% csrf_token %}
             {% for it in c.items %}
@@ -80,7 +108,11 @@
             <div class="hint" style="margin:0"><i class="fas fa-user"></i> Bill to <b>{{ o.party.name|default:o.buyer_name }}</b>{% if o.buyer_address %}, {{ o.buyer_address|linebreaksbr }}{% endif %}</div>
             {% endif %}
 
-            {% if o.status == 'NEEDS_INFO' and c.questions %}
+            {% if ai_on and not o.paused %}
+                <div class="hint" style="margin:0"><i class="fas fa-robot"></i> The AI assistant is handling this conversation. Messages it wants to send appear above for your approval.
+                <form method="post" action="{% url 'app_order_action' o.id %}" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="pause"><button type="submit" style="border:0;background:none;color:var(--brand);font-weight:800;padding:0;cursor:pointer">Take over</button></form></div>
+            {% endif %}
+            {% if o.status == 'NEEDS_INFO' and c.questions and not ai_on %}
                 <div class="notice warn" style="margin:0;white-space:pre-line"><i class="fas fa-circle-question"></i><div><b>{{ c.questions|length }} thing{{ c.questions|length|pluralize }} to ask the client</b>{% if o.asked_at %} · asked {{ o.asked_at|timesince }} ago, waiting for their reply{% endif %}<br>{{ c.ask_text }}</div></div>
                 <form method="post" action="{% url 'app_order_action' o.id %}">{% csrf_token %}<input type="hidden" name="action" value="ask">
                     <button class="btn wa block" type="submit"><i class="fab fa-whatsapp"></i> {% if o.asked_at %}Ask again{% else %}Ask the client{% endif %}</button></form>
@@ -114,8 +146,8 @@
             {% endif %}
 
             <details>
-                <summary class="hint" style="margin:0;cursor:pointer">{{ c.messages|length }} message{{ c.messages|length|pluralize }}{% if o.transaction %} · <a href="{% url 'app_bill_detail' o.transaction.pk %}" style="color:var(--brand);font-weight:800">open bill</a>{% endif %}</summary>
-                <div class="bubbles">{% for m in c.messages %}<div class="bubble" style="padding-left:12px">{{ m.text }}<time>{{ m.received_at|date:"d M, h:i A" }}</time></div>{% endfor %}</div>
+                <summary class="hint" style="margin:0;cursor:pointer">{{ c.messages|length }} message{{ c.messages|length|pluralize }} · <a href="{% url 'app_order_record' o.id %}" style="color:var(--brand);font-weight:800">full record</a>{% if o.transaction %} · <a href="{% url 'app_bill_detail' o.transaction.pk %}" style="color:var(--brand);font-weight:800">open bill</a>{% endif %}</summary>
+                <div class="bubbles">{% for m in c.messages %}<div class="bubble" style="padding-left:12px">{% if m.media and m.media_type|slice:":6" == "image/" %}<img src="{{ m.media.url }}" alt="Photo from client" style="max-width:100%;border-radius:10px;display:block;margin-bottom:6px">{% endif %}{{ m.text }}<time>{{ m.received_at|date:"d M, h:i A" }}</time></div>{% endfor %}</div>
                 <form method="post" action="{% url 'app_order_action' o.id %}" style="margin-top:10px" onsubmit="return confirm('Cancel this order? Its messages go to Archived.');">{% csrf_token %}<input type="hidden" name="action" value="cancel">
                     <button class="btn danger sm" type="submit">Cancel order</button></form>
             </details>

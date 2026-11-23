@@ -1951,15 +1951,15 @@ def quick_bill_parse(request):
 
 
 def _ai_extract_anthropic(api_key, model, system, text, schema):
-    """Anthropic path: strict json_schema output, so the JSON is guaranteed."""
-    import json, anthropic
-    client = anthropic.Anthropic(api_key=api_key)
-    resp = client.messages.create(
-        model=model or "claude-opus-4-8",
+    """Anthropic path: strict json_schema output, so the JSON is guaranteed.
+    Goes through ai_client so the call is counted on the AI costs page."""
+    import json
+    from . import ai_client
+    resp = ai_client.call(
+        'quick_bill_read',
         max_tokens=4096,
         system=system,
-        thinking={"type": "adaptive"},
-        output_config={"format": {"type": "json_schema", "schema": schema}},
+        output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema}},
         messages=[{"role": "user", "content": text}],
     )
     if getattr(resp, 'stop_reason', None) == 'refusal':
@@ -2022,7 +2022,8 @@ def quick_bill_ai_parse(request):
 
     provider = (getattr(settings, 'AI_PROVIDER', '') or '').strip().lower()
     api_key = (getattr(settings, 'AI_API_KEY', '') or '').strip()
-    anthropic_key = (getattr(settings, 'ANTHROPIC_API_KEY', '') or '').strip()
+    from . import ai_client
+    anthropic_key = ai_client.api_key()           # '' while it is still the placeholder
     if not provider and anthropic_key:
         provider, api_key = 'anthropic', anthropic_key
     if provider == 'anthropic' and not api_key:

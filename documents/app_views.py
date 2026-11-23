@@ -325,8 +325,9 @@ def app_inbox(request):
     counts = dict(InboxMessage.objects.filter(order__isnull=True).values_list('status').annotate(n=Count('id')))
     open_orders = list(ClientOrder.objects.filter(status__in=ClientOrder.OPEN).select_related('transaction', 'party', 'category'))
     done = list(ClientOrder.objects.filter(status__in=(ClientOrder.DELIVERED,)).select_related('transaction')[:15])
+    from . import ai_client
     return render(request, 'app/inbox.html', {
-        'tab': 'inbox', 'groups': groups, 'status': status,
+        'tab': 'inbox', 'groups': groups, 'status': status, 'ai_on': ai_client.is_configured(),
         'orders': _order_cards(open_orders), 'done_orders': done,
         'buyers': BusinessParty.objects.filter(is_deleted=False, party_type='BUYER').order_by('name'),
         'categories': TransactionCategory.objects.filter(is_deleted=False).order_by('name'),
@@ -461,8 +462,15 @@ def _order_cards(orders):
             'ask_text': order_engine.ask_message(order),
             'messages': list(order.messages.order_by('received_at', 'id')),
             'initial': (order.title.strip()[:1] or '?').upper(),
+            'outbox': list(order.outgoing.filter(status__in=('PENDING', 'FAILED'))),
+            'staff_questions': _open_staff_questions(order),
         })
     return cards
+
+
+def _open_staff_questions(order):
+    last_answer = order.events.filter(kind='owner').order_by('-seq').values_list('seq', flat=True).first() or 0
+    return list(order.events.filter(kind='owner_question', seq__gt=last_answer).order_by('seq'))
 
 
 @login_required
@@ -475,22 +483,32 @@ def app_order_action(request, pk):
     from . import order_engine
     from .models import ClientOrder
 
+    from . import ledger, whatsapp
+    from .models import OutgoingMessage
     order = get_object_or_404(ClientOrder, pk=pk)
+    ledger.ensure_order_ledger(order)
     action = request.POST.get('action')
     back = redirect('/app/inbox/#order-%d' % order.pk)
+    user = request.user
+
+    def sent_by_hand(text, document=''):
+        msg = OutgoingMessage.objects.create(order=order, to_phone=order.phone, text=text, document=document,
+                                             created_by='staff')
+        whatsapp.mark_sent(msg, 'manual', user=user)
 
     if action == 'ask':
         if order_engine.client_questions(order):
             order.awaiting_buyer = any('company name' in q for q in order_engine.client_questions(order))
             order.asked_at, order.asked_text = timezone.now(), order_engine.ask_message(order)
             order.save()
+            sent_by_hand(order.asked_text)
             return HttpResponseRedirect(order_engine.ask_url(order))
     elif action == 'prices':
         prices = {}
         for key, value in request.POST.items():
             if key.startswith('price_') and key[6:].isdigit() and value.strip():
                 prices[int(key[6:])] = value
-        order_engine.set_prices(order, prices)
+        order_engine.set_prices(order, prices, user=user)
     elif action == 'ask_prices':
         order.ask_prices = not order.ask_prices
         order_engine.refresh(order, items_changed=False)
@@ -502,21 +520,28 @@ def app_order_action(request, pk):
                 order.phone = order_engine._phone_for('', party)
         elif request.POST.get('buyer_name', '').strip():
             order.buyer_name = request.POST['buyer_name'].strip()[:255]
+        ledger.record(order, 'owner', 'staff', 'Staff set the buyer: %s' % (party.name if party else order.buyer_name),
+                      {}, user=user)
         order_engine.refresh(order, items_changed=True)
     elif action == 'category':
         order.category = TransactionCategory.objects.filter(pk=request.POST.get('category_id') or 0).first()
+        ledger.record(order, 'owner', 'staff', 'Staff set the category: %s' % (order.category.name if order.category else '-'),
+                      {}, user=user)
         order_engine.refresh(order, items_changed=True)
     elif action == 'phone':
         order.phone = ''.join(ch for ch in request.POST.get('phone', '') if ch.isdigit())[:20]
         if order.phone.startswith('0') and len(order.phone) == 11:
             order.phone = '88' + order.phone
         order.save()
+        ledger.record(order, 'owner', 'staff', "Staff saved the client's WhatsApp number: %s" % order.phone, {}, user=user)
     elif action == 'send_check' and order.transaction_id:
         order.status, order.sent_at = ClientOrder.SENT, timezone.now()
         order.save()
+        ledger.new_bill_version(order, 'staff', user=user)
+        sent_by_hand(order_engine.check_message(order))
         return HttpResponseRedirect(order_engine.check_url(order))
     elif action == 'confirm':
-        order_engine.confirm(order)
+        order_engine.confirm(order, user=user)
     elif action == 'deliver' and order.transaction_id:
         doc = request.POST.get('doc') if request.POST.get('doc') in ('invoice', 'challan', 'quotation') else 'invoice'
         if doc not in order.delivered:
@@ -524,6 +549,13 @@ def app_order_action(request, pk):
         if doc == 'invoice':
             order.status = ClientOrder.DELIVERED
         order.save()
+        number = order.transaction.challan_number if doc == 'challan' else order.transaction.invoice_number
+        ledger.record(order, 'document_sent', 'staff', '%s %s sent to the client (bill version %d, code %s).'
+                      % (doc.title(), number, order.bill_version, order.version_code or '-'),
+                      {'document': doc, 'number': number, 'version': order.bill_version,
+                       'bill': ledger.bill_snapshot(order)}, user=user)
+        OutgoingMessage.objects.filter(order=order, document=doc, status=OutgoingMessage.PENDING).update(
+            status=OutgoingMessage.SENT, sent_at=timezone.now(), channel='manual')
         import urllib.parse
         query = urllib.parse.urlencode({'send': 'whatsapp', 'phone': order.phone,
                                         'caption': order_engine.deliver_caption(order, doc),
@@ -532,9 +564,196 @@ def app_order_action(request, pk):
     elif action == 'cancel':
         order.status = ClientOrder.CANCELLED
         order.save()
+        ledger.record(order, 'owner', 'staff', 'Staff cancelled the order.', {}, user=user)
         messages.info(request, 'Order from %s cancelled. Its messages stay in the inbox.' % order.title)
         order.messages.update(order=None, status='ARCHIVED')
     elif action == 'reopen':
         order.status = ClientOrder.NEEDS_INFO
+        ledger.record(order, 'owner', 'staff', 'Staff reopened the order.', {}, user=user)
         order_engine.refresh(order, items_changed=True)
+    elif action in ('approve', 'send_by_hand', 'discard'):
+        msg = get_object_or_404(OutgoingMessage, pk=request.POST.get('message_id') or 0, order=order,
+                                status__in=(OutgoingMessage.PENDING, OutgoingMessage.FAILED))
+        if action == 'discard':
+            msg.status = OutgoingMessage.CANCELLED
+            msg.save(update_fields=['status'])
+            ledger.record(order, 'owner', 'staff', 'Staff discarded a message to the %s: %s'
+                          % ('staff' if msg.to_staff else 'client', msg.text), {'outgoing': msg.pk}, user=user)
+        elif msg.document:
+            return redirect_to_document(order, msg.document)
+        elif action == 'approve' and whatsapp.is_configured() and msg.to_phone:
+            try:
+                whatsapp.dispatch(msg, user=user)
+                messages.success(request, 'Sent.')
+            except whatsapp.SendError as exc:
+                messages.error(request, str(exc))
+        else:
+            whatsapp.mark_sent(msg, 'manual', user=user)
+            import urllib.parse
+            return HttpResponseRedirect('https://wa.me/%s?text=%s' % (msg.to_phone, urllib.parse.quote(msg.text)))
+    elif action == 'answer':
+        answer = request.POST.get('answer', '').strip()
+        if answer:
+            ledger.record(order, 'owner', 'staff', 'Staff answered: %s' % answer,
+                          {'question': request.POST.get('question_seq')}, user=user)
+            run_assistant_later(order)
+    elif action == 'resume':
+        order.paused, order.paused_reason = False, ''
+        order.save(update_fields=['paused', 'paused_reason', 'updated_at'])
+        ledger.record(order, 'owner', 'staff', 'Staff handed the conversation back to the assistant.', {}, user=user)
+        run_assistant_later(order)
+    elif action == 'pause':
+        order.paused, order.paused_reason = True, 'Taken over by staff'
+        order.save(update_fields=['paused', 'paused_reason', 'updated_at'])
+        ledger.record(order, 'handoff', 'staff', 'Staff took over the conversation.', {}, user=user)
     return back
+
+
+def redirect_to_document(order, doc):
+    import urllib.parse
+    from . import order_engine
+    query = urllib.parse.urlencode({'send': 'whatsapp', 'phone': order.phone,
+                                    'caption': order_engine.deliver_caption(order, doc),
+                                    'back': '/app/inbox/#order-%d' % order.pk})
+    order.delivered = list(set(order.delivered + [doc]))
+    if doc == 'invoice':
+        from .models import ClientOrder
+        order.status = ClientOrder.DELIVERED
+    order.save()
+    from . import ledger
+    number = order.transaction.challan_number if doc == 'challan' else order.transaction.invoice_number
+    ledger.record(order, 'document_sent', 'staff', '%s %s sent to the client (bill version %d, code %s).'
+                  % (doc.title(), number, order.bill_version, order.version_code or '-'),
+                  {'document': doc, 'number': number, 'version': order.bill_version, 'bill': ledger.bill_snapshot(order)})
+    from .models import OutgoingMessage
+    OutgoingMessage.objects.filter(order=order, document=doc, status=OutgoingMessage.PENDING).update(
+        status=OutgoingMessage.SENT, sent_at=timezone.now(), channel='manual')
+    return redirect('/bills/%d/print/%s/?%s' % (order.transaction_id, doc, query))
+
+
+def run_assistant_later(order):
+    """Let the AI assistant act on the order in the background (if it is set up)."""
+    import threading
+    from . import ai_client, order_agent
+    if not ai_client.is_configured():
+        return
+
+    def work(pk):
+        from django.db import close_old_connections
+        from .models import ClientOrder
+        try:
+            order_agent.run(ClientOrder.objects.get(pk=pk))
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('assistant run failed')
+        finally:
+            close_old_connections()
+    threading.Thread(target=work, args=(order.pk,), daemon=True).start()
+
+
+# ── AI costs, setup, and the order record ──────────────────────────────────
+@login_required
+def app_ai_costs(request):
+    """What the AI assistant has cost: today, this month, by order and by purpose."""
+    from datetime import timedelta
+    from decimal import Decimal
+    from django.db.models import Sum
+    from . import ai_client
+    from .models import AIUsage
+
+    if not _is_owner(request.user):
+        messages.error(request, 'Only the owner can see AI costs.')
+        return redirect('app_more')
+    rate = ai_client.usd_to_bdt()
+    now = timezone.localtime()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month = today.replace(day=1)
+    sums = ('cost_usd', 'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens')
+
+    def total(qs):
+        agg = qs.aggregate(**{f: Sum(f) for f in sums})
+        usd = agg['cost_usd'] or Decimal('0')
+        return {'usd': usd, 'bdt': usd * rate, 'calls': qs.count(),
+                'tokens': sum((agg[f] or 0) for f in sums[1:])}
+
+    periods = [('Today', total(AIUsage.objects.filter(created_at__gte=today))),
+               ('Last 7 days', total(AIUsage.objects.filter(created_at__gte=today - timedelta(days=6)))),
+               ('This month', total(AIUsage.objects.filter(created_at__gte=month))),
+               ('All time', total(AIUsage.objects.all()))]
+    days = []
+    for i in range(13, -1, -1):
+        start = today - timedelta(days=i)
+        t = total(AIUsage.objects.filter(created_at__gte=start, created_at__lt=start + timedelta(days=1)))
+        days.append({'day': start, 'usd': t['usd'], 'bdt': t['bdt']})
+    peak = max([d['usd'] for d in days] + [Decimal('0.0001')])
+    for d in days:
+        d['pct'] = int(d['usd'] / peak * 100)
+    by_order = (AIUsage.objects.filter(order__isnull=False).values('order_id', 'order__title', 'order__transaction__invoice_number')
+                .annotate(usd=Sum('cost_usd')).order_by('-usd')[:20])
+    by_order = [dict(r, bdt=r['usd'] * rate) for r in by_order]
+    by_client = (AIUsage.objects.filter(order__isnull=False).values('order__key').annotate(usd=Sum('cost_usd'))
+                 .order_by('-usd')[:10])
+    by_client = [dict(r, bdt=r['usd'] * rate) for r in by_client]
+    delivered = AIUsage.objects.filter(order__status='DELIVERED').values('order_id').distinct().count()
+    spent_delivered = AIUsage.objects.filter(order__status='DELIVERED').aggregate(s=Sum('cost_usd'))['s'] or Decimal('0')
+    return render(request, 'app/ai_costs.html', {
+        'tab': 'more', 'periods': periods, 'days': days, 'by_order': by_order, 'by_client': by_client,
+        'per_order_bdt': (spent_delivered / delivered * rate) if delivered else None,
+        'recent': AIUsage.objects.select_related('order')[:30], 'rate': rate,
+        'model': ai_client.model(), 'configured': ai_client.is_configured(),
+        'prices': ai_client.PRICES.get(ai_client.model()),
+    })
+
+
+@login_required
+def app_setup(request):
+    """Which connections are set up, and what is still a placeholder."""
+    from django.conf import settings
+    from . import ai_client, whatsapp
+    if not _is_owner(request.user):
+        messages.error(request, 'Only the owner can see the setup.')
+        return redirect('app_more')
+
+    def state(name):
+        value = (getattr(settings, name, '') or '')
+        value = str(value).strip()
+        return bool(value) and not value.startswith('PASTE')
+
+    checks = [
+        ('Claude API key', 'ANTHROPIC_API_KEY', state('ANTHROPIC_API_KEY'),
+         'Reads messages and photos and talks to clients. Get it at console.anthropic.com → API keys.'),
+        ('WhatsApp access token', 'WHATSAPP_TOKEN', state('WHATSAPP_TOKEN'),
+         'Meta Business → System users → generate a permanent token with WhatsApp permissions.'),
+        ('WhatsApp phone number ID', 'WHATSAPP_PHONE_NUMBER_ID', state('WHATSAPP_PHONE_NUMBER_ID'),
+         'developers.facebook.com → your app → WhatsApp → API setup.'),
+        ('WhatsApp app secret', 'WHATSAPP_APP_SECRET', state('WHATSAPP_APP_SECRET'),
+         'App settings → Basic → App secret. Used to check messages really come from WhatsApp.'),
+        ('Webhook verify token', 'WHATSAPP_VERIFY_TOKEN', state('WHATSAPP_VERIFY_TOKEN'),
+         'Any phrase you choose; type the same phrase in Meta when adding the webhook.'),
+        ('Your WhatsApp number', 'OWNER_WHATSAPP', state('OWNER_WHATSAPP'),
+         'Where the assistant sends you questions and alerts, e.g. 8801711000000.'),
+    ]
+    return render(request, 'app/setup.html', {
+        'tab': 'more', 'checks': checks, 'model': ai_client.model(),
+        'webhook_url': request.build_absolute_uri('/api/whatsapp/webhook/'),
+        'autopilot': getattr(settings, 'AUTOPILOT_ENABLED', False),
+        'max_total': getattr(settings, 'AUTOPILOT_MAX_TOTAL', 50000),
+        'trusted_after': getattr(settings, 'AUTOPILOT_TRUSTED_AFTER', 3),
+        'quiet': getattr(settings, 'QUIET_HOURS', (22, 8)),
+        'ai_ready': ai_client.is_configured(), 'wa_ready': whatsapp.is_configured(),
+    })
+
+
+@login_required
+def app_order_record(request, pk):
+    """The order's full, tamper-evident record - printable as proof."""
+    from . import ledger
+    from .models import ClientOrder
+    order = get_object_or_404(ClientOrder.objects.select_related('transaction', 'party'), pk=pk)
+    ok, verdict = ledger.verify(order)
+    events = list(order.events.select_related('user'))
+    head = events[-1].hash if events else ''
+    return render(request, 'app/order_record.html', {
+        'tab': 'inbox', 'order': order, 'events': events, 'chain_ok': ok, 'verdict': verdict,
+        'head': head, 'printed': timezone.localtime(),
+    })

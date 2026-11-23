@@ -129,10 +129,46 @@ def ingest_spool():
     return added
 
 
+def route_staff_replies():
+    """Messages from the owner's own WhatsApp number answer the assistant's
+    questions: "#12 250" answers order 12; a plain reply answers the newest
+    open question."""
+    from . import ledger, whatsapp
+    from .models import ClientOrder, OrderEvent
+    owner = whatsapp.owner_number()
+    if not owner:
+        return
+    for msg in InboxMessage.objects.filter(order__isnull=True, status='NEW', phone=owner).order_by('received_at'):
+        text = msg.text.strip()
+        target = None
+        m = re.match(r'#(\d+)\s*(.*)', text, re.S)
+        if m:
+            target = ClientOrder.objects.filter(pk=int(m.group(1))).first()
+            text = m.group(2).strip()
+        if target is None:
+            question = OrderEvent.objects.filter(kind='owner_question').order_by('-at').first()
+            target = question.order if question else None
+        msg.status = 'ARCHIVED'
+        msg.order = target
+        msg.save(update_fields=['status', 'order'])
+        if target is not None and text:
+            ledger.record(target, 'owner', 'staff', 'Staff answered on WhatsApp: %s' % text, {'wa_id': msg.wa_id})
+            from .app_views import run_assistant_later
+            run_assistant_later(target)
+
+
 def run_order_engine():
-    """Turn newly arrived messages into client orders (see order_engine.py)."""
-    from . import order_engine
+    """Turn newly arrived messages into client orders.
+
+    With a Claude API key the AI assistant (order_agent.py) handles them and
+    talks to the client; without one the rule-based reader (order_engine.py)
+    prepares orders for one-tap replies.
+    """
+    from . import ai_client, order_agent, order_engine
     try:
+        route_staff_replies()
+        if ai_client.is_configured():
+            return order_agent.handle_new_messages()
         return order_engine.process_new_messages()
     except Exception:                       # never let a bad message break the inbox
         import logging
