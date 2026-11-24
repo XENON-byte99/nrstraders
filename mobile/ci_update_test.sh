@@ -28,7 +28,14 @@ tap_text() {
     return 1
 }
 
+screen_texts() {
+    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
+    adb shell cat /sdcard/ui.xml | tr '>' '\n' | sed -n 's/.*text="\([^"]\+\)".*/\1/p' | head -40
+}
+
 adb install -r $APKS/app-100.apk
+# What a user does once on the phone: Settings -> "Allow from this source".
+adb shell appops set $PKG REQUEST_INSTALL_PACKAGES allow
 adb shell am start -W -n $PKG/.MainActivity
 sleep 8
 echo "installed: $(version)"
@@ -38,8 +45,10 @@ put_waiting_update $APKS/app-101.apk
 adb shell am force-stop $PKG
 adb shell am start -n $PKG/.MainActivity
 sleep 6
-tap_text "Settings" && { adb shell input keyevent KEYCODE_BACK; sleep 1; } || true      # "allow from this source" on some images
-tap_text "Update|Install|UPDATE|INSTALL" || { echo "FAIL  no install prompt"; adb exec-out screencap -p > update-prompt.png; exit 1; }
+tap_text "Update|Install|UPDATE|INSTALL" || {
+    echo "FAIL  no install prompt. On screen:"; screen_texts
+    adb logcat -d | grep -iE "PackageInstaller|InstallStart|nrs|AndroidRuntime|ActivityTaskManager.*Background" | tail -n 60
+    adb exec-out screencap -p > update-prompt.png; exit 1; }
 wait_for_version 101
 echo "PASS  first update installed after one confirmation (version 101)"
 
