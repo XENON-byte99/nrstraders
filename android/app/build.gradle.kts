@@ -17,8 +17,10 @@ android {
         minSdk = 24
         // 34 keeps the classic (not edge-to-edge) window layout the site expects.
         targetSdk = 34
-        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "2.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        // -PnrsVersionCode=N overrides the number (used by the CI update test).
+        val runNumber = (findProperty("nrsVersionCode") as String?) ?: System.getenv("GITHUB_RUN_NUMBER") ?: "1"
+        versionCode = runNumber.toInt()
+        versionName = "2.0.$runNumber"
         // Where the app looks for newer builds (the repository's latest GitHub Release).
         buildConfigField("String", "UPDATE_URL",
             "\"https://github.com/" + (System.getenv("GITHUB_REPOSITORY") ?: "XENON-byte99/nrstraders") + "/releases/latest/download/\"")

@@ -115,6 +115,12 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        if (!isChangingConfigurations()) Updater.onAppLeft(this);
+    }
+
+    @Override
     protected void onDestroy() {
         NrsApp.removeListener(this);
         if (web != null) web.destroy();
@@ -199,7 +205,7 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         String path = pendingPath != null ? pendingPath : "/";
         pendingPath = null;
         web.loadUrl(baseUrl + path);
-        Updater.autoCheck(this);
+        Updater.onAppOpened(this);
     }
 
     @Override
@@ -392,6 +398,16 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         @JavascriptInterface
         public void checkForUpdate() {
             runOnUiThread(() -> Updater.check(MainActivity.this, true));
+        }
+
+        @JavascriptInterface
+        public boolean isAutoUpdateOn() {
+            return Updater.autoInstall(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void setAutoUpdate(boolean on) {
+            Updater.setAutoInstall(MainActivity.this, on);
         }
 
         @JavascriptInterface

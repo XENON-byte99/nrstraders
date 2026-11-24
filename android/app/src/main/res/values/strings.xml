@@ -30,4 +30,7 @@
     <string name="update_later">Later</string>
     <string name="update_downloading">Downloading update…</string>
     <string name="update_failed">The update could not be downloaded. Try again later.</string>
+    <string name="update_ready_next_open">A new version is downloaded. It installs the next time you open the app.</string>
+    <string name="update_ready_on_leave">A new version is downloaded. It installs by itself when you leave the app.</string>
+    <string name="update_installing">Installing the new version… Open the app again in a moment.</string>
 </resources>

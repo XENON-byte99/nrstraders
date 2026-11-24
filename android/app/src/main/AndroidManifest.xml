@@ -53,6 +53,11 @@
             </intent-filter>
         </service>
 
+        <!-- Result of installing an update downloaded from GitHub -->
+        <receiver
+            android:name=".UpdateResultReceiver"
+            android:exported="false" />
+
         <provider
             android:name=".SharedFileProvider"
             android:authorities="org.nrs.billing.files"
