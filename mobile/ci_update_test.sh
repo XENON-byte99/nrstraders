@@ -10,7 +10,7 @@ APKS=android/updates
 version() { adb shell dumpsys package $PKG | grep -m1 versionCode | sed 's/.*versionCode=\([0-9]*\).*/\1/'; }
 wait_for_version() {
     for _ in $(seq 1 60); do [ "$(version)" = "$1" ] && return 0; sleep 2; done
-    echo "FAIL  still on version $(version), expected $1"; adb logcat -d | grep -iE "PackageInstaller|nrs|AndroidRuntime" | tail -n 80; exit 1
+    echo "FAIL  still on version $(version), expected $1"; adb logcat -d | grep -iE "PackageInstaller|InstallSession|org.nrs.billing.*(Update|install)|AndroidRuntime" | grep -v ziparchive | tail -n 80; exit 1
 }
 put_waiting_update() {
     adb push "$1" /data/local/tmp/next.apk
@@ -47,7 +47,7 @@ adb shell am start -n $PKG/.MainActivity
 sleep 6
 tap_text "Update|Install|UPDATE|INSTALL" || {
     echo "FAIL  no install prompt. On screen:"; screen_texts
-    adb logcat -d | grep -iE "PackageInstaller|InstallStart|nrs|AndroidRuntime|ActivityTaskManager.*Background" | tail -n 60
+    adb logcat -d | grep -iE "PackageInstaller|InstallStart|InstallSession|AndroidRuntime|ActivityTaskManager.*Background" | grep -v ziparchive | tail -n 60
     adb exec-out screencap -p > update-prompt.png; exit 1; }
 wait_for_version 101
 echo "PASS  first update installed after one confirmation (version 101)"
