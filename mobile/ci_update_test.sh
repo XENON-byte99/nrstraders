@@ -17,7 +17,7 @@ put_waiting_update() {
     adb shell "run-as $PKG sh -c 'cat /data/local/tmp/next.apk > files/update-ready.apk'"
 }
 tap_text() {
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 ${TAP_TRIES:-1}); do
         adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
         bounds=$(adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -iE "text=\"($1)\"" | head -1 | sed -n 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]".*/\1 \2 \3 \4/p')
         if [ -n "$bounds" ]; then
@@ -45,12 +45,15 @@ put_waiting_update $APKS/app-101.apk
 adb shell am force-stop $PKG
 adb shell am start -n $PKG/.MainActivity
 sleep 6
-tap_text "Update|Install|UPDATE|INSTALL" || {
-    echo "FAIL  no install prompt. On screen:"; screen_texts
-    adb logcat -d | grep -iE "PackageInstaller|InstallStart|InstallSession|AndroidRuntime|ActivityTaskManager.*Background" | grep -v ziparchive | tail -n 60
-    adb exec-out screencap -p > update-prompt.png; exit 1; }
+# Either Android asks once (tap Update), or - where it already allows it -
+# the update installs straight away. Both count; the version must change.
+confirmed=no
+for _ in $(seq 1 45); do
+    [ "$(version)" = "101" ] && break
+    if tap_text "Update|Install|UPDATE|INSTALL" 2>/dev/null; then confirmed=yes; break; fi
+done
 wait_for_version 101
-echo "PASS  first update installed after one confirmation (version 101)"
+echo "PASS  first update installed (version 101, confirmation shown: $confirmed)"
 
 # 3. From now on the app is its own installer: leaving the app updates it silently.
 adb shell am start -W -n $PKG/.MainActivity
