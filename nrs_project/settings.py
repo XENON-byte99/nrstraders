@@ -133,7 +133,19 @@ OWNER_WHATSAPP = config('OWNER_WHATSAPP', default='PASTE-HERE')
 AUTOPILOT_ENABLED = config('AUTOPILOT_ENABLED', default=False, cast=bool)
 AUTOPILOT_MAX_TOTAL = config('AUTOPILOT_MAX_TOTAL', default=50000, cast=float)
 AUTOPILOT_TRUSTED_AFTER = config('AUTOPILOT_TRUSTED_AFTER', default=3, cast=int)
-QUIET_HOURS = tuple(int(x) for x in config('QUIET_HOURS', default='22,8').split(','))
+# Empty = no quiet hours (the default): the assistant works around the clock.
+QUIET_HOURS = tuple(int(x) for x in config('QUIET_HOURS', default='').split(',') if x.strip())
+# WhatsApp only lets a business send free text within 24 hours of the client's
+# last message. After that, this approved template is sent first ("we have an
+# update on your order, please reply"); the held message goes out as soon as
+# the client replies. Create it in Meta (WhatsApp Manager -> Message templates,
+# category Utility) with two variables: {{1}} client name, {{2}} order/bill no.
+WHATSAPP_REOPEN_TEMPLATE = config('WHATSAPP_REOPEN_TEMPLATE', default='PASTE-HERE')
+WHATSAPP_TEMPLATE_LANGUAGE = config('WHATSAPP_TEMPLATE_LANGUAGE', default='en')
+# Public address of this site; the server opens its own print pages here to
+# make PDFs with exactly the same layouts as the "Download PDF" button.
+SITE_URL = config('SITE_URL', default='https://nrs.firebaseit.com')
+PDF_CHROMIUM_PATH = config('PDF_CHROMIUM_PATH', default='')
 USD_TO_BDT = config('USD_TO_BDT', default='122')
 if SUPABASE_DATABASE_URL:
     db_config = dj_database_url.parse(SUPABASE_DATABASE_URL)

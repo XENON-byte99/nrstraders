@@ -108,12 +108,21 @@ def send_document(phone, filename, content, caption=''):
 
 
 # ── Outbox: every message to a client goes through here ────────────────────
-def queue(order, text, created_by='assistant', hold_reason='', to_staff=False, document=''):
-    """Send now when allowed, otherwise keep it for a person to approve."""
-    msg = OutgoingMessage.objects.create(
+def queue(order, text, created_by='assistant', hold_reason='', to_staff=False, document='', pdf=None):
+    """Send now when allowed, otherwise keep it for a person to approve.
+
+    ``pdf`` is (filename, bytes): the exact file is kept with the message, and
+    its fingerprint goes into the order record.
+    """
+    msg = OutgoingMessage(
         order=order, to_phone=owner_number() if to_staff else (order.phone if order else ''),
         to_staff=to_staff, text=text, document=document, created_by=created_by, reason=hold_reason)
-    if not hold_reason and not document and is_configured() and msg.to_phone:
+    if pdf is not None:
+        name, data = pdf
+        msg.file.save(name, ContentFile(data), save=False)
+        msg.file_sha256 = hashlib.sha256(data).hexdigest()
+    msg.save()
+    if not hold_reason and (not document or msg.file) and is_configured() and msg.to_phone:
         try:
             dispatch(msg)
         except SendError:
@@ -125,10 +134,68 @@ def queue(order, text, created_by='assistant', hold_reason='', to_staff=False, d
     return msg
 
 
+def window_open(phone):
+    """WhatsApp allows free messages only within 24 hours of the client's last message."""
+    from datetime import timedelta
+    return InboxMessage.objects.filter(phone=phone, received_at__gte=timezone.now() - timedelta(hours=24)).exists()
+
+
+def send_template(phone, name_param, ref_param):
+    name = _setting('WHATSAPP_REOPEN_TEMPLATE')
+    if not name:
+        raise SendError('More than 24 hours since the client last wrote, and no reopening template is set up '
+                        '(WHATSAPP_REOPEN_TEMPLATE). Send this one by hand.')
+    response = _request('POST', _graph('%s/messages' % _setting('WHATSAPP_PHONE_NUMBER_ID')), json={
+        'messaging_product': 'whatsapp', 'to': phone, 'type': 'template',
+        'template': {'name': name, 'language': {'code': _setting('WHATSAPP_TEMPLATE_LANGUAGE') or 'en'},
+                     'components': [{'type': 'body', 'parameters': [
+                         {'type': 'text', 'text': (name_param or 'there')[:60]},
+                         {'type': 'text', 'text': (ref_param or '-')[:60]}]}]},
+    })
+    payload = response.json() if response.content else {}
+    if response.status_code >= 400:
+        raise SendError(_explain(payload))
+    return ((payload.get('messages') or [{}])[0]).get('id', '')
+
+
+def _reopen_first(msg, user=None):
+    """Outside the 24-hour window: send the template, keep the message until the client replies."""
+    order = msg.order
+    ref = (order.transaction.invoice_number if order and order.transaction else ('order %d' % order.pk if order else ''))
+    wa_id = send_template(msg.to_phone, order.title if order else '', ref)
+    msg.channel, msg.reason = 'await_reply', 'Sent the reopening message; this goes out when the client replies.'
+    msg.save(update_fields=['channel', 'reason'])
+    if order:
+        ledger.record(order, 'message_out', 'system', 'Reopening message sent (WhatsApp template "%s"): more than '
+                      '24 hours since the client last wrote. The held message goes out when they reply.'
+                      % _setting('WHATSAPP_REOPEN_TEMPLATE'), {'wa_id': wa_id, 'outgoing': msg.pk}, user=user)
+
+
+def release_waiting(phone):
+    """The client replied: send everything that was waiting for the conversation to reopen."""
+    for msg in OutgoingMessage.objects.filter(to_phone=phone, status=OutgoingMessage.PENDING, channel='await_reply'):
+        try:
+            dispatch(msg)
+        except SendError:
+            pass
+
+
 def dispatch(msg, user=None):
-    """Send a queued message through the API and record it."""
+    """Send a queued message (text or document) through the API and record it."""
+    if not msg.to_staff and not window_open(msg.to_phone) and msg.channel != 'await_reply':
+        try:
+            _reopen_first(msg, user=user)
+        except Exception as exc:
+            msg.status, msg.error = OutgoingMessage.FAILED, str(exc)[:255]
+            msg.save(update_fields=['status', 'error'])
+            raise SendError(msg.error)
+        return
     try:
-        msg.wa_id = send_text(msg.to_phone, msg.text)
+        if msg.file:
+            with msg.file.open('rb') as fh:
+                msg.wa_id = send_document(msg.to_phone, msg.file.name.rsplit('/', 1)[-1], fh.read(), msg.text)
+        else:
+            msg.wa_id = send_text(msg.to_phone, msg.text)
     except Exception as exc:
         msg.status, msg.error = OutgoingMessage.FAILED, str(exc)[:255]
         msg.save(update_fields=['status', 'error'])
@@ -144,11 +211,13 @@ def mark_sent(msg, channel, user=None):
     msg.save(update_fields=['status', 'sent_at', 'channel', 'wa_id'])
     if msg.order:
         who = 'staff' if msg.to_staff else 'client'
-        ledger.record(msg.order, 'message_out', 'staff' if user else msg.created_by if msg.created_by in
-                      ('assistant', 'system', 'staff') else 'system',
-                      'Message to %s%s: %s' % (who, '' if channel == 'whatsapp_api' else ' (sent by hand)', msg.text),
+        what = ('%s PDF' % msg.document.title()) if msg.document else 'Message'
+        ledger.record(msg.order, 'document_sent' if msg.document else 'message_out',
+                      'staff' if user else msg.created_by if msg.created_by in ('assistant', 'system', 'staff') else 'system',
+                      '%s to %s%s: %s' % (what, who, '' if channel == 'whatsapp_api' else ' (sent by hand)', msg.text),
                       {'outgoing': msg.pk, 'to': msg.to_phone, 'channel': channel, 'wa_id': msg.wa_id,
-                       'document': msg.document}, user=user)
+                       'document': msg.document, 'file': msg.file.name if msg.file else '',
+                       'file_sha256': msg.file_sha256}, user=user)
 
 
 # ── Receiving (webhook) ────────────────────────────────────────────────────
@@ -217,11 +286,38 @@ def receive(payload):
                     msg.text = '[%s message]' % (kind or 'unsupported')
                 msg.save()
                 stored += 1
+                release_waiting(phone)
+            for echo in value.get('message_echoes', []):
+                _staff_echo(echo)
             for status in value.get('statuses', []):
                 _receipt(status)
     if stored:
         threading.Thread(target=run_order_engine, name='nrs-orders', daemon=True).start()
     return stored
+
+
+def _staff_echo(echo):
+    """A message you sent yourself from the WhatsApp Business app (same number,
+    "coexistence"). It goes into the record, and the assistant stops replying in
+    that chat until you hand it back."""
+    from . import app_settings
+    from .models import ClientOrder
+    phone = echo.get('to', '')
+    if not phone or OutgoingMessage.objects.filter(wa_id=echo.get('id', '')).exists():
+        return
+    order = ClientOrder.objects.filter(phone=phone, status__in=ClientOrder.OPEN).order_by('-id').first()
+    if order is None:
+        return
+    text = _text_of(echo) or '[%s]' % (echo.get('type') or 'message')
+    OutgoingMessage.objects.create(order=order, to_phone=phone, text=text, status=OutgoingMessage.SENT,
+                                   channel='whatsapp_app', wa_id=echo.get('id', ''), created_by='staff',
+                                   sent_at=timezone.now())
+    ledger.record(order, 'message_out', 'staff', 'Message to client (sent from the WhatsApp app): %s' % text,
+                  {'wa_id': echo.get('id', ''), 'channel': 'whatsapp_app'})
+    if app_settings.pause_on_staff_reply() and not order.paused:
+        order.paused, order.paused_reason = True, 'You replied in WhatsApp yourself'
+        order.save(update_fields=['paused', 'paused_reason', 'updated_at'])
+        ledger.record(order, 'handoff', 'staff', 'Staff replied from WhatsApp, so the assistant stopped replying in this chat.')
 
 
 def _receipt(status):

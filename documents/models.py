@@ -1084,6 +1084,23 @@ class OutgoingMessage(models.Model):
     channel = models.CharField(max_length=20, blank=True)
     wa_id = models.CharField(max_length=128, blank=True)
     error = models.CharField(max_length=255, blank=True)
+    file = models.FileField(upload_to='sent_documents/%Y/%m/', blank=True, help_text="The exact PDF sent")
+    file_sha256 = models.CharField(max_length=64, blank=True)
 
     class Meta:
         ordering = ['created_at', 'id']
+
+
+class AppSetting(models.Model):
+    """Settings the owner changes from the app (assistant on/off, autopilot)."""
+    key = models.CharField(max_length=60, unique=True)
+    value = models.JSONField(null=True)
+
+    @classmethod
+    def get(cls, key, default=None):
+        row = cls.objects.filter(key=key).first()
+        return default if row is None else row.value
+
+    @classmethod
+    def put(cls, key, value):
+        cls.objects.update_or_create(key=key, defaults={'value': value})

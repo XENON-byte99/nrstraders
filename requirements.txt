@@ -28,3 +28,6 @@ anthropic
 
 # WhatsApp Business API
 requests
+
+# Server-made PDFs (same layouts as the Download PDF button)
+playwright

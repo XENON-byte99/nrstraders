@@ -522,6 +522,19 @@
         var oldShadow = element.style.boxShadow;
         element.style.boxShadow = 'none';
 
+        // Lay the page out at the sheet's full width while capturing, so the
+        // sheet is measured exactly as it is drawn (on a narrow phone screen
+        // it would otherwise be measured taller and spill onto a second page).
+        var sheetWidth = Math.max(document.documentElement.clientWidth, opts.windowWidth || A4_W);
+        var oldMinWidth = document.body.style.minWidth;
+        document.body.style.minWidth = sheetWidth + 'px';
+        // Page height in the sheet's own pixels, for layouts that fill the page.
+        var landscape = (opts.orientation || 'portrait') === 'landscape';
+        var ratio = landscape ? (1 / Math.SQRT2) : Math.SQRT2;          // A-series pages
+        document.body.style.setProperty('--pdf-page-h', Math.floor(element.getBoundingClientRect().width * ratio) - 4 + 'px');
+        document.body.classList.add('pdf-capture');
+        if (typeof window.fitInvoiceToPage === 'function') window.fitInvoiceToPage();
+
         var settings = {
             margin: 0,
             filename: filename,
@@ -533,7 +546,14 @@
                 backgroundColor: '#ffffff',
                 scrollX: 0,
                 scrollY: 0,
-                windowWidth: opts.windowWidth || A4_W,
+                // Lay the copy out at the page's real width (never narrower
+                // than the sheet). Pinning it to the sheet width while the
+                // page was wider shifted the capture sideways: the left of
+                // the document was cut off and a blank page was added.
+                windowWidth: sheetWidth,
+                // Whole pixels only: a sheet measuring 1122.23px against an
+                // A4 page of 1122.24px otherwise spills onto a blank page.
+                height: Math.floor(element.getBoundingClientRect().height),
                 ignoreElements: function (el) {
                     return el.classList && (el.classList.contains('no-print') ||
                                             el.classList.contains('resizer') ||
@@ -548,6 +568,10 @@
 
         var restore = function () {
             element.style.boxShadow = oldShadow || '';
+            document.body.style.minWidth = oldMinWidth || '';
+            document.body.classList.remove('pdf-capture');
+            document.body.style.removeProperty('--pdf-page-h');
+            if (typeof window.fitInvoiceToPage === 'function') window.fitInvoiceToPage();
         };
 
         var worker = html2pdf().set(settings).from(element);

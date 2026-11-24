@@ -221,12 +221,103 @@ class WhatsAppWebhookTest(TestCase):
 
     def test_sending_uses_the_api(self):
         order = ClientOrder.objects.create(key='R', title='R', phone='8801711000000')
+        store_message('notification', 'hello', 'R')                       # client wrote recently
+        InboxMessage.objects.update(phone='8801711000000')
         fake = mock.Mock(status_code=200, content=b'1', json=lambda: {'messages': [{'id': 'wamid.S1'}]})
         with mock.patch.object(whatsapp, '_request', return_value=fake) as req:
             msg = whatsapp.queue(order, 'Hello', 'assistant', '')
         self.assertEqual((msg.status, msg.wa_id), ('SENT', 'wamid.S1'))
         self.assertEqual(req.call_args[1]['json']['to'], '8801711000000')
         self.assertEqual(order.events.get().kind, 'message_out')
+
+    @override_settings(WHATSAPP_REOPEN_TEMPLATE='order_update')
+    def test_after_24_hours_the_template_goes_first(self):
+        order = ClientOrder.objects.create(key='R', title='Rahim', phone='8801711000000')
+        sent = []
+
+        def fake_request(method, url, **kw):
+            sent.append(kw.get('json'))
+            return mock.Mock(status_code=200, content=b'1', json=lambda: {'messages': [{'id': 'wamid.%d' % len(sent)}]})
+        with mock.patch.object(whatsapp, '_request', side_effect=fake_request):
+            msg = whatsapp.queue(order, 'Your bill is ready', 'assistant', '')
+            self.assertEqual(sent[0]['type'], 'template')
+            self.assertEqual(sent[0]['template']['name'], 'order_update')
+            msg.refresh_from_db()
+            self.assertEqual((msg.status, msg.channel), ('PENDING', 'await_reply'))
+            # The client replies: the held message goes out.
+            with mock.patch('threading.Thread'):
+                self.post({'entry': [{'changes': [{'value': {'messages': [
+                    {'from': '8801711000000', 'id': 'wamid.IN', 'timestamp': '1763900000', 'type': 'text',
+                     'text': {'body': 'yes?'}}]}}]}]})
+        InboxMessage.objects.filter(wa_id='wamid.IN').update(received_at=__import__('django.utils.timezone', fromlist=['now']).now())
+        with mock.patch.object(whatsapp, '_request', side_effect=fake_request):
+            whatsapp.release_waiting('8801711000000')
+        msg.refresh_from_db()
+        self.assertEqual(msg.status, 'SENT')
+        self.assertEqual(sent[-1]['text']['body'], 'Your bill is ready')
+
+    def test_staff_reply_from_whatsapp_pauses_the_assistant(self):
+        order = ClientOrder.objects.create(key='R', title='Rahim', phone='8801711000000')
+        with mock.patch('threading.Thread'):
+            self.post({'entry': [{'changes': [{'value': {'message_echoes': [
+                {'from': '8801900000000', 'to': '8801711000000', 'id': 'wamid.E1', 'timestamp': '1763900000',
+                 'type': 'text', 'text': {'body': 'I will call you'}}]}}]}]})
+        order.refresh_from_db()
+        self.assertTrue(order.paused)
+        self.assertIn('WhatsApp app', order.events.filter(kind='message_out').get().summary)
+
+
+class SwitchTest(TestCase):
+    def test_assistant_off_uses_the_rule_reader(self):
+        from .inbox_views import run_order_engine
+        from .models import AppSetting
+        AppSetting.put('assistant_on', False)
+        with override_settings(ANTHROPIC_API_KEY='sk-ant-test'), \
+                mock.patch.object(order_agent, 'handle_new_messages') as agent, \
+                mock.patch('documents.order_engine.process_new_messages') as rules:
+            run_order_engine()
+        agent.assert_not_called()
+        rules.assert_called_once()
+
+    @override_settings(STORAGES=STATIC, ANTHROPIC_API_KEY='sk-ant-test', WHATSAPP_TOKEN='tok',
+                       WHATSAPP_PHONE_NUMBER_ID='123')
+    def test_documents_are_sent_as_pdfs_and_fingerprinted(self):
+        from . import pdf_render
+        from .models import AppSetting
+        AppSetting.put('autopilot_on', True)
+        AppSetting.put('autopilot_trusted_after', 0)
+        cat = TransactionCategory.objects.create(name='G', invoice_prefix='G')
+        order = ClientOrder.objects.create(key='R', title='R', phone='8801711000000', status='CONFIRMED',
+                                           buyer_name='R', category=cat,
+                                           items=[{'description': 'Rice', 'quantity': 1, 'unit': 'Kg', 'price': 10}])
+        from . import order_engine
+        order_engine._save_bill(order)
+        order.save()
+        store_message('notification', 'ok', 'R')
+        InboxMessage.objects.update(phone='8801711000000')
+        pdf = b'%PDF-1.4 test invoice'
+        ok = mock.Mock(status_code=200, content=b'1', json=lambda: {'id': 'media1', 'messages': [{'id': 'wamid.D'}]})
+        with mock.patch.object(pdf_render, 'render', return_value=('Invoice_G-1.pdf', pdf)), \
+                mock.patch.object(whatsapp, '_request', return_value=ok) as req:
+            out = order_agent._tool_send_documents(order, {'documents': ['invoice']})
+        self.assertEqual(out['documents']['invoice'], 'sent')
+        self.assertEqual(req.call_args[1]['json']['type'], 'document')
+        sent = order.events.get(kind='document_sent')
+        self.assertEqual(sent.data['file_sha256'], hashlib.sha256(pdf).hexdigest())
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'DELIVERED')
+
+    @override_settings(STORAGES=STATIC)
+    def test_setup_switches(self):
+        from . import app_settings
+        owner = User.objects.create_user('owner', password='pw', role='OWNER')
+        self.client.force_login(owner)
+        self.client.post('/app/setup/', {'autopilot_on': 'on', 'max_total': '20000', 'trusted_after': '1',
+                                         'quiet_start': '22', 'quiet_end': '8'})
+        self.assertFalse(app_settings.assistant_on())          # unticked = off, and stays off
+        self.assertTrue(app_settings.autopilot_on())
+        self.assertEqual((app_settings.max_total(), app_settings.trusted_after(), app_settings.quiet_hours()),
+                         (20000.0, 1, None))
 
 
 @override_settings(STORAGES=STATIC)

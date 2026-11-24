@@ -3,6 +3,7 @@
 <!doctype html>
 <html lang="en" class="h-full">
 <head>
+    <style>/* documents keep their exact size on phones (no automatic text enlarging) */ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }</style>
     <meta charset="UTF-8">
     <title>Challan - {{ transaction.challan_number|default:'Draft' }}</title>
     <script src="{% static 'js/print_engine.js' %}"></script>
@@ -40,6 +41,9 @@
             flex-direction: column;
             min-height: 95vh;
         }
+        /* While a PDF is being made, size the copies to the page, not the screen
+           (a tall phone screen made them taller than the sheet). */
+        body.pdf-capture .challan-copy { min-height: var(--pdf-page-h, 95vh); margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; margin-bottom: auto; }
         th, td { border: 1px solid var(--border-color, #1e293b); padding: 4px 6px; font-size: 10px; text-align: left; }
         th { font-weight: 700; text-align: center; letter-spacing: 0.03em; font-size: 10px; }

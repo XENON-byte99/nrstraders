@@ -579,7 +579,7 @@ def app_order_action(request, pk):
             msg.save(update_fields=['status'])
             ledger.record(order, 'owner', 'staff', 'Staff discarded a message to the %s: %s'
                           % ('staff' if msg.to_staff else 'client', msg.text), {'outgoing': msg.pk}, user=user)
-        elif msg.document:
+        elif msg.document and not (msg.file and whatsapp.is_configured() and msg.to_phone):
             return redirect_to_document(order, msg.document)
         elif action == 'approve' and whatsapp.is_configured() and msg.to_phone:
             try:
@@ -634,8 +634,8 @@ def redirect_to_document(order, doc):
 def run_assistant_later(order):
     """Let the AI assistant act on the order in the background (if it is set up)."""
     import threading
-    from . import ai_client, order_agent
-    if not ai_client.is_configured():
+    from . import ai_client, app_settings, order_agent
+    if not ai_client.is_configured() or not app_settings.assistant_on():
         return
 
     def work(pk):
@@ -709,10 +709,32 @@ def app_ai_costs(request):
 def app_setup(request):
     """Which connections are set up, and what is still a placeholder."""
     from django.conf import settings
-    from . import ai_client, whatsapp
+    from . import ai_client, app_settings, pdf_render, whatsapp
+    from .models import AppSetting
     if not _is_owner(request.user):
         messages.error(request, 'Only the owner can see the setup.')
         return redirect('app_more')
+
+    if request.method == 'POST':
+        def num(name, default, cast):
+            try:
+                return cast(request.POST.get(name, default))
+            except (TypeError, ValueError):
+                return default
+        AppSetting.put('assistant_on', request.POST.get('assistant_on') == 'on')
+        AppSetting.put('autopilot_on', request.POST.get('autopilot_on') == 'on')
+        AppSetting.put('autopilot_max_total', max(0.0, num('max_total', app_settings.max_total(), float)))
+        AppSetting.put('autopilot_trusted_after', max(0, num('trusted_after', app_settings.trusted_after(), int)))
+        AppSetting.put('pause_on_staff_reply', request.POST.get('pause_on_staff_reply') == 'on')
+        if request.POST.get('quiet_on') == 'on':
+            AppSetting.put('quiet_hours', [num('quiet_start', 22, int) % 24, num('quiet_end', 8, int) % 24])
+        else:
+            AppSetting.put('quiet_hours', [])
+        from audit.utils import log_audit
+        log_audit(request.user, 'Settings', 'Assistant %s, autopilot %s.' % (
+            'on' if app_settings.assistant_on() else 'off', 'on' if app_settings.autopilot_on() else 'off'))
+        messages.success(request, 'Saved. Changes apply straight away.')
+        return redirect('app_setup')
 
     def state(name):
         value = (getattr(settings, name, '') or '')
@@ -732,14 +754,17 @@ def app_setup(request):
          'Any phrase you choose; type the same phrase in Meta when adding the webhook.'),
         ('Your WhatsApp number', 'OWNER_WHATSAPP', state('OWNER_WHATSAPP'),
          'Where the assistant sends you questions and alerts, e.g. 8801711000000.'),
+        ('Reopening template', 'WHATSAPP_REOPEN_TEMPLATE', state('WHATSAPP_REOPEN_TEMPLATE'),
+         'Name of an approved Utility template (variables: {{1}} client name, {{2}} order or bill number). '
+         'Used automatically when more than 24 hours have passed since the client last wrote.'),
     ]
     return render(request, 'app/setup.html', {
         'tab': 'more', 'checks': checks, 'model': ai_client.model(),
         'webhook_url': request.build_absolute_uri('/api/whatsapp/webhook/'),
-        'autopilot': getattr(settings, 'AUTOPILOT_ENABLED', False),
-        'max_total': getattr(settings, 'AUTOPILOT_MAX_TOTAL', 50000),
-        'trusted_after': getattr(settings, 'AUTOPILOT_TRUSTED_AFTER', 3),
-        'quiet': getattr(settings, 'QUIET_HOURS', (22, 8)),
+        'assistant_on': app_settings.assistant_on(), 'autopilot': app_settings.autopilot_on(),
+        'max_total': app_settings.max_total(), 'trusted_after': app_settings.trusted_after(),
+        'quiet': app_settings.quiet_hours(), 'pause_on_staff_reply': app_settings.pause_on_staff_reply(),
+        'pdf_ready': pdf_render.available(),
         'ai_ready': ai_client.is_configured(), 'wa_ready': whatsapp.is_configured(),
     })
 

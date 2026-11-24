@@ -310,7 +310,7 @@
                     Paste a WhatsApp message or type freely, one item per line &mdash; e.g. <b>Rice 5 kg @ 60</b>,
                     <b>Cable clip - 12 pcs</b>, <b>Oil 2 ltr = 360</b>. The strict <b>name | qty | price</b> format works too.
                     Optional first line = category. Missing prices and units are filled from your saved products.
-                    Works without internet.
+                    Works without internet{% if ai_ready %}; anything it can't read is passed to AI automatically{% endif %}.
                 </p>
                 <textarea id="quick-bill-text" rows="4"
                           placeholder="Electrical Item&#10;1 inch Cable Clip 5 pcs&#10;08 mm Nut supply | 2 | 470&#10;LED bulb 10 pcs @ 250"
@@ -319,11 +319,6 @@
                     <button type="button" id="quick-bill-parse"
                             class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition">
                         <i class="fas fa-wand-magic-sparkles mr-1"></i> Read &amp; preview
-                    </button>
-                    <button type="button" id="quick-bill-ai"
-                            class="bg-white text-indigo-700 border border-indigo-300 px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-50 transition"
-                            title="For messy text that doesn't follow the format — e.g. a pasted WhatsApp message">
-                        <i class="fas fa-robot mr-1"></i> Messy text? Read with AI
                     </button>
                     <span id="quick-bill-status" class="text-[11px] font-semibold text-indigo-600"></span>
                 </div>
@@ -2710,7 +2705,10 @@ function applyImportRows(rows) {
         document.getElementById('quick-bill-help').classList.toggle('hidden');
     });
 
-    async function runParse(endpoint, busyLabel) {
+    // One button: the free offline reader first; AI only if that reader got
+    // stuck on something and the AI key is set (each AI call costs money).
+    const AI_READY = {{ ai_ready|yesno:"true,false" }};
+    async function runParse(endpoint, busyLabel, triedAi) {
         const ta = document.getElementById('quick-bill-text');
         const statusEl = document.getElementById('quick-bill-status');
         const text = (ta.value || '').trim();
@@ -2727,6 +2725,11 @@ function applyImportRows(rows) {
                 body: JSON.stringify({ text: text, category_id: catSel ? catSel.value : null })
             });
             const d = await r.json();
+            const stuck = !r.ok || !d.ok || (d.skipped && d.skipped.length)
+                || (d.rows || []).some(function (row) { return row.status === 'error'; });
+            if (stuck && AI_READY && !triedAi && endpoint.indexOf('ai-parse') === -1) {
+                return runParse('/api/quick-bill/ai-parse/', 'Some lines were unclear — reading with AI…', true);
+            }
             if (!r.ok || !d.ok) { statusEl.textContent = d.error || 'Could not read that.'; return; }
 
             window.__quickBillCategoryId = d.category ? d.category.id : null;
@@ -2774,10 +2777,7 @@ function applyImportRows(rows) {
     window.addEventListener('load', function () { runParse('/api/quick-bill/smart-parse/', 'Reading message…'); });
     {% endif %}
     {% endif %}
-    const aiBtn = document.getElementById('quick-bill-ai');
-    if (aiBtn) aiBtn.addEventListener('click', function () {
-        runParse('/api/quick-bill/ai-parse/', 'Asking AI…');
-    });
+
 })();
 
 // ── Inline product type-ahead: type in Description, pick, get unit + price ──

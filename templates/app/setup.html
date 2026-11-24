@@ -35,14 +35,26 @@
 </section>
 
 <section class="section">
-    <div class="section-head"><h2>Autopilot</h2></div>
-    <div class="card pad">
-        <div class="kv"><span>Send without approval</span><b>{% if autopilot %}On{% else %}Off – every message waits for you{% endif %}</b></div>
-        <div class="kv"><span>Largest bill sent automatically</span><b class="num">৳{{ max_total|floatformat:"0g" }}</b></div>
-        <div class="kv"><span>New clients approved by you for their first</span><b>{{ trusted_after }} order{{ trusted_after|pluralize }}</b></div>
-        <div class="kv"><span>Quiet hours</span><b class="num">{{ quiet.0 }}:00 – {{ quiet.1 }}:00</b></div>
-        <p class="hint">Change with AUTOPILOT_ENABLED, AUTOPILOT_MAX_TOTAL, AUTOPILOT_TRUSTED_AFTER and QUIET_HOURS in .env.</p>
-    </div>
+    <div class="section-head"><h2>Switches</h2></div>
+    <form method="post" class="card pad">
+        {% csrf_token %}
+        <style>.sw{display:flex;align-items:center;gap:12px;padding:10px 0}.sw+.sw{border-top:1px dashed var(--line)}.sw input[type=checkbox]{width:22px;height:22px;accent-color:var(--brand);flex:none}.sw b{display:block;font-size:14.5px}.sw span{font-size:12.5px;color:var(--muted);font-weight:500}</style>
+        <label class="sw"><input type="checkbox" name="assistant_on" {% if assistant_on %}checked{% endif %}><div><b>AI assistant on</b><span>Turn off any time: the assistant stops at once and orders go back to one-tap replies. It never switches itself off.</span></div></label>
+        <label class="sw"><input type="checkbox" name="autopilot_on" {% if autopilot %}checked{% endif %}><div><b>Autopilot: send without asking me</b><span>Off: every message the assistant writes waits for your approval.</span></div></label>
+        <div class="sw" style="display:block">
+            <div class="grid-2">
+                <label class="field" style="margin:0"><span>Largest bill sent automatically (Tk)</span><input class="input num" name="max_total" type="number" min="0" step="1" value="{{ max_total|floatformat:0 }}"></label>
+                <label class="field" style="margin:0"><span>New client: approve their first</span><input class="input num" name="trusted_after" type="number" min="0" value="{{ trusted_after }}"></label>
+            </div>
+        </div>
+        <label class="sw"><input type="checkbox" name="quiet_on" {% if quiet %}checked{% endif %}><div><b>Quiet hours</b><span>Off: works around the clock. On: nothing goes out automatically between these hours.</span></div></label>
+        <div class="grid-2"><label class="field" style="margin:0"><span>From (hour)</span><input class="input num" name="quiet_start" type="number" min="0" max="23" value="{{ quiet.0|default:22 }}"></label>
+            <label class="field" style="margin:0"><span>Until (hour)</span><input class="input num" name="quiet_end" type="number" min="0" max="23" value="{{ quiet.1|default:8 }}"></label></div>
+        <label class="sw"><input type="checkbox" name="pause_on_staff_reply" {% if pause_on_staff_reply %}checked{% endif %}><div><b>Step back when I reply myself</b><span>If you write to a client from the WhatsApp Business app, the assistant stops replying in that chat until you hand it back.</span></div></label>
+        <button class="btn primary block" type="submit" style="margin-top:12px">Save</button>
+    </form>
+    <p class="hint">PDF maker on the server: {% if pdf_ready %}installed – invoices, challans and mushok are sent as PDFs automatically{% else %}not installed yet – documents are sent from the phone app with one tap{% endif %}.</p>
 </section>
+
 <p class="hint">AI model: {{ model }}. Costs are on <a href="{% url 'app_ai_costs' %}" style="color:var(--brand);font-weight:800">AI costs</a>.</p>
 {% endblock %}

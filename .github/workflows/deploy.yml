@@ -57,6 +57,8 @@ jobs:
           chmod 666 db.sqlite3
           chmod 777 backups
           /var/www/nrs-software/venv/bin/pip install -r requirements.txt
+          # Headless Chromium for server-made PDFs (skipped quickly once installed)
+          /var/www/nrs-software/venv/bin/python -m playwright install --with-deps chromium || echo "PDF maker install failed; documents will be sent from the app"
           /var/www/nrs-software/venv/bin/python manage.py collectstatic --no-input
           /var/www/nrs-software/venv/bin/python manage.py migrate
           systemctl restart nrs-software || true

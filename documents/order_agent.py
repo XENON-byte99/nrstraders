@@ -165,23 +165,27 @@ TOOLS = [
 
 # ── Autopilot: what may go out without a person approving it ───────────────
 def _trusted(order):
-    needed = int(getattr(settings, 'AUTOPILOT_TRUSTED_AFTER', 3))
+    from . import app_settings
+    needed = app_settings.trusted_after()
     done = ClientOrder.objects.filter(key=order.key, status=ClientOrder.DELIVERED).count()
     return done >= needed
 
 
 def hold_reason(order, kind):
     """Why a message must wait for approval, or '' if it may go out now."""
-    if not getattr(settings, 'AUTOPILOT_ENABLED', False):
+    from . import app_settings
+    if not app_settings.autopilot_on():
         return 'Autopilot is off: every message waits for your approval.'
-    start, end = getattr(settings, 'QUIET_HOURS', (22, 8))
-    hour = timezone.localtime().hour
-    if (start > end and (hour >= start or hour < end)) or (start < end and start <= hour < end):
-        return 'Quiet hours: approve to send now, or it can wait until morning.'
+    quiet = app_settings.quiet_hours()
+    if quiet:
+        start, end = quiet
+        hour = timezone.localtime().hour
+        if (start > end and (hour >= start or hour < end)) or (start < end and start <= hour < end):
+            return 'Quiet hours: approve to send now, or it can wait until morning.'
     if not _trusted(order):
         return 'New client: their first orders wait for your approval.'
     if kind == 'bill' and order.transaction:
-        limit = float(getattr(settings, 'AUTOPILOT_MAX_TOTAL', 50000))
+        limit = app_settings.max_total()
         if float(order.transaction.grand_total) > limit:
             return 'Bill total is above your autopilot limit of Tk %s.' % '{:,.0f}'.format(limit)
     return ''
@@ -399,14 +403,23 @@ def _tool_record_confirmation(order, args):
 def _tool_send_documents(order, args):
     if order.status not in (ClientOrder.CONFIRMED, ClientOrder.DELIVERED):
         return {'error': 'Documents go out only after the client confirms.'}
-    queued = []
+    from . import pdf_render
+    results = {}
     for doc in args.get('documents') or []:
-        # PDFs are made on a phone or computer with the app; they wait in the
-        # outbox until sent from there (server-side PDF rendering: next step).
-        whatsapp.queue(order, order_engine.deliver_caption(order, doc), 'assistant',
-                       'Documents are sent from the app.', document=doc)
-        queued.append(doc)
-    return {'status': 'queued', 'documents': queued}
+        caption = order_engine.deliver_caption(order, doc)
+        try:
+            pdf = pdf_render.render(order.transaction, doc)       # the same PDF as "Download PDF"
+        except pdf_render.RenderError as exc:
+            whatsapp.queue(order, caption, 'assistant', 'Make the PDF from the app: %s' % exc, document=doc)
+            results[doc] = 'waiting: PDF to be sent from the app'
+            continue
+        msg = whatsapp.queue(order, caption, 'assistant', hold_reason(order, 'document'), document=doc, pdf=pdf)
+        results[doc] = 'sent' if msg.status == OutgoingMessage.SENT else 'waiting for staff approval'
+        if msg.status == OutgoingMessage.SENT and doc == 'invoice':
+            order.status = ClientOrder.DELIVERED
+            order.delivered = list(set(order.delivered + [doc]))
+            order.save()
+    return {'documents': results}
 
 
 def _tool_hand_over(order, args):

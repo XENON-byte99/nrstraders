@@ -167,7 +167,8 @@ def run_order_engine():
     from . import ai_client, order_agent, order_engine
     try:
         route_staff_replies()
-        if ai_client.is_configured():
+        from . import app_settings
+        if ai_client.is_configured() and app_settings.assistant_on():
             return order_agent.handle_new_messages()
         return order_engine.process_new_messages()
     except Exception:                       # never let a bad message break the inbox

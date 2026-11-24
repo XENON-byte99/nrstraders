@@ -3,7 +3,8 @@ from accounts.models import User
 
 def debug_mode(request):
     """Expose settings.DEBUG to all templates (e.g. to hide demo credentials in production)."""
-    return {'debug_mode': settings.DEBUG}
+    from . import ai_client
+    return {'debug_mode': settings.DEBUG, 'ai_ready': ai_client.is_configured()}
 
 def whatsapp_contacts(request):
     """Provides default WhatsApp numbers for various roles globally."""
