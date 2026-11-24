@@ -80,16 +80,20 @@ final class Updater {
         }
     }
 
-    /** The user left the app: a good moment for a silent update. */
-    static void onAppLeft(Activity activity) {
-        if (autoInstall(activity) && canInstallSilently(activity) && readyFile(activity).isFile()) {
-            installReadyUpdate(activity);
-        }
+    /** True if a downloaded update is waiting to be installed. */
+    static boolean hasReadyUpdate(Context c) {
+        File ready = readyFile(c);
+        if (!ready.isFile()) return false;
+        PackageInfo pkg = c.getPackageManager().getPackageArchiveInfo(ready.getAbsolutePath(), 0);
+        @SuppressWarnings("deprecation") long code = pkg == null ? 0
+                : (Build.VERSION.SDK_INT >= 28 ? pkg.getLongVersionCode() : pkg.versionCode);
+        return code > BuildConfig.VERSION_CODE;
     }
 
-    /** Called when the app opens: install a waiting update, else check for one. */
+    /** Called once the app is open: check for a newer version (the install itself
+     *  happens at the next start, see MainActivity). Android only lets an app
+     *  install its own update while it is on screen. */
     static void onAppOpened(Activity activity) {
-        if (autoInstall(activity) && !canInstallSilently(activity) && installReadyUpdate(activity)) return;
         long last = prefs(activity).getLong("update_checked", 0);
         if (System.currentTimeMillis() - last < AUTO_CHECK_EVERY_MS) return;
         check(activity, false);
@@ -210,8 +214,7 @@ final class Updater {
                 if (installNow) {
                     installReadyUpdate(activity);
                 } else {
-                    Toast.makeText(activity, canInstallSilently(activity) ? R.string.update_ready_on_leave
-                            : R.string.update_ready_next_open, Toast.LENGTH_LONG).show();
+                    Toast.makeText(activity, R.string.update_ready_next_open, Toast.LENGTH_LONG).show();
                 }
             });
         }, "nrs-update-download").start();

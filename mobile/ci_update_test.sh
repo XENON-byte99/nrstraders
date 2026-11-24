@@ -55,13 +55,20 @@ done
 wait_for_version 101
 echo "PASS  first update installed (version 101, confirmation shown: $confirmed)"
 
-# 3. From now on the app is its own installer: leaving the app updates it silently.
+# 3. A later update: downloaded while the app was used, installed at the next start.
 adb shell am start -W -n $PKG/.MainActivity
 sleep 8
 put_waiting_update $APKS/app-102.apk
-adb shell input keyevent KEYCODE_HOME
+adb shell am force-stop $PKG
+adb shell am start -n $PKG/.MainActivity
+for _ in $(seq 1 30); do
+    [ "$(version)" = "102" ] && break
+    tap_text "Update|Install|UPDATE|INSTALL" 2>/dev/null && echo "NOTE  Android asked for confirmation" && break
+done
 wait_for_version 102
-adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-if adb shell cat /sdcard/ui.xml | grep -qiE 'text="(Update|Install)"'; then echo "FAIL  an install screen appeared"; exit 1; fi
-echo "PASS  second update installed silently when the app was left (version 102)"
+echo "PASS  next update installed when the app was opened (version 102)"
+# 4. The updated app starts normally with its data intact.
+adb shell am start -W -n $PKG/.MainActivity
+sleep 10
+adb shell "run-as $PKG ls files/data/db.sqlite3" >/dev/null && echo "PASS  app data kept across updates"
 echo "UPDATE TEST PASSED"

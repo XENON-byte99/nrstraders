@@ -97,6 +97,11 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         buildLayout();
         configureWebView();
         handleIncoming(getIntent());
+        // A downloaded update is installed first, before any work starts.
+        if (Updater.autoInstall(this) && Updater.hasReadyUpdate(this)) {
+            loadingText.setText(R.string.update_installing);
+            if (Updater.installReadyUpdate(this)) return;
+        }
         NrsApp.ensureServer(this, this);
     }
 
@@ -114,11 +119,7 @@ public class MainActivity extends Activity implements NrsApp.ServerListener {
         CookieManager.getInstance().flush();
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (!isChangingConfigurations()) Updater.onAppLeft(this);
-    }
+
 
     @Override
     protected void onDestroy() {
